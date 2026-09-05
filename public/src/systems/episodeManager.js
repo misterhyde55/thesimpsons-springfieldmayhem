@@ -2,7 +2,7 @@ import { getImplementedModifiers, generateEpisodeTitle } from '../data/episodes.
 import { getJourney } from '../data/journeys.js';
 import { pickRandom } from '../engine/collision.js';
 
-// Picks the run's episode modifier (Alien Invasion, ...) and title. The
+// Picks the run's horror scenario (Zombie Springfield, ...) and title. The
 // journey/board itself comes from systems/board.js + data/journeys.js.
 export function generateEpisode(character) {
   const modifier = pickRandom(getImplementedModifiers());
@@ -14,6 +14,5 @@ export function generateEpisode(character) {
     title: generateEpisodeTitle(character.name),
     characterId: character.id,
     objective: journey.objective,
-    twistTriggered: false,
   };
 }

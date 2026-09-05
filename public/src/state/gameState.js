@@ -1,9 +1,10 @@
 import { CHARACTERS } from '../data/characters.js';
 import { ITEMS } from '../data/items.js';
-import { UPGRADES } from '../data/upgrades.js';
+import { ABILITIES, STARTER_ABILITY_IDS } from '../data/abilities.js';
+import { RELICS } from '../data/relics.js';
 
-const META_KEY = 'springfieldMayhem.meta.v2';
-const ACTIVE_RUN_KEY = 'springfieldMayhem.activeRun.v1';
+const META_KEY = 'springfieldMayhem.meta.v3';
+const ACTIVE_RUN_KEY = 'springfieldMayhem.activeRun.v2';
 
 // --- Meta (persists across runs forever) -----------------------------------
 export function loadMeta() {
@@ -39,8 +40,10 @@ export function saveMeta(meta) {
   }
 }
 
+// Abilities beyond the starter 3 count as "discoverable", same as relics
+// and shop consumables -- used for the Collection screen's X/Y readout.
 export function totalDiscoverableItemCount() {
-  return Object.keys(ITEMS).length - 1 + Object.keys(UPGRADES).length; // -1 excludes the plain donut
+  return Object.keys(ITEMS).length + Object.keys(RELICS).length + (Object.keys(ABILITIES).length - STARTER_ABILITY_IDS.length);
 }
 
 export function recordDiscoveries(meta, ids) {
@@ -75,9 +78,9 @@ function legacyPointsForResult(result) {
 }
 
 function trophyForResult(result) {
-  if (result.victory && result.modifier === 'alienInvasion') return '👽';
-  if (result.stats.donutsEaten >= 8) return '🍩';
-  if (result.stats.enemiesDefeated >= 40) return '💥';
+  if (result.victory && result.modifier === 'zombieOutbreak') return '🧟';
+  if (result.stats.peakMayhem >= 100) return '☠️';
+  if (result.stats.enemiesDefeated >= 15) return '💥';
   if (!result.victory) return '🦴';
   return null;
 }
@@ -88,39 +91,19 @@ export function createRunState(character) {
     character,
     hp: character.maxHp,
     maxHp: character.maxHp,
-    weaponId: character.startingWeapon,
-    buffs: {
-      damageMult: 0,
-      accuracy: 0,
-      speedMult: 0,
-      fireAura: 0,
-      blinky: false,
-      sugarRushOverdrive: false,
-      nuclearBowlingBall: false,
-      drunkenInferno: false,
-      radiationChance: 0,
-      donutArmorUpgrade: false,
-      duffRageUpgrade: false,
-      bowlingNightUpgrade: false,
-    },
-    timedBuffs: [],
-    armorShield: 0,
-    ownedItemIds: new Set(),
-    ownedTags: new Set(),
-    synergiesUnlocked: new Set(),
-    upgradesChosen: new Set(),
+    abilityDeck: [...STARTER_ABILITY_IDS],
+    relics: [],
+    mayhem: 0,
     donutsCurrency: 0,
     stats: {
       enemiesDefeated: 0,
-      donutsEaten: 0,
-      donutsSaved: 0,
-      townDestruction: 0,
-      peoplePissedOff: 0,
-      arrests: 0,
+      elitesDefeated: 0,
+      peakMayhem: 0,
     },
     relationships: {
       moe: 'neutral',
       flanders: 'neutral',
+      apu: 'neutral',
     },
     episode: null,
     boardPosition: null,
@@ -133,11 +116,6 @@ export function serializeRunState(runState) {
     ...runState,
     character: undefined,
     characterId: runState.character.id,
-    timedBuffs: [],
-    ownedItemIds: Array.from(runState.ownedItemIds),
-    ownedTags: Array.from(runState.ownedTags),
-    synergiesUnlocked: Array.from(runState.synergiesUnlocked),
-    upgradesChosen: Array.from(runState.upgradesChosen),
     completedNodeIds: Array.from(runState.completedNodeIds),
   };
 }
@@ -146,11 +124,6 @@ export function deserializeRunState(obj) {
   return {
     ...obj,
     character: CHARACTERS[obj.characterId],
-    timedBuffs: [],
-    ownedItemIds: new Set(obj.ownedItemIds),
-    ownedTags: new Set(obj.ownedTags),
-    synergiesUnlocked: new Set(obj.synergiesUnlocked),
-    upgradesChosen: new Set(obj.upgradesChosen),
     completedNodeIds: new Set(obj.completedNodeIds),
   };
 }

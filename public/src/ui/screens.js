@@ -1,8 +1,10 @@
 import { getAssetUrl } from '../data/assets.js';
 import { getPortraitUrl } from '../data/characterRegistry.js';
-import { RARITY_COLOR } from '../data/upgrades.js';
+import { RARITY_COLOR, ABILITIES } from '../data/abilities.js';
+import { RELICS } from '../data/relics.js';
+import { STATUS_INFO } from '../data/statusEffects.js';
 import { ITEMS } from '../data/items.js';
-import { UPGRADES } from '../data/upgrades.js';
+import { getPlayableAbilities, canPlayAbility, abilityCost } from '../systems/battleEngine.js';
 import { MenuNav } from './menuNav.js';
 
 const SCREEN_IDS = [
@@ -16,8 +18,9 @@ const SCREEN_IDS = [
   'screen-simpson-house',
   'screen-board',
   'screen-breaking-news',
-  'screen-arena',
-  'screen-level-complete',
+  'screen-boss-intro',
+  'screen-battle',
+  'screen-ability-draft',
   'screen-event',
   'screen-rest',
   'screen-run-complete',
@@ -182,10 +185,7 @@ export function populateSeasonsInfo(meta, onBack) {
 export function populateCollectionInfo(meta, onBack) {
   const discovered = new Set(meta.itemsDiscoveredIds);
   const container = $('collection-info-grid');
-  const entries = [
-    ...Object.values(ITEMS).filter((i) => i.id !== 'donut'),
-    ...Object.values(UPGRADES),
-  ];
+  const entries = [...Object.values(ITEMS), ...Object.values(RELICS), ...Object.values(ABILITIES)];
   container.innerHTML = entries
     .map((entry) => {
       const found = discovered.has(entry.id);
@@ -204,11 +204,10 @@ export function bindSettings(onReset, onBack) {
 }
 
 // ---------- BOARD ----------
-export function populateBoardInfo(episode, node) {
+export function populateBoardInfo(episode, node, mayhem) {
   $('board-episode-title').textContent = `"${episode.title}"`;
-  $('board-episode-modifier').textContent = episode.modifierName === 'Alien Invasion' && episode.twistTriggered
-    ? '👽 ALIEN INVASION UNDERWAY'
-    : episode.modifierName;
+  $('board-episode-modifier').textContent = episode.modifierName;
+  $('board-mayhem-readout').textContent = `☠️ MAYHEM: ${mayhem}%`;
   $('board-node-hint').textContent = node ? `Next up: ${node.name} (${node.type})` : 'Choose your next destination.';
 }
 
@@ -216,34 +215,159 @@ export function populateBreakingNews(newsText) {
   $('news-text').textContent = newsText;
 }
 
-// ---------- ARENA HUD (combat / miniBoss / boss nodes) ----------
-export function updateHud(runState, weapon, locationName) {
-  const portraitEl = $('hud-portrait');
-  const portraitUrl = getAssetUrl('characters', runState.character.id);
-  if (portraitEl.dataset.characterId !== runState.character.id) {
-    portraitEl.dataset.characterId = runState.character.id;
-    if (portraitUrl) {
-      portraitEl.src = portraitUrl;
-      portraitEl.alt = runState.character.name;
-      portraitEl.classList.remove('hidden');
-    } else {
-      portraitEl.classList.add('hidden');
-    }
+// ---------- BOSS INTRO ----------
+export function populateBossIntro(boss, onStart) {
+  const portraitUrl = getAssetUrl('bosses', boss.id);
+  const portraitEl = $('boss-intro-portrait');
+  if (portraitUrl) {
+    portraitEl.src = portraitUrl;
+    portraitEl.classList.remove('hidden');
+  } else {
+    portraitEl.classList.add('hidden');
   }
-  $('hud-location').textContent = locationName;
-  const pct = Math.max(0, runState.hp / runState.maxHp) * 100;
-  $('hud-hp-bar').style.width = `${pct}%`;
-  $('hud-hp-bar').style.background = pct < 30 ? '#d0021b' : '#3ec24c';
-  $('hud-hp-text').textContent = `${Math.max(0, Math.round(runState.hp))} / ${runState.maxHp}`;
-  $('hud-donuts').textContent = `\u{1F369} x${runState.donutsCurrency}`;
-  $('hud-weapon').textContent = `Weapon: ${weapon.name}`;
-  const buffIcons = [];
-  if (runState.buffs.damageMult > 0) buffIcons.push('\u{1F37A}');
-  if (runState.buffs.speedMult > 0) buffIcons.push('\u{1F944}');
-  if (runState.buffs.fireAura > 0) buffIcons.push('\u{1F525}');
-  if (runState.buffs.blinky) buffIcons.push('\u{1F41F}');
-  if (runState.armorShield > 0) buffIcons.push('\u{1F6E1}\u{FE0F}');
-  $('hud-buffs').textContent = buffIcons.join(' ');
+  $('boss-intro-name').textContent = boss.name.toUpperCase();
+  $('boss-intro-subtitle').textContent = `"${boss.subtitle}"`;
+  $('boss-intro-line').textContent = boss.intro;
+  const content = freshButton('boss-intro-content');
+  content.addEventListener('click', onStart);
+}
+
+// ---------- BATTLE ----------
+function resolveEnemyPortrait(templateId) {
+  return getAssetUrl('bosses', templateId) || getAssetUrl('characters', templateId) || null;
+}
+
+function statusPipsHtml(statuses) {
+  return Object.entries(statuses)
+    .filter(([, v]) => v > 0)
+    .map(([id, v]) => {
+      const info = STATUS_INFO[id];
+      return `<span class="status-pip" style="color:${info.color}" title="${info.name}: ${info.description}">${info.icon}${v}</span>`;
+    })
+    .join('');
+}
+
+export function populateBattle(battle, runState, handlers) {
+  const bg = getAssetUrl('buildings', battle.locationId);
+  $('screen-battle').style.backgroundImage = bg ? `url('${bg}')` : 'none';
+
+  const playerPortrait = getAssetUrl('characters', runState.character.id);
+  const pImg = $('battle-player-portrait');
+  if (playerPortrait) {
+    pImg.src = playerPortrait;
+    pImg.classList.remove('hidden');
+  } else {
+    pImg.classList.add('hidden');
+  }
+  $('battle-player-name').textContent = runState.character.name.toUpperCase();
+
+  const enemiesContainer = $('battle-enemies');
+  enemiesContainer.innerHTML = '';
+  for (const enemy of battle.enemies) {
+    const slot = document.createElement('div');
+    slot.className = 'enemy-slot';
+    slot.dataset.enemyId = enemy.instanceId;
+    const portraitUrl = resolveEnemyPortrait(enemy.templateId);
+    slot.innerHTML = `
+      <div class="enemy-intent"></div>
+      ${portraitUrl ? `<img class="battle-portrait enemy-portrait" src="${portraitUrl}" alt="" />` : `<div class="battle-portrait-fallback">${enemy.emoji}</div>`}
+      <div class="battle-name">${enemy.name}</div>
+      <div class="hp-bar-outer"><div class="hp-bar-inner"></div></div>
+      <div class="hp-text"></div>
+      <div class="status-row"></div>
+    `;
+    slot.addEventListener('click', () => handlers.onTargetEnemy(enemy.instanceId));
+    enemiesContainer.appendChild(slot);
+  }
+
+  const abilitiesContainer = $('battle-abilities');
+  abilitiesContainer.innerHTML = '';
+  for (const ability of getPlayableAbilities(runState)) {
+    const btn = document.createElement('button');
+    btn.className = 'ability-btn';
+    btn.dataset.abilityId = ability.id;
+    btn.innerHTML = `
+      <span class="ability-cost"></span>
+      <span class="ability-emoji">${ability.emoji}</span>
+      <span class="ability-name">${ability.name}</span>
+      <span class="ability-desc">${ability.description}</span>
+    `;
+    btn.addEventListener('click', () => handlers.onAbilityClick(ability.id));
+    abilitiesContainer.appendChild(btn);
+  }
+  freshButton('btn-battle-end-turn').addEventListener('click', () => handlers.onEndTurn());
+
+  renderBattle(battle, runState);
+}
+
+// Re-renders the live parts of the battle screen (HP/energy/statuses/
+// intents/ability affordability). Called after every action.
+export function renderBattle(battle, runState) {
+  const p = battle.player;
+  $('battle-player-hp-bar').style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
+  $('battle-player-hp-bar').style.background = p.hp / p.maxHp < 0.3 ? '#d0021b' : '#3ec24c';
+  $('battle-player-hp-text').textContent = `${Math.max(0, Math.round(p.hp))} / ${p.maxHp}`;
+  $('battle-player-statuses').innerHTML = statusPipsHtml(p.statuses);
+  $('battle-energy-readout').textContent = `⚡ ${p.energy} / ${p.maxEnergy}`;
+  $('battle-mayhem-readout').textContent = `☠️ MAYHEM: ${runState.mayhem}%`;
+
+  for (const enemy of battle.enemies) {
+    const slot = document.querySelector(`.enemy-slot[data-enemy-id="${enemy.instanceId}"]`);
+    if (!slot) continue;
+    const dead = enemy.hp <= 0;
+    slot.classList.toggle('dead', dead);
+    slot.querySelector('.hp-bar-inner').style.width = `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%`;
+    slot.querySelector('.hp-text').textContent = `${Math.max(0, Math.round(enemy.hp))} / ${enemy.maxHp}`;
+    slot.querySelector('.status-row').innerHTML = statusPipsHtml(enemy.statuses);
+    const intentEl = slot.querySelector('.enemy-intent');
+    intentEl.textContent = !dead && enemy.intent ? `${enemy.intent.icon} ${enemy.intent.label}` : '';
+  }
+
+  const abilitiesContainer = $('battle-abilities');
+  const targetingAbilityId = abilitiesContainer.dataset.targetingAbilityId || '';
+  [...abilitiesContainer.children].forEach((btn) => {
+    const ability = ABILITIES[btn.dataset.abilityId];
+    btn.querySelector('.ability-cost').textContent = `⚡${abilityCost(battle, runState, ability)}`;
+    btn.disabled = battle.outcome !== null || !canPlayAbility(battle, runState, ability.id);
+    btn.classList.toggle('targeting', ability.id === targetingAbilityId);
+  });
+  $('battle-enemies').classList.toggle('targeting-mode', !!targetingAbilityId);
+}
+
+export function setBattleTargetingAbility(abilityId) {
+  $('battle-abilities').dataset.targetingAbilityId = abilityId || '';
+}
+
+export function showFloatingNumber(enemyInstanceId, text, kind) {
+  const container = enemyInstanceId ? document.querySelector(`.enemy-slot[data-enemy-id="${enemyInstanceId}"]`) : $('battle-side-player');
+  if (!container) return;
+  const el = document.createElement('div');
+  el.className = `floating-number floating-${kind}`;
+  el.textContent = text;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 900);
+}
+
+export function shakeBattleStage() {
+  const stage = document.querySelector('.battle-stage');
+  if (!stage) return;
+  stage.classList.remove('shake');
+  // Force reflow so re-adding the class restarts the animation.
+  void stage.offsetWidth;
+  stage.classList.add('shake');
+}
+
+export function appendBattleLog(text) {
+  const log = $('battle-log');
+  const line = document.createElement('div');
+  line.textContent = text;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+  while (log.children.length > 6) log.removeChild(log.firstChild);
+}
+
+export function clearBattleLog() {
+  $('battle-log').innerHTML = '';
 }
 
 let bannerTimer = null;
@@ -273,19 +397,7 @@ export function showNpcBanner(characterId, text, ms = 2200) {
   bannerTimer = setTimeout(() => el.classList.add('hidden'), ms);
 }
 
-export function showDonutModal(onEat, onSave) {
-  const modal = $('donut-modal');
-  modal.classList.remove('hidden');
-  freshButton('btn-donut-eat').addEventListener('click', () => {
-    modal.classList.add('hidden');
-    onEat();
-  });
-  freshButton('btn-donut-save').addEventListener('click', () => {
-    modal.classList.add('hidden');
-    onSave();
-  });
-}
-
+// ---------- SHOP ----------
 export function showShopModal(catalog, shopFlavor, onBuy, onLeave) {
   const modal = $('shop-modal');
   $('shop-text').textContent = shopFlavor;
@@ -295,7 +407,8 @@ export function showShopModal(catalog, shopFlavor, onBuy, onLeave) {
     const btn = document.createElement('button');
     btn.className = 'shop-item-btn';
     btn.disabled = !entry.affordable;
-    btn.textContent = `${entry.item.emoji} ${entry.item.name} — ${entry.cost} \u{1F369}`;
+    const tag = entry.kind === 'relic' ? ' (Relic)' : '';
+    btn.innerHTML = `<strong>${entry.item.emoji} ${entry.item.name}${tag} — ${entry.cost} \u{1F369}</strong><br><small>${entry.item.description}</small>`;
     btn.addEventListener('click', () => onBuy(entry));
     list.appendChild(btn);
   }
@@ -310,46 +423,45 @@ export function hideShopModal() {
   $('shop-modal').classList.add('hidden');
 }
 
-// ---------- LEVEL COMPLETE / UPGRADE CHOICE ----------
-export function populateLevelComplete(summary, upgrades, onPick, options = {}) {
+// ---------- ABILITY DRAFT (post-battle reward) ----------
+export function populateAbilityDraft(summary, abilities, onPick, options = {}) {
   const milestone = !!options.milestone;
-  $('level-complete-heading').textContent = milestone ? '\u{1F31F} NEW SKILL UNLOCKED \u{1F31F}' : 'LEVEL COMPLETE';
-  $('level-complete-location').textContent = summary.locationName;
-  $('level-complete-stats').innerHTML = `
-    <li><span>Enemies Defeated</span><span>${summary.enemiesDefeated}</span></li>
-    <li><span>Damage Taken</span><span>${summary.damageTaken}</span></li>
-    <li><span>Donuts Collected</span><span>${summary.donutsCollected}</span></li>
+  $('ability-draft-heading').textContent = milestone ? '\u{1F31F} NEW ABILITY UNLOCKED \u{1F31F}' : 'VICTORY';
+  $('ability-draft-location').textContent = summary.locationName;
+  $('ability-draft-stats').innerHTML = `
+    <li><span>HP Remaining</span><span>${Math.round(summary.hpRemaining)} / ${summary.maxHp}</span></li>
+    <li><span>Mayhem</span><span>${summary.mayhem}%</span></li>
   `;
-  $('upgrade-choice-prompt').textContent = milestone
-    ? "This is a defining moment in the story. The skill is yours."
-    : 'Choose one upgrade:';
-  const container = $('upgrade-choices');
+  $('ability-draft-prompt').textContent = milestone
+    ? 'This is a defining moment in the story. The ability is yours.'
+    : 'Choose one new ability:';
+  const container = $('ability-draft-choices');
   container.innerHTML = '';
   container.classList.toggle('milestone-reveal', milestone);
-  if (upgrades.length === 0) {
-    container.innerHTML = '<p class="flavor">No new upgrades available. Onward!</p>';
+  if (abilities.length === 0) {
+    container.innerHTML = '<p class="flavor">No new abilities available. Onward!</p>';
   }
-  for (const upgrade of upgrades) {
+  for (const ability of abilities) {
     const card = document.createElement('div');
     card.className = 'upgrade-card' + (milestone ? ' upgrade-card-milestone' : '');
-    card.style.borderColor = RARITY_COLOR[upgrade.rarity];
+    card.style.borderColor = RARITY_COLOR[ability.rarity];
     card.innerHTML = `
-      <div class="upgrade-rarity" style="color:${RARITY_COLOR[upgrade.rarity]}">${upgrade.rarity.toUpperCase()}</div>
-      <div class="emoji">${upgrade.emoji}</div>
-      <div class="upgrade-name">${upgrade.name}</div>
-      <div class="upgrade-desc">${upgrade.description}</div>
+      <div class="upgrade-rarity" style="color:${RARITY_COLOR[ability.rarity]}">${ability.rarity.toUpperCase()} · ⚡${ability.cost}</div>
+      <div class="emoji">${ability.emoji}</div>
+      <div class="upgrade-name">${ability.name}</div>
+      <div class="upgrade-desc">${ability.description}</div>
     `;
-    if (!milestone) card.addEventListener('click', () => onPick(upgrade));
+    if (!milestone) card.addEventListener('click', () => onPick(ability));
     container.appendChild(card);
   }
-  const skipBtn = freshButton('btn-upgrade-skip');
+  const skipBtn = freshButton('btn-ability-draft-skip');
   if (milestone) {
     skipBtn.textContent = 'CONTINUE';
     skipBtn.classList.remove('hidden');
-    skipBtn.addEventListener('click', () => onPick(upgrades[0]));
+    skipBtn.addEventListener('click', () => onPick(abilities[0]));
   } else {
     skipBtn.textContent = 'SKIP';
-    skipBtn.classList.toggle('hidden', upgrades.length === 0);
+    skipBtn.classList.toggle('hidden', abilities.length === 0);
     skipBtn.addEventListener('click', () => onPick(null));
   }
 }
@@ -376,10 +488,10 @@ export function populateEvent(event, onChoose) {
     btn.textContent = option.label;
     btn.addEventListener('click', () => {
       container.classList.add('hidden');
-      $('event-result').textContent = option.resultText;
+      const resultText = onChoose(option);
+      $('event-result').textContent = resultText || option.resultText || '';
       $('event-result').classList.remove('hidden');
       $('btn-event-continue').classList.remove('hidden');
-      onChoose(option);
     });
     container.appendChild(btn);
   }
@@ -390,10 +502,10 @@ export function showEventContinue(onContinue) {
 }
 
 // ---------- REST NODE ----------
-export function populateRest(node, onHeal, onUpgrade, onTalk) {
+export function populateRest(node, onHeal, onLearnAbility, onTalk) {
   $('rest-location').textContent = node.name;
   freshButton('btn-rest-heal').addEventListener('click', onHeal);
-  freshButton('btn-rest-upgrade').addEventListener('click', onUpgrade);
+  freshButton('btn-rest-upgrade').addEventListener('click', onLearnAbility);
   freshButton('btn-rest-talk').addEventListener('click', onTalk);
 }
 
@@ -402,13 +514,13 @@ export function setRestFlavor(text) {
 }
 
 // ---------- RUN END ----------
-function statsListHtml(stats) {
+function statsListHtml(result) {
   return `
-    <li><span>Town Destruction</span><span>${stats.townDestruction}%</span></li>
-    <li><span>Enemies Defeated</span><span>${stats.enemiesDefeated}</span></li>
-    <li><span>People Pissed Off</span><span>${stats.peoplePissedOff}</span></li>
-    <li><span>Arrests</span><span>${stats.arrests}</span></li>
-    <li><span>Donuts Eaten</span><span>${stats.donutsEaten}</span></li>
+    <li><span>Enemies Defeated</span><span>${result.stats.enemiesDefeated}</span></li>
+    <li><span>Elites Defeated</span><span>${result.stats.elitesDefeated}</span></li>
+    <li><span>Peak Mayhem</span><span>${result.stats.peakMayhem}%</span></li>
+    <li><span>Abilities Learned</span><span>${result.abilitiesLearned}</span></li>
+    <li><span>Relics Collected</span><span>${result.relicsCollected}</span></li>
   `;
 }
 
@@ -416,7 +528,7 @@ export function populateRunComplete(meta, result, onReturnHome) {
   $('run-complete-header').textContent = `SEASON ${result.season} · EPISODE ${result.episodeNum}`;
   $('run-complete-title').textContent = `"${result.title}"`;
   $('run-complete-sub').textContent = `${result.character} · ${result.modifierName}`;
-  $('run-complete-stats').innerHTML = statsListHtml(result.stats);
+  $('run-complete-stats').innerHTML = statsListHtml(result);
   $('run-complete-rating').textContent = '★'.repeat(result.rating) + '☆'.repeat(5 - result.rating);
   $('run-complete-legacy').textContent = `+${result.legacyPointsEarned} Legacy Points`;
   updateMetaReadout(meta);
@@ -426,7 +538,7 @@ export function populateRunComplete(meta, result, onReturnHome) {
 export function populateRunFailure(meta, result, onReturnHome) {
   $('run-failure-character').textContent = result.character;
   $('run-failure-node').textContent = result.lastLocationName;
-  $('run-failure-stats').innerHTML = statsListHtml(result.stats);
+  $('run-failure-stats').innerHTML = statsListHtml(result);
   $('run-failure-legacy').textContent = `+${result.legacyPointsEarned} Legacy Points`;
   updateMetaReadout(meta);
   freshButton('btn-run-failure-home').addEventListener('click', onReturnHome);

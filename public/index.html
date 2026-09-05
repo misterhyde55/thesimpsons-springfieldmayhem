@@ -104,12 +104,13 @@
     <div class="board-header">
       <div id="board-episode-title">"Episode Title"</div>
       <div id="board-episode-modifier">Normal Springfield</div>
+      <div id="board-mayhem-readout" class="mayhem-readout">☠️ MAYHEM: 0%</div>
     </div>
     <canvas id="boardCanvas" width="900" height="600"></canvas>
     <p id="board-node-hint" class="hint">Choose your next destination.</p>
   </section>
 
-  <!-- ================= BREAKING NEWS ================= -->
+  <!-- ================= BREAKING NEWS (horror scenario reveal) ================= -->
   <section id="screen-breaking-news" class="screen hidden">
     <div class="news-flash">
       <div class="news-banner">BREAKING NEWS</div>
@@ -118,37 +119,45 @@
     <button id="btn-news-continue" class="big-button">CONTINUE</button>
   </section>
 
-  <!-- ================= ARENA (combat / miniBoss / boss nodes) ================= -->
-  <section id="screen-arena" class="screen">
-    <div id="arena-hud">
-      <div class="hud-left">
-        <img id="hud-portrait" class="hud-portrait hidden" alt="" />
-        <div class="hud-left-info">
-          <div id="hud-location">Location</div>
-          <div class="hp-bar-outer"><div id="hud-hp-bar" class="hp-bar-inner"></div></div>
-          <div id="hud-hp-text">150 / 150</div>
-        </div>
-      </div>
-      <div class="hud-right">
-        <div id="hud-donuts">🍩 x0</div>
-        <div id="hud-weapon">Weapon: Fists</div>
-        <div id="hud-buffs"></div>
-      </div>
+  <!-- ================= BOSS INTRO ================= -->
+  <section id="screen-boss-intro" class="screen boss-intro-screen">
+    <div id="boss-intro-content" class="boss-intro-content">
+      <img id="boss-intro-portrait" class="boss-intro-portrait hidden" alt="" />
+      <div id="boss-intro-name" class="boss-intro-name">BOSS NAME</div>
+      <div id="boss-intro-subtitle" class="boss-intro-subtitle">"SUBTITLE"</div>
+      <div class="boss-intro-tag">☠ BOSS</div>
+      <p id="boss-intro-line" class="boss-intro-line">"..."</p>
+      <div class="console-press-enter">PRESS ENTER</div>
     </div>
-    <canvas id="gameCanvas" width="900" height="520"></canvas>
-    <div id="banner-text" class="hidden"></div>
   </section>
+
+  <!-- ================= BATTLE (turn-based combat / elite / boss nodes) ================= -->
+  <section id="screen-battle" class="screen battle-screen">
+    <div id="battle-mayhem-readout" class="mayhem-readout">☠️ MAYHEM: 0%</div>
+    <div class="battle-stage">
+      <div id="battle-side-player" class="battle-side battle-side-player">
+        <img id="battle-player-portrait" class="battle-portrait hidden" alt="" />
+        <div id="battle-player-name" class="battle-name">HOMER</div>
+        <div class="hp-bar-outer"><div id="battle-player-hp-bar" class="hp-bar-inner"></div></div>
+        <div id="battle-player-hp-text" class="hp-text">150 / 150</div>
+        <div id="battle-player-statuses" class="status-row"></div>
+        <div id="battle-energy-readout" class="energy-readout">⚡ 3 / 3</div>
+      </div>
+      <div class="battle-vs">VS</div>
+      <div id="battle-enemies" class="battle-side battle-side-enemies"></div>
+    </div>
+    <div id="battle-log" class="battle-log"></div>
+    <div id="battle-abilities" class="battle-abilities"></div>
+    <button id="btn-battle-end-turn" class="menu-link-button">END TURN</button>
+  </section>
+
+  <!-- Floating toast for shop pickups / NPC lines / relationship shifts --
+       lives outside any .screen section so it can overlay whichever one is
+       active (board, battle, ...). -->
+  <div id="banner-text" class="hidden"></div>
 
   <!-- Modals: overlay whatever screen is active, so they live outside any
        .screen section that showScreen() might hide out from under them. -->
-  <div id="donut-modal" class="modal hidden">
-    <div class="modal-box">
-      <p>You found a donut.</p>
-      <button id="btn-donut-eat">EAT (+25 HP)</button>
-      <button id="btn-donut-save">SAVE (+1 Donut Currency)</button>
-    </div>
-  </div>
-
   <div id="shop-modal" class="modal hidden">
     <div class="modal-box">
       <p>Apu's Kwik-E-Mart</p>
@@ -158,14 +167,14 @@
     </div>
   </div>
 
-  <!-- ================= LEVEL COMPLETE / UPGRADE CHOICE ================= -->
-  <section id="screen-level-complete" class="screen">
-    <h1 id="level-complete-heading">LEVEL COMPLETE</h1>
-    <h2 id="level-complete-location">Location</h2>
-    <ul id="level-complete-stats" class="stat-list"></ul>
-    <p id="upgrade-choice-prompt" class="flavor">Choose one upgrade:</p>
-    <div id="upgrade-choices" class="upgrade-grid"></div>
-    <button id="btn-upgrade-skip" class="menu-link-button">SKIP</button>
+  <!-- ================= ABILITY DRAFT (post-battle reward) ================= -->
+  <section id="screen-ability-draft" class="screen">
+    <h1 id="ability-draft-heading">VICTORY</h1>
+    <h2 id="ability-draft-location">Location</h2>
+    <ul id="ability-draft-stats" class="stat-list"></ul>
+    <p id="ability-draft-prompt" class="flavor">Choose one new ability:</p>
+    <div id="ability-draft-choices" class="upgrade-grid"></div>
+    <button id="btn-ability-draft-skip" class="menu-link-button">SKIP</button>
   </section>
 
   <!-- ================= EVENT NODE ================= -->
@@ -186,7 +195,7 @@
       <h2 id="rest-location">Rest Stop</h2>
       <p id="rest-flavor" class="flavor">Catch your breath.</p>
       <button id="btn-rest-heal" class="big-button">HEAL</button>
-      <button id="btn-rest-upgrade" class="big-button secondary-button">UPGRADE</button>
+      <button id="btn-rest-upgrade" class="big-button secondary-button">LEARN ABILITY</button>
       <button id="btn-rest-talk" class="big-button secondary-button">TALK TO NPC</button>
     </div>
   </section>

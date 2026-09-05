@@ -1,8 +1,7 @@
 import { Game } from './game.js';
 import * as board from './systems/board.js';
 
-const canvas = document.getElementById('gameCanvas');
-const game = new Game(canvas);
+const game = new Game();
 game.init();
 
 window.__springfieldMayhemGame = game;

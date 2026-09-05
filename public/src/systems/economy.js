@@ -1,44 +1,53 @@
 import { ITEMS } from '../data/items.js';
-
-export function eatDonut(runState) {
-  const healAmount = 25;
-  runState.hp = Math.min(runState.maxHp, runState.hp + healAmount);
-  runState.stats.donutsEaten += 1;
-  if (runState.buffs.donutArmorUpgrade) {
-    runState.armorShield = Math.max(runState.armorShield, 20);
-  }
-}
-
-export function saveDonut(runState) {
-  runState.donutsCurrency += 1;
-  runState.stats.donutsSaved += 1;
-}
+import { RELICS } from '../data/relics.js';
 
 export function restHeal(runState) {
   runState.hp = runState.maxHp;
 }
 
-const SHOP_CATALOG = [
-  { itemId: 'krustyBurger', cost: 2 },
-  { itemId: 'duffBeer', cost: 3 },
-  { itemId: 'buzzCola', cost: 3 },
-  { itemId: 'flamingMoe', cost: 3 },
-  { itemId: 'blinky', cost: 4 },
-  { itemId: 'bowlingBall', cost: 4 },
-  { itemId: 'radioactiveRod', cost: 4 },
-  { itemId: 'malibuStacy', cost: 5 },
+const CONSUMABLE_CATALOG = [
+  { itemId: 'squishee', cost: 2 },
+  { itemId: 'duffBeer', cost: 2 },
+  { itemId: 'krustyBurger', cost: 3 },
 ];
 
+const RELIC_CATALOG = [
+  { relicId: 'bartsSkateboard', cost: 4 },
+  { relicId: 'mrPlowJacket', cost: 4 },
+  { relicId: 'homersWorkBadge', cost: 5 },
+  { relicId: 'krustySeal', cost: 5 },
+  { relicId: 'blinky', cost: 6 },
+  { relicId: 'malibuStacy', cost: 6 },
+];
+
+// A shop offers every consumable, plus every relic the player doesn't
+// already own (owning one twice would be redundant since relics are
+// all-or-nothing passives, not stackable).
 export function getShopCatalog(runState) {
-  return SHOP_CATALOG.map((entry) => ({
-    ...entry,
+  const consumables = CONSUMABLE_CATALOG.map((entry) => ({
+    kind: 'item',
+    itemId: entry.itemId,
+    cost: entry.cost,
     item: ITEMS[entry.itemId],
     affordable: runState.donutsCurrency >= entry.cost,
   }));
+  const relics = RELIC_CATALOG.filter((entry) => !runState.relics.includes(entry.relicId)).map((entry) => ({
+    kind: 'relic',
+    relicId: entry.relicId,
+    cost: entry.cost,
+    item: RELICS[entry.relicId],
+    affordable: runState.donutsCurrency >= entry.cost,
+  }));
+  return [...consumables, ...relics];
 }
 
-export function purchaseItem(runState, itemId, cost) {
-  if (runState.donutsCurrency < cost) return false;
-  runState.donutsCurrency -= cost;
+export function purchaseEntry(runState, entry) {
+  if (runState.donutsCurrency < entry.cost) return false;
+  runState.donutsCurrency -= entry.cost;
+  if (entry.kind === 'item') {
+    ITEMS[entry.itemId].apply(runState);
+  } else {
+    runState.relics.push(entry.relicId);
+  }
   return true;
 }
