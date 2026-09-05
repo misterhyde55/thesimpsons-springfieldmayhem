@@ -1,5 +1,7 @@
 import { Entity } from '../engine/entity.js';
 import { angleTo } from '../engine/collision.js';
+import { getAssetUrl } from '../data/assets.js';
+import { loadImage } from '../engine/assetLoader.js';
 
 function getPhase(boss) {
   const hpPct = boss.hp / boss.maxHp;
@@ -20,6 +22,8 @@ export class Boss extends Entity {
     this.contactCooldown = 0;
     this.renderKind = 'boss';
     this.expression = 'alien';
+    this.spriteUrl = getAssetUrl('bosses', template.id);
+    loadImage(this.spriteUrl);
   }
 
   /** Moves toward the player, ticks its attack timer, and returns an attack name

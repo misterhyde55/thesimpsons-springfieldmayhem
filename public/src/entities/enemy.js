@@ -1,5 +1,7 @@
 import { Entity } from '../engine/entity.js';
 import { angleTo, distance, randRange } from '../engine/collision.js';
+import { getAssetUrl } from '../data/assets.js';
+import { loadImage } from '../engine/assetLoader.js';
 
 export class Enemy extends Entity {
   constructor(template, x, y) {
@@ -14,6 +16,8 @@ export class Enemy extends Entity {
     this.isProp = !!template.isProp;
     this.renderKind = this.isProp ? 'prop' : 'enemy';
     this.expression = template.scenario === 'alienInvasion' ? 'alien' : 'angry';
+    this.spriteUrl = getAssetUrl(this.isProp ? 'buildings' : 'enemies', template.id);
+    loadImage(this.spriteUrl);
   }
 
   update(dt, player, onShoot) {

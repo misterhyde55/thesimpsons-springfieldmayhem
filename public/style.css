@@ -57,6 +57,7 @@ body {
 .character-card.selected { border-color: #f6d217; background: #33332a; }
 .character-card.locked { opacity: 0.4; cursor: not-allowed; }
 .character-card .emoji { font-size: 2rem; }
+.character-card .character-portrait { height: 64px; width: auto; object-fit: contain; }
 
 .episode-card {
   background: #26262e;

@@ -1,5 +1,7 @@
 import { Entity } from '../engine/entity.js';
 import { ITEMS } from '../data/items.js';
+import { getAssetUrl } from '../data/assets.js';
+import { loadImage } from '../engine/assetLoader.js';
 
 export class Pickup extends Entity {
   constructor({ x, y, kind, itemId }) {
@@ -9,5 +11,7 @@ export class Pickup extends Entity {
     this.renderKind = 'pickup';
     this.itemId = itemId;
     this.bobPhase = Math.random() * Math.PI * 2;
+    this.spriteUrl = getAssetUrl('items', kind === 'donut' ? 'donut' : itemId);
+    loadImage(this.spriteUrl);
   }
 }

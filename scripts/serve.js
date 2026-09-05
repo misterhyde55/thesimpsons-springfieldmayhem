@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const root = path.join(repoRoot, 'public');
 const port = process.env.PORT || 8080;
 
 const MIME = {
@@ -11,6 +12,11 @@ const MIME = {
   '.js': 'text/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
 };
 
 http

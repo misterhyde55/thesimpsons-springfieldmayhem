@@ -1,7 +1,9 @@
 import { Input } from './engine/input.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_START } from './engine/config.js';
-import { drawCircleEntity, drawMeleeArc, drawText } from './engine/canvasUtils.js';
+import { drawCircleEntity, drawMeleeArc, drawText, drawCoverImage } from './engine/canvasUtils.js';
 import { distance, clamp, pickRandom } from './engine/collision.js';
+import { getAssetUrl } from './data/assets.js';
+import { getImage, loadImage } from './engine/assetLoader.js';
 
 import { CHARACTERS } from './data/characters.js';
 import { ITEMS } from './data/items.js';
@@ -586,8 +588,15 @@ export class Game {
   renderArena() {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, ARENA_WIDTH, ARENA_HEIGHT);
-    ctx.fillStyle = this.currentLocation ? this.currentLocation.groundColor : '#7fbf6a';
-    ctx.fillRect(0, 0, ARENA_WIDTH, ARENA_HEIGHT);
+    const backgroundUrl = this.currentLocation ? getAssetUrl('buildings', this.currentLocation.id) : null;
+    const backgroundImage = backgroundUrl ? getImage(backgroundUrl) : null;
+    if (backgroundUrl) loadImage(backgroundUrl);
+    if (backgroundImage) {
+      drawCoverImage(ctx, backgroundImage, ARENA_WIDTH, ARENA_HEIGHT);
+    } else {
+      ctx.fillStyle = this.currentLocation ? this.currentLocation.groundColor : '#7fbf6a';
+      ctx.fillRect(0, 0, ARENA_WIDTH, ARENA_HEIGHT);
+    }
 
     for (const pickup of this.pickups) {
       const bob = Math.sin(performance.now() / 300 + pickup.bobPhase) * 3;
