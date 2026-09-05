@@ -1,0 +1,5 @@
+{
+  "buildCommand": "echo \"Static site, no build step required\"",
+  "installCommand": "echo \"No dependencies to install\"",
+  "outputDirectory": "."
+}
