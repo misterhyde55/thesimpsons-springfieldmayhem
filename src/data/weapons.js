@@ -1,0 +1,46 @@
+// Weapons are swappable via pickups. `melee` weapons hit in an arc in front of the
+// player; `ranged` weapons launch a projectile toward the aim point.
+export const WEAPONS = {
+  fists: {
+    id: 'fists',
+    name: 'Bare Fists',
+    type: 'melee',
+    damage: 18,
+    range: 60,
+    arcDegrees: 100,
+    cooldown: 380,
+    knockback: 90,
+  },
+  bowlingBall: {
+    id: 'bowlingBall',
+    name: "Homer's Bowling Ball",
+    type: 'ranged',
+    damage: 42,
+    projectileSpeed: 360,
+    projectileRadius: 12,
+    cooldown: 850,
+    knockback: 140,
+    pierce: false,
+  },
+  radioactiveRod: {
+    id: 'radioactiveRod',
+    name: 'Radioactive Rod',
+    type: 'melee',
+    damage: 22,
+    range: 65,
+    arcDegrees: 90,
+    cooldown: 420,
+    knockback: 100,
+    appliesStatus: { kind: 'poison', duration: 3000, tickInterval: 500, dps: 4 },
+  },
+  mrPlowShovel: {
+    id: 'mrPlowShovel',
+    name: 'Mr. Plow Shovel',
+    type: 'melee',
+    damage: 26,
+    range: 70,
+    arcDegrees: 130,
+    cooldown: 460,
+    knockback: 220,
+  },
+};

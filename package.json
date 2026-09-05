@@ -1,0 +1,10 @@
+{
+  "name": "springfield-mayhem",
+  "version": "0.1.0",
+  "description": "The Simpsons: Springfield Mayhem - a roguelike fan-project prototype",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/serve.js"
+  }
+}
