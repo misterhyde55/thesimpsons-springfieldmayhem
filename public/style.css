@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Titan+One&display=swap');
 
 * { box-sizing: border-box; }
 body {
@@ -93,9 +93,15 @@ body.menu-active #top-bar { display: none; }
   top: 6vh;
   left: 5vw;
   text-align: left;
-  font-family: 'Luckiest Guy', 'Impact', 'Arial Black', sans-serif;
-  color: #ffe14d;
-  text-shadow: 3px 3px 0 #0e63a8, 0 0 22px rgba(0, 0, 0, 0.55), 0 0 2px #000;
+  /* Titan One's thick, rounded bubble letterforms are the closest
+     Google-Fonts stand-in for the show's iconic logo look -- the real
+     typeface is a proprietary, custom-drawn font we can't legally embed.
+     The black stroke + red offset + soft glow evoke that logo's black
+     keyline and red echo without a licensed asset. */
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #fddb1a;
+  -webkit-text-stroke: 2px #170f00;
+  text-shadow: 4px 4px 0 #d0021b, 0 0 26px rgba(0, 0, 0, 0.6);
   animation: titleBob 4s ease-in-out infinite;
   pointer-events: none;
 }
