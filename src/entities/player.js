@@ -2,6 +2,8 @@ import { Entity } from '../engine/entity.js';
 import { WEAPONS } from '../data/weapons.js';
 import { clamp } from '../engine/collision.js';
 import { PLAYER_START } from '../engine/config.js';
+import { getAssetUrl } from '../data/assets.js';
+import { loadImage } from '../engine/assetLoader.js';
 
 export class Player extends Entity {
   constructor(character, runState) {
@@ -17,6 +19,8 @@ export class Player extends Entity {
     this.runState = runState;
     this.renderKind = 'player';
     this.expression = 'player';
+    this.spriteUrl = getAssetUrl('characters', character.id);
+    loadImage(this.spriteUrl);
     this.maxHp = runState.maxHp;
     this.hp = Math.min(runState.hp, runState.maxHp);
     this.attackCooldownRemaining = 0;

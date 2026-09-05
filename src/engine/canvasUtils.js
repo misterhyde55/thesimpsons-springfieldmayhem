@@ -1,4 +1,21 @@
+import { getImage } from './assetLoader.js';
+
 const OUTLINE = '#1b1b1f';
+
+// Draws `img` centered at (cx, cy), scaled so its longer side equals
+// targetSize, preserving aspect ratio. `flip` mirrors it horizontally, used
+// so a single forward-facing character sprite still reads as facing the
+// direction it's moving/aiming.
+function drawSprite(ctx, img, cx, cy, targetSize, flip) {
+  const scale = targetSize / Math.max(img.width, img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(img, -w / 2, -h / 2, w, h);
+  ctx.restore();
+}
 
 function applyStatusRing(ctx, entity, radius) {
   if (entity.hasStatus && entity.hasStatus('poison')) {
@@ -91,6 +108,13 @@ function drawFace(ctx, cx, cy, radius, facing, expression, hurtRatio) {
 }
 
 function drawCharacterEntity(ctx, entity) {
+  const sprite = getImage(entity.spriteUrl);
+  if (sprite) {
+    const flip = Math.cos(entity.facing || 0) < 0;
+    drawSprite(ctx, sprite, entity.x, entity.y, entity.radius * 2.6, flip);
+    applyStatusRing(ctx, entity, entity.radius);
+    return;
+  }
   ctx.beginPath();
   ctx.arc(entity.x, entity.y, entity.radius, 0, Math.PI * 2);
   ctx.fillStyle = entity.color;
@@ -104,6 +128,13 @@ function drawCharacterEntity(ctx, entity) {
 }
 
 function drawBossEntity(ctx, boss) {
+  const sprite = getImage(boss.spriteUrl);
+  if (sprite) {
+    const flip = Math.cos(boss.facing || 0) < 0;
+    drawSprite(ctx, sprite, boss.x, boss.y, boss.radius * 3.2, flip);
+    applyStatusRing(ctx, boss, boss.radius);
+    return;
+  }
   const headRadius = boss.radius * 0.7;
   const offset = boss.radius * 0.55;
   const hurtRatio = boss.hp / boss.maxHp;
@@ -123,6 +154,12 @@ function drawBossEntity(ctx, boss) {
 }
 
 function drawIconEntity(ctx, entity) {
+  const sprite = getImage(entity.spriteUrl);
+  if (sprite) {
+    drawSprite(ctx, sprite, entity.x, entity.y, entity.radius * 2.2, false);
+    applyStatusRing(ctx, entity, entity.radius);
+    return;
+  }
   ctx.beginPath();
   ctx.arc(entity.x, entity.y, entity.radius, 0, Math.PI * 2);
   ctx.fillStyle = entity.color;
@@ -172,6 +209,15 @@ export function drawCircleEntity(ctx, entity) {
     ctx.fillStyle = '#3ec24c';
     ctx.fillRect(x, y, w * Math.max(0, entity.hp / entity.maxHp), h);
   }
+}
+
+// Fills a width x height area with `img`, cropping overflow so it covers the
+// area completely (like CSS background-size: cover) rather than letterboxing.
+export function drawCoverImage(ctx, img, width, height) {
+  const scale = Math.max(width / img.width, height / img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
+  ctx.drawImage(img, (width - w) / 2, (height - h) / 2, w, h);
 }
 
 export function drawMeleeArc(ctx, origin, facing, range, arcRadians, alpha) {

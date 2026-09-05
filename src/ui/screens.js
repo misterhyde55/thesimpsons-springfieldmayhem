@@ -1,3 +1,5 @@
+import { getAssetUrl } from '../data/assets.js';
+
 const SCREEN_IDS = [
   'screen-hub',
   'screen-episode-intro',
@@ -27,7 +29,11 @@ export function populateHub(meta, characters, selectedId, onSelect) {
   for (const character of characters) {
     const card = document.createElement('div');
     card.className = 'character-card' + (character.id === selectedId ? ' selected' : '') + (character.unlocked ? '' : ' locked');
-    card.innerHTML = `<div class="emoji">${character.unlocked ? character.emoji : '\u{1F512}'}</div><div>${character.name}</div><small>${character.tagline}</small>`;
+    const portraitUrl = character.unlocked ? getAssetUrl('characters', character.id) : null;
+    const portrait = portraitUrl
+      ? `<img class="character-portrait" src="${portraitUrl}" alt="${character.name}" />`
+      : `<div class="emoji">${character.unlocked ? character.emoji : '\u{1F512}'}</div>`;
+    card.innerHTML = `${portrait}<div>${character.name}</div><small>${character.tagline}</small>`;
     if (character.unlocked) {
       card.addEventListener('click', () => onSelect(character.id));
     }
