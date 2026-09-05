@@ -18,7 +18,7 @@
   <!-- ================= MAIN MENU / HOMEPAGE ================= -->
   <section id="screen-main-menu" class="screen menu-screen">
     <div class="homepage-foreground">
-      <h1 class="game-logo">THE SIMPSONS<br /><span>SPRINGFIELD MAYHEM</span></h1>
+      <h1 class="game-logo">SPRINGFIELD MAYHEM</h1>
       <div class="menu-buttons">
         <button id="btn-play" class="big-button">PLAY</button>
         <button id="btn-continue-run" class="big-button secondary-button" disabled>CONTINUE RUN</button>
@@ -133,10 +133,10 @@
 
   <!-- ================= LEVEL COMPLETE / UPGRADE CHOICE ================= -->
   <section id="screen-level-complete" class="screen">
-    <h1>LEVEL COMPLETE</h1>
+    <h1 id="level-complete-heading">LEVEL COMPLETE</h1>
     <h2 id="level-complete-location">Location</h2>
     <ul id="level-complete-stats" class="stat-list"></ul>
-    <p class="flavor">Choose one upgrade:</p>
+    <p id="upgrade-choice-prompt" class="flavor">Choose one upgrade:</p>
     <div id="upgrade-choices" class="upgrade-grid"></div>
     <button id="btn-upgrade-skip" class="menu-link-button">SKIP</button>
   </section>

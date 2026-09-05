@@ -223,21 +223,27 @@ export function hideShopModal() {
 }
 
 // ---------- LEVEL COMPLETE / UPGRADE CHOICE ----------
-export function populateLevelComplete(summary, upgrades, onPick) {
+export function populateLevelComplete(summary, upgrades, onPick, options = {}) {
+  const milestone = !!options.milestone;
+  $('level-complete-heading').textContent = milestone ? '\u{1F31F} NEW SKILL UNLOCKED \u{1F31F}' : 'LEVEL COMPLETE';
   $('level-complete-location').textContent = summary.locationName;
   $('level-complete-stats').innerHTML = `
     <li><span>Enemies Defeated</span><span>${summary.enemiesDefeated}</span></li>
     <li><span>Damage Taken</span><span>${summary.damageTaken}</span></li>
     <li><span>Donuts Collected</span><span>${summary.donutsCollected}</span></li>
   `;
+  $('upgrade-choice-prompt').textContent = milestone
+    ? "This is a defining moment in the story. The skill is yours."
+    : 'Choose one upgrade:';
   const container = $('upgrade-choices');
   container.innerHTML = '';
+  container.classList.toggle('milestone-reveal', milestone);
   if (upgrades.length === 0) {
     container.innerHTML = '<p class="flavor">No new upgrades available. Onward!</p>';
   }
   for (const upgrade of upgrades) {
     const card = document.createElement('div');
-    card.className = 'upgrade-card';
+    card.className = 'upgrade-card' + (milestone ? ' upgrade-card-milestone' : '');
     card.style.borderColor = RARITY_COLOR[upgrade.rarity];
     card.innerHTML = `
       <div class="upgrade-rarity" style="color:${RARITY_COLOR[upgrade.rarity]}">${upgrade.rarity.toUpperCase()}</div>
@@ -245,12 +251,19 @@ export function populateLevelComplete(summary, upgrades, onPick) {
       <div class="upgrade-name">${upgrade.name}</div>
       <div class="upgrade-desc">${upgrade.description}</div>
     `;
-    card.addEventListener('click', () => onPick(upgrade));
+    if (!milestone) card.addEventListener('click', () => onPick(upgrade));
     container.appendChild(card);
   }
   const skipBtn = freshButton('btn-upgrade-skip');
-  skipBtn.classList.toggle('hidden', upgrades.length === 0);
-  skipBtn.addEventListener('click', () => onPick(null));
+  if (milestone) {
+    skipBtn.textContent = 'CONTINUE';
+    skipBtn.classList.remove('hidden');
+    skipBtn.addEventListener('click', () => onPick(upgrades[0]));
+  } else {
+    skipBtn.textContent = 'SKIP';
+    skipBtn.classList.toggle('hidden', upgrades.length === 0);
+    skipBtn.addEventListener('click', () => onPick(null));
+  }
 }
 
 // ---------- EVENT NODE ----------

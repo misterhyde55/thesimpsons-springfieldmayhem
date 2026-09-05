@@ -9,6 +9,10 @@
 // `elite` marks a harder combat node with better upgrade odds.
 // `alienFinalBossLocationId` / `alienFinalBossId` let a node swap to the
 // Alien Invasion version of a boss when that episode modifier is active.
+// `milestoneUpgradeId` (data/upgrades.js id) makes clearing that node a
+// guaranteed story-tied skill unlock instead of the usual random 3-choice
+// reward -- this is how a character's signature abilities reliably show up
+// over the course of their specific run rather than being left to chance.
 export const JOURNEYS = {
   homer: {
     characterId: 'homer',
@@ -39,7 +43,7 @@ export const JOURNEYS = {
         id: 'flandersHouse',
         type: 'event',
         locationId: 'flandersHouse',
-        eventId: 'flandersNeedsHelp',
+        eventPool: ['flandersNeedsHelp', 'lardLadDare'],
         name: "Flanders' House",
         emoji: '🏡',
         x: 0.7,
@@ -65,6 +69,7 @@ export const JOURNEYS = {
         x: 0.5,
         y: 0.62,
         next: ['nuclearPlant'],
+        milestoneUpgradeId: 'donutArmor',
       },
       nuclearPlant: {
         id: 'nuclearPlant',
@@ -86,6 +91,7 @@ export const JOURNEYS = {
         x: 0.5,
         y: 0.42,
         next: ['krustyBurger'],
+        milestoneUpgradeId: 'duffRage',
       },
       krustyBurger: {
         id: 'krustyBurger',
@@ -106,6 +112,7 @@ export const JOURNEYS = {
         x: 0.3,
         y: 0.22,
         next: ['moesTavern'],
+        milestoneUpgradeId: 'bowlingNight',
       },
       downtownElite: {
         id: 'downtownElite',
@@ -117,6 +124,7 @@ export const JOURNEYS = {
         x: 0.7,
         y: 0.22,
         next: ['moesTavern'],
+        milestoneUpgradeId: 'bowlingNight',
       },
       moesTavern: {
         id: 'moesTavern',
@@ -127,6 +135,7 @@ export const JOURNEYS = {
         x: 0.5,
         y: 0.12,
         next: ['mrBurnsBoss'],
+        milestoneUpgradeId: 'homersLuck',
       },
       mrBurnsBoss: {
         id: 'mrBurnsBoss',
