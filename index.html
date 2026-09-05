@@ -16,24 +16,48 @@
   </header>
 
   <!-- ================= MAIN MENU / HOMEPAGE ================= -->
-  <section id="screen-main-menu" class="screen menu-screen">
-    <div class="homepage-foreground">
-      <h1 class="game-logo">SPRINGFIELD MAYHEM</h1>
-      <div class="menu-buttons">
-        <button id="btn-play" class="big-button">PLAY</button>
-        <button id="btn-continue-run" class="big-button secondary-button" disabled>CONTINUE RUN</button>
-        <button id="btn-menu-characters" class="menu-link-button">CHARACTERS</button>
-        <button id="btn-menu-seasons" class="menu-link-button">SEASONS</button>
-        <button id="btn-menu-collection" class="menu-link-button">COLLECTION</button>
-        <button id="btn-menu-settings" class="menu-link-button">SETTINGS</button>
-      </div>
-      <div class="profile-strip">
-        <span id="menu-season">Season: 1</span>
-        <span id="menu-episodes">Episodes Completed: 0/22</span>
-        <span id="menu-characters">Characters Unlocked: 1/5</span>
-        <span id="menu-items">Items Discovered: 0/17</span>
-      </div>
+  <!-- Console-style title screen: full-bleed art (backgroundImage set from
+       data/assets.js at runtime, never hardcoded here), a stylized title,
+       and a plain-text vertical menu with a moving selector -- no cards,
+       no panels. See src/ui/menuNav.js for the input-agnostic selection
+       logic and src/engine/audio.js for the (currently silent) sound hooks. -->
+  <section id="screen-main-menu" class="screen console-menu-screen">
+    <div class="console-title">
+      <div class="console-title-line1">THE SIMPSONS</div>
+      <div class="console-title-line2">SPRINGFIELD MAYHEM</div>
     </div>
+
+    <ul id="console-menu-list" class="console-menu">
+      <li class="console-menu-item" data-menu-id="new-episode"><span class="console-selector">&gt;</span><span class="console-menu-label">NEW EPISODE</span></li>
+      <li class="console-menu-item" data-menu-id="continue"><span class="console-selector">&gt;</span><span class="console-menu-label">CONTINUE</span></li>
+      <li class="console-menu-item" data-menu-id="simpson-house"><span class="console-selector">&gt;</span><span class="console-menu-label">THE SIMPSON HOUSE</span></li>
+      <li class="console-menu-item" data-menu-id="episode-guide"><span class="console-selector">&gt;</span><span class="console-menu-label">EPISODE GUIDE</span></li>
+      <li class="console-menu-item" data-menu-id="collection"><span class="console-selector">&gt;</span><span class="console-menu-label">COLLECTION</span></li>
+      <li class="console-menu-item" data-menu-id="options"><span class="console-selector">&gt;</span><span class="console-menu-label">OPTIONS</span></li>
+    </ul>
+
+    <div class="console-press-enter">PRESS ENTER TO START</div>
+  </section>
+
+  <!-- ================= EPISODE REVEAL (NEW EPISODE confirmation card) ================= -->
+  <section id="screen-episode-reveal" class="screen episode-reveal-screen">
+    <div id="episode-reveal-card" class="episode-card episode-reveal-card">
+      <div class="episode-reveal-eyebrow">THE SIMPSONS</div>
+      <div class="episode-reveal-tonight">TONIGHT'S EPISODE</div>
+      <h1 id="episode-reveal-title">"Episode Title"</h1>
+      <p id="episode-reveal-character">Character: HOMER SIMPSON</p>
+      <p id="episode-reveal-objective">Objective: Get to Moe's</p>
+      <div class="console-press-enter">PRESS ENTER</div>
+    </div>
+  </section>
+
+  <!-- ================= THE SIMPSON HOUSE (progression hub stub) ================= -->
+  <section id="screen-simpson-house" class="screen">
+    <h1>The Simpson House</h1>
+    <p class="flavor">Your permanent home base is under construction. For now, check in on the family.</p>
+    <button id="btn-simpson-house-characters" class="big-button">VIEW THE FAMILY</button>
+    <br />
+    <button id="btn-simpson-house-back" class="menu-link-button">BACK</button>
   </section>
 
   <!-- ================= CHARACTER SELECT ================= -->

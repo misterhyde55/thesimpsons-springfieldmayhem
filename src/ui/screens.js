@@ -1,16 +1,18 @@
 import { getAssetUrl } from '../data/assets.js';
 import { RARITY_COLOR } from '../data/upgrades.js';
-import { totalDiscoverableItemCount } from '../state/gameState.js';
 import { ITEMS } from '../data/items.js';
 import { UPGRADES } from '../data/upgrades.js';
+import { MenuNav } from './menuNav.js';
 
 const SCREEN_IDS = [
   'screen-main-menu',
+  'screen-episode-reveal',
   'screen-character-select',
   'screen-characters-info',
   'screen-seasons-info',
   'screen-collection-info',
   'screen-settings',
+  'screen-simpson-house',
   'screen-board',
   'screen-breaking-news',
   'screen-arena',
@@ -20,6 +22,10 @@ const SCREEN_IDS = [
   'screen-run-complete',
   'screen-run-failure',
 ];
+
+// Screens that get the full-bleed console title-screen treatment: no top
+// bar, background art fills the real viewport instead of #app's max-width.
+const MENU_ACTIVE_SCREEN_IDS = new Set(['screen-main-menu', 'screen-episode-reveal']);
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,6 +40,7 @@ export function showScreen(id) {
   for (const screenId of SCREEN_IDS) {
     $(screenId).classList.toggle('hidden', screenId !== id);
   }
+  document.body.classList.toggle('menu-active', MENU_ACTIVE_SCREEN_IDS.has(id));
 }
 
 export function updateMetaReadout(meta) {
@@ -41,22 +48,71 @@ export function updateMetaReadout(meta) {
 }
 
 // ---------- MAIN MENU ----------
-export function populateMainMenu(meta, characters, hasRun, handlers) {
-  updateMetaReadout(meta);
-  $('menu-season').textContent = `Season: ${meta.season}`;
-  $('menu-episodes').textContent = `Episodes Completed: ${meta.episodeInSeason}/22`;
-  const unlockedCount = characters.filter((c) => c.unlocked).length;
-  $('menu-characters').textContent = `Characters Unlocked: ${unlockedCount}/${characters.length}`;
-  $('menu-items').textContent = `Items Discovered: ${meta.itemsDiscoveredIds.length}/${totalDiscoverableItemCount()}`;
+// Console-style vertical menu: a single MenuNav drives both the highlighted
+// selector (keyboard/gamepad-ready) and mouse hover/click, so there's only
+// one "what's selected" source of truth. Returns the MenuNav so game.js can
+// forward arrow-key/Enter input into it.
+const MENU_ITEM_DEFS = [
+  { id: 'new-episode', label: 'NEW EPISODE' },
+  { id: 'continue', label: 'CONTINUE' },
+  { id: 'simpson-house', label: 'THE SIMPSON HOUSE' },
+  { id: 'episode-guide', label: 'EPISODE GUIDE' },
+  { id: 'collection', label: 'COLLECTION' },
+  { id: 'options', label: 'OPTIONS' },
+];
 
-  const continueBtn = $('btn-continue-run');
-  continueBtn.disabled = !hasRun;
-  freshButton('btn-play').addEventListener('click', handlers.onPlay);
-  if (hasRun) freshButton('btn-continue-run').addEventListener('click', handlers.onContinueRun);
-  freshButton('btn-menu-characters').addEventListener('click', handlers.onCharacters);
-  freshButton('btn-menu-seasons').addEventListener('click', handlers.onSeasons);
-  freshButton('btn-menu-collection').addEventListener('click', handlers.onCollection);
-  freshButton('btn-menu-settings').addEventListener('click', handlers.onSettings);
+export function populateMainMenu(meta, hasRun, handlers) {
+  updateMetaReadout(meta);
+
+  const bg = getAssetUrl('backgrounds', 'mainMenu');
+  if (bg) $('screen-main-menu').style.backgroundImage = `url('${bg}')`;
+
+  const items = MENU_ITEM_DEFS.map((def) => ({
+    ...def,
+    disabled: def.id === 'continue' && !hasRun,
+    onActivate: () => handlers[def.id]?.(),
+  }));
+  const nav = new MenuNav(items);
+
+  const listEl = $('console-menu-list');
+  [...listEl.children].forEach((li, index) => {
+    li.classList.toggle('disabled', !!items[index].disabled);
+    li.onclick = () => {
+      if (items[index].disabled) return;
+      nav.select(index);
+      renderConsoleMenu(nav);
+      nav.activateSelected();
+    };
+    li.onmouseenter = () => {
+      if (items[index].disabled) return;
+      nav.select(index);
+      renderConsoleMenu(nav);
+    };
+  });
+  renderConsoleMenu(nav);
+  return nav;
+}
+
+export function renderConsoleMenu(nav) {
+  const listEl = $('console-menu-list');
+  [...listEl.children].forEach((li, index) => {
+    li.classList.toggle('selected', index === nav.selectedIndex);
+  });
+}
+
+// ---------- EPISODE REVEAL ----------
+export function populateEpisodeReveal(character, episode, onStart) {
+  const card = freshButton('episode-reveal-card');
+  $('episode-reveal-title').textContent = `"${episode.title}"`;
+  $('episode-reveal-character').textContent = `Character: ${character.name.toUpperCase()}`;
+  $('episode-reveal-objective').textContent = `Objective: ${episode.objective}`;
+  card.addEventListener('click', onStart);
+}
+
+// ---------- THE SIMPSON HOUSE (stub hub) ----------
+export function populateSimpsonHouse(onCharacters, onBack) {
+  freshButton('btn-simpson-house-characters').addEventListener('click', onCharacters);
+  freshButton('btn-simpson-house-back').addEventListener('click', onBack);
 }
 
 function characterCardHtml(character) {

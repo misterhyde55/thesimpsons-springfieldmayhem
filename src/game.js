@@ -4,6 +4,7 @@ import { drawCircleEntity, drawMeleeArc, drawText, drawCoverImage } from './engi
 import { distance, clamp, pickRandom } from './engine/collision.js';
 import { getAssetUrl } from './data/assets.js';
 import { getImage, loadImage } from './engine/assetLoader.js';
+import { playMenuMove, playMenuSelect, playEpisodeStart } from './engine/audio.js';
 
 import { CHARACTERS } from './data/characters.js';
 import { ITEMS } from './data/items.js';
@@ -79,6 +80,8 @@ export class Game {
 
     document.getElementById('boardCanvas').addEventListener('click', (e) => this.handleBoardClick(e));
     document.getElementById('btn-news-continue').addEventListener('click', () => this.continueAfterNews());
+    document.addEventListener('keydown', (e) => this.handleGlobalKeydown(e));
+    this.mainMenuNav = null;
   }
 
   init() {
@@ -86,23 +89,68 @@ export class Game {
   }
 
   // ---------- MAIN MENU ----------
+  // Keyboard nav (arrow keys / Enter) is handled globally here rather than
+  // per-screen, since only the console menu and episode-reveal card need it
+  // right now; MenuNav itself stays input-agnostic so a future gamepad poll
+  // loop can drive the same moveSelection/activateSelected calls.
+  handleGlobalKeydown(e) {
+    const menuVisible = !document.getElementById('screen-main-menu').classList.contains('hidden');
+    const revealVisible = !document.getElementById('screen-episode-reveal').classList.contains('hidden');
+    if (menuVisible && this.mainMenuNav) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.mainMenuNav.moveSelection(1);
+        playMenuMove();
+        screens.renderConsoleMenu(this.mainMenuNav);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.mainMenuNav.moveSelection(-1);
+        playMenuMove();
+        screens.renderConsoleMenu(this.mainMenuNav);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        playMenuSelect();
+        this.mainMenuNav.activateSelected();
+      }
+    } else if (revealVisible && e.key === 'Enter') {
+      e.preventDefault();
+      this.confirmNewEpisode();
+    }
+  }
+
   showMainMenu() {
     this.stopBoardLoop();
     this.stopArenaLoop();
     screens.showScreen('screen-main-menu');
-    screens.populateMainMenu(this.meta, Object.values(CHARACTERS), hasActiveRun(), {
-      onPlay: () => this.showCharacterSelect(),
-      onContinueRun: () => this.resumeActiveRun(),
-      onCharacters: () => this.showCharactersInfo(),
-      onSeasons: () => this.showSeasonsInfo(),
-      onCollection: () => this.showCollectionInfo(),
-      onSettings: () => this.showSettings(),
+    this.mainMenuNav = screens.populateMainMenu(this.meta, hasActiveRun(), {
+      'new-episode': () => this.beginNewEpisode(),
+      continue: () => this.resumeActiveRun(),
+      'simpson-house': () => this.showSimpsonHouse(),
+      'episode-guide': () => this.showSeasonsInfo(),
+      collection: () => this.showCollectionInfo(),
+      options: () => this.showSettings(),
     });
+  }
+
+  beginNewEpisode() {
+    const unlocked = Object.values(CHARACTERS).filter((c) => c.unlocked);
+    if (unlocked.length === 1) {
+      this.showEpisodeReveal(unlocked[0].id);
+    } else {
+      this.showCharacterSelect();
+    }
   }
 
   showCharacterSelect() {
     screens.showScreen('screen-character-select');
-    screens.populateCharacterSelect(Object.values(CHARACTERS), (id) => this.startNewRun(id), () => this.showMainMenu());
+    screens.populateCharacterSelect(Object.values(CHARACTERS), (id) => this.showEpisodeReveal(id), () => this.showMainMenu());
+  }
+
+  showSimpsonHouse() {
+    this.stopBoardLoop();
+    this.stopArenaLoop();
+    screens.showScreen('screen-simpson-house');
+    screens.populateSimpsonHouse(() => this.showCharactersInfo(), () => this.showMainMenu());
   }
 
   showCharactersInfo() {
@@ -135,10 +183,21 @@ export class Game {
   }
 
   // ---------- RUN SETUP ----------
-  startNewRun(characterId) {
+  // The episode is rolled once here (not again on confirm) so the reveal
+  // card's title/objective always match the run it's about to start.
+  showEpisodeReveal(characterId) {
     const character = CHARACTERS[characterId];
+    this.pendingCharacterId = characterId;
+    this.pendingEpisode = generateEpisode(character);
+    screens.showScreen('screen-episode-reveal');
+    screens.populateEpisodeReveal(character, this.pendingEpisode, () => this.confirmNewEpisode());
+  }
+
+  confirmNewEpisode() {
+    playEpisodeStart();
+    const character = CHARACTERS[this.pendingCharacterId];
     this.runState = createRunState(character);
-    this.runState.episode = generateEpisode(character);
+    this.runState.episode = this.pendingEpisode;
     saveActiveRun(this.runState);
     this.showBoard();
   }

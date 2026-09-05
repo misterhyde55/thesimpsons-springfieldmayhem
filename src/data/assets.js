@@ -27,7 +27,9 @@ export const ASSET_MANIFEST = {
   buildings: {},
   // Full-scene backgrounds not tied to a specific location (menus, etc.)
   backgrounds: {
-    mainMenu: `${BASE}/backgrounds/mainpage.jpeg`,
+    // Note: real filename on disk is capitalized ("Homescreen.jfif") -- Vercel's
+    // static host is case-sensitive, so this must match exactly.
+    mainMenu: `${BASE}/backgrounds/Homescreen.jfif`,
   },
   // HUD/menu art not tied to a specific game entity.
   ui: {},
