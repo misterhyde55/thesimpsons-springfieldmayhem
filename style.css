@@ -27,6 +27,7 @@ body {
   font-weight: 800;
   padding: 14px 32px;
   margin-top: 18px;
+  margin-right: 8px;
   border: none;
   border-radius: 10px;
   background: #f6d217;
@@ -36,28 +37,108 @@ body {
 }
 .big-button:active { transform: translateY(3px); box-shadow: 0 1px 0 #b89b0f; }
 .big-button:hover { background: #ffe14d; }
+.big-button:disabled { background: #555; color: #999; box-shadow: 0 4px 0 #333; cursor: not-allowed; }
 
-.hint { color: #8c8c99; font-size: 0.85rem; margin-top: 24px; }
+.secondary-button { background: #0e63a8; color: #fff; box-shadow: 0 4px 0 #084a80; }
+.secondary-button:hover { background: #1b7ecf; }
 
-.trophy-shelf {
-  min-height: 40px;
+.menu-link-button {
+  background: none;
+  border: 2px solid #444;
+  color: #fff8ea;
+  padding: 8px 20px;
+  margin: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.menu-link-button:hover { border-color: #f6d217; color: #f6d217; }
+
+.hint { color: #8c8c99; font-size: 0.85rem; margin-top: 12px; }
+
+.trophy-shelf { min-height: 40px; font-size: 1.6rem; margin: 10px 0; }
+
+/* ---------------- Homepage ---------------- */
+.menu-screen { padding: 0; position: relative; overflow: hidden; min-height: 560px; }
+.homepage-scene {
+  position: relative;
+  height: 320px;
+  overflow: hidden;
+  background: linear-gradient(#4a90d9, #bfe3ff 70%, #7fbf6a 70%);
+}
+.hp-cloud { position: absolute; font-size: 2.4rem; opacity: 0.85; animation: driftRight 60s linear infinite; }
+.hp-cloud-1 { top: 20px; animation-duration: 70s; }
+.hp-cloud-2 { top: 55px; font-size: 1.8rem; animation-duration: 55s; animation-delay: -20s; }
+.hp-cloud-3 { top: 10px; font-size: 1.4rem; animation-duration: 85s; animation-delay: -40s; }
+@keyframes driftRight { from { left: -10%; } to { left: 110%; } }
+
+.hp-bird { position: absolute; font-size: 1rem; animation: driftRight 22s linear infinite; }
+.hp-bird-1 { top: 40px; animation-duration: 18s; }
+.hp-bird-2 { top: 70px; animation-duration: 26s; animation-delay: -8s; }
+
+.hp-plant { position: absolute; top: 90px; left: 8%; font-size: 2.6rem; }
+.hp-smoke { position: absolute; left: 14px; top: -10px; font-size: 1rem; opacity: 0; animation: smokeRise 6s ease-in infinite; }
+.hp-smoke-2 { animation-delay: 3s; }
+@keyframes smokeRise { 0% { opacity: 0; transform: translateY(0) scale(0.8); } 20% { opacity: 0.6; } 100% { opacity: 0; transform: translateY(-60px) scale(1.4); } }
+
+.hp-skyline { position: absolute; bottom: 60px; width: 100%; text-align: center; font-size: 2rem; letter-spacing: 18px; opacity: 0.9; }
+.hp-road { position: absolute; bottom: 0; width: 100%; height: 60px; background: #4a4a52; border-top: 4px dashed #f6d217; }
+.hp-car { position: absolute; bottom: 12px; font-size: 1.6rem; animation: driftRight 14s linear infinite; }
+.hp-car-2 { bottom: 12px; font-size: 1.4rem; animation-duration: 19s; animation-delay: -6s; }
+.hp-walker { position: absolute; bottom: 62px; font-size: 1.3rem; animation: driftRight 40s linear infinite; animation-delay: -10s; }
+
+.hp-tv { position: absolute; top: 12px; right: 16px; font-size: 1.6rem; }
+.hp-tv-flicker { position: absolute; inset: 0; animation: tvFlicker 3.4s steps(1) infinite; }
+@keyframes tvFlicker { 0%, 91%, 100% { background: transparent; } 92%, 95% { background: rgba(255,255,255,0.35); } }
+
+.homepage-foreground { position: relative; text-align: center; padding: 10px 20px 30px; margin-top: -30px; }
+.game-logo {
   font-size: 1.6rem;
-  margin: 10px 0;
+  font-weight: 800;
+  line-height: 1.3;
+  text-shadow: 3px 3px 0 #0e63a8;
+  margin: 10px 0 6px;
+}
+.game-logo span { font-size: 2.1rem; color: #f6d217; }
+.menu-buttons { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 10px; }
+.profile-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 22px;
+  font-size: 0.8rem;
+  color: #c9c9d3;
 }
 
-.character-select { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 16px 0; }
+/* ---------------- Character cards ---------------- */
+.character-grid { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 16px 0; }
 .character-card {
   border: 3px solid #444;
   border-radius: 10px;
   padding: 10px 14px;
-  width: 140px;
+  width: 150px;
   background: #26262e;
-  cursor: pointer;
 }
-.character-card.selected { border-color: #f6d217; background: #33332a; }
-.character-card.locked { opacity: 0.4; cursor: not-allowed; }
+.character-card.select-card { cursor: pointer; }
+.character-card.select-card:hover { border-color: #f6d217; }
+.character-card.locked { opacity: 0.45; cursor: not-allowed; }
 .character-card .emoji { font-size: 2rem; }
-.character-card .character-portrait { height: 64px; width: auto; object-fit: contain; }
+.character-card .character-portrait { height: 72px; width: auto; object-fit: contain; margin-bottom: 4px; }
+.character-card-name { font-weight: 700; margin: 4px 0; }
+.character-card-stats { list-style: none; padding: 0; margin: 0; font-size: 0.72rem; text-align: left; }
+.character-card-stats li { display: flex; justify-content: space-between; gap: 6px; padding: 1px 0; color: #c9c9d3; }
+.character-card-stats li span:first-child { color: #8c8c99; }
+
+.seasons-list { max-width: 560px; margin: 0 auto; text-align: left; }
+.history-row { border-bottom: 1px solid #333; padding: 8px 0; display: flex; justify-content: space-between; gap: 10px; font-size: 0.85rem; }
+.history-victory { color: #3ec24c; font-weight: 700; }
+.history-defeat { color: #d0021b; font-weight: 700; }
+
+.collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; max-width: 700px; margin: 16px auto; }
+.collection-card { background: #26262e; border: 2px solid #444; border-radius: 8px; padding: 10px 4px; font-size: 0.75rem; }
+.collection-card .emoji { font-size: 1.6rem; }
+.collection-card.undiscovered { opacity: 0.4; }
 
 .episode-card {
   background: #26262e;
@@ -67,28 +148,19 @@ body {
   max-width: 560px;
   margin: 40px auto;
 }
-.episode-tag {
-  display: inline-block;
-  background: #d0021b;
-  color: white;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 0.8rem;
-  letter-spacing: 1px;
-}
 
-.route-options { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
-.route-card {
-  background: #26262e;
-  border: 3px solid #0e63a8;
-  border-radius: 12px;
-  padding: 20px;
-  width: 220px;
+/* ---------------- Level board ---------------- */
+.board-header { max-width: 900px; margin: 0 auto 6px; text-align: center; }
+#board-episode-title { font-size: 1.1rem; font-weight: 700; }
+#board-episode-modifier { color: #f6d217; font-size: 0.85rem; }
+canvas#boardCanvas {
+  display: block;
+  margin: 0 auto;
+  border: 4px solid #0e63a8;
+  border-radius: 8px;
+  max-width: 100%;
   cursor: pointer;
 }
-.route-card:hover { border-color: #f6d217; }
-.route-card h3 { margin: 6px 0; }
 
 .news-flash {
   background: #d0021b;
@@ -177,6 +249,29 @@ canvas#gameCanvas {
 .shop-item-btn { background: #0e63a8 !important; color: white; }
 .shop-item-btn:disabled { background: #555 !important; cursor: not-allowed; }
 
+/* ---------------- Level complete / upgrades ---------------- */
+.stat-list { list-style: none; padding: 0; text-align: left; max-width: 320px; margin: 16px auto; }
+.stat-list li { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #333; }
+.rating { font-size: 1.6rem; margin: 12px 0; }
+
+.upgrade-grid { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin: 16px 0; }
+.upgrade-card {
+  background: #26262e;
+  border: 3px solid #444;
+  border-radius: 12px;
+  padding: 16px;
+  width: 170px;
+  cursor: pointer;
+}
+.upgrade-card:hover { background: #33333c; }
+.upgrade-rarity { font-size: 0.7rem; font-weight: 800; letter-spacing: 1px; }
+.upgrade-card .emoji { font-size: 2rem; margin: 6px 0; }
+.upgrade-name { font-weight: 700; font-size: 0.9rem; }
+.upgrade-desc { font-size: 0.78rem; color: #c9c9d3; margin-top: 4px; }
+
+.event-options { display: flex; flex-direction: column; align-items: center; }
+.event-option-btn { width: 100%; max-width: 320px; }
+
 .tv-frame {
   background: #101014;
   border: 10px solid #333;
@@ -185,7 +280,3 @@ canvas#gameCanvas {
   margin: 20px auto;
   padding: 30px;
 }
-#end-result { color: #f6d217; }
-#end-stats { list-style: none; padding: 0; text-align: left; max-width: 320px; margin: 16px auto; }
-#end-stats li { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #333; }
-.rating { font-size: 1.6rem; margin: 12px 0; }

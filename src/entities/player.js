@@ -4,6 +4,7 @@ import { clamp } from '../engine/collision.js';
 import { PLAYER_START } from '../engine/config.js';
 import { getAssetUrl } from '../data/assets.js';
 import { loadImage } from '../engine/assetLoader.js';
+import { getTimedBuffTotal } from '../systems/timedBuffs.js';
 
 export class Player extends Entity {
   constructor(character, runState) {
@@ -33,11 +34,13 @@ export class Player extends Entity {
   }
 
   get moveSpeed() {
-    return this.character.moveSpeed * Math.max(0.25, 1 + this.runState.buffs.speedMult);
+    const speedMult = this.runState.buffs.speedMult + getTimedBuffTotal(this.runState, 'speedMult');
+    return this.character.moveSpeed * Math.max(0.25, 1 + speedMult);
   }
 
   get damageMult() {
-    return Math.max(0.2, 1 + this.runState.buffs.damageMult);
+    const damageMult = this.runState.buffs.damageMult + getTimedBuffTotal(this.runState, 'damageMult');
+    return Math.max(0.2, 1 + damageMult);
   }
 
   get accuracy() {
@@ -49,7 +52,19 @@ export class Player extends Entity {
   }
 
   triggerAttackCooldown() {
-    this.attackCooldownRemaining = this.weapon.cooldown;
+    const cooldownMult = Math.max(0.3, 1 + getTimedBuffTotal(this.runState, 'cooldownMult'));
+    this.attackCooldownRemaining = this.weapon.cooldown * cooldownMult;
+  }
+
+  takeDamage(amount) {
+    if (this.dead) return;
+    let remaining = amount;
+    if (this.runState.armorShield > 0) {
+      const absorbed = Math.min(this.runState.armorShield, remaining);
+      this.runState.armorShield -= absorbed;
+      remaining -= absorbed;
+    }
+    super.takeDamage(remaining);
   }
 
   update(dt, input, bounds) {
