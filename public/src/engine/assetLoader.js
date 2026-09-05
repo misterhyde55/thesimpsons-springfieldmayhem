@@ -15,6 +15,7 @@ export function loadImage(url) {
   };
   img.onerror = () => {
     record.status = 'failed';
+    console.warn(`[assets] image failed to load, falling back to procedural look: ${url}`);
   };
   img.src = url;
 }

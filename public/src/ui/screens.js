@@ -1,16 +1,19 @@
 import { getAssetUrl } from '../data/assets.js';
+import { getPortraitUrl } from '../data/characterRegistry.js';
 import { RARITY_COLOR } from '../data/upgrades.js';
-import { totalDiscoverableItemCount } from '../state/gameState.js';
 import { ITEMS } from '../data/items.js';
 import { UPGRADES } from '../data/upgrades.js';
+import { MenuNav } from './menuNav.js';
 
 const SCREEN_IDS = [
   'screen-main-menu',
+  'screen-episode-reveal',
   'screen-character-select',
   'screen-characters-info',
   'screen-seasons-info',
   'screen-collection-info',
   'screen-settings',
+  'screen-simpson-house',
   'screen-board',
   'screen-breaking-news',
   'screen-arena',
@@ -20,6 +23,10 @@ const SCREEN_IDS = [
   'screen-run-complete',
   'screen-run-failure',
 ];
+
+// Screens that get the full-bleed console title-screen treatment: no top
+// bar, background art fills the real viewport instead of #app's max-width.
+const MENU_ACTIVE_SCREEN_IDS = new Set(['screen-main-menu', 'screen-episode-reveal']);
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,6 +41,7 @@ export function showScreen(id) {
   for (const screenId of SCREEN_IDS) {
     $(screenId).classList.toggle('hidden', screenId !== id);
   }
+  document.body.classList.toggle('menu-active', MENU_ACTIVE_SCREEN_IDS.has(id));
 }
 
 export function updateMetaReadout(meta) {
@@ -41,32 +49,80 @@ export function updateMetaReadout(meta) {
 }
 
 // ---------- MAIN MENU ----------
-export function populateMainMenu(meta, characters, hasRun, handlers) {
-  updateMetaReadout(meta);
-  $('menu-season').textContent = `Season: ${meta.season}`;
-  $('menu-episodes').textContent = `Episodes Completed: ${meta.episodeInSeason}/22`;
-  const unlockedCount = characters.filter((c) => c.unlocked).length;
-  $('menu-characters').textContent = `Characters Unlocked: ${unlockedCount}/${characters.length}`;
-  $('menu-items').textContent = `Items Discovered: ${meta.itemsDiscoveredIds.length}/${totalDiscoverableItemCount()}`;
+// Console-style vertical menu: a single MenuNav drives both the highlighted
+// selector (keyboard/gamepad-ready) and mouse hover/click, so there's only
+// one "what's selected" source of truth. Returns the MenuNav so game.js can
+// forward arrow-key/Enter input into it.
+const MENU_ITEM_DEFS = [
+  { id: 'new-episode', label: 'NEW EPISODE' },
+  { id: 'continue', label: 'CONTINUE' },
+  { id: 'simpson-house', label: 'THE SIMPSON HOUSE' },
+  { id: 'episode-guide', label: 'EPISODE GUIDE' },
+  { id: 'collection', label: 'COLLECTION' },
+  { id: 'options', label: 'OPTIONS' },
+];
 
-  const continueBtn = $('btn-continue-run');
-  continueBtn.disabled = !hasRun;
-  freshButton('btn-play').addEventListener('click', handlers.onPlay);
-  if (hasRun) freshButton('btn-continue-run').addEventListener('click', handlers.onContinueRun);
-  freshButton('btn-menu-characters').addEventListener('click', handlers.onCharacters);
-  freshButton('btn-menu-seasons').addEventListener('click', handlers.onSeasons);
-  freshButton('btn-menu-collection').addEventListener('click', handlers.onCollection);
-  freshButton('btn-menu-settings').addEventListener('click', handlers.onSettings);
+export function populateMainMenu(meta, hasRun, handlers) {
+  updateMetaReadout(meta);
+
+  const bg = getAssetUrl('backgrounds', 'mainMenu');
+  if (bg) $('screen-main-menu').style.backgroundImage = `url('${bg}')`;
+
+  const items = MENU_ITEM_DEFS.map((def) => ({
+    ...def,
+    disabled: def.id === 'continue' && !hasRun,
+    onActivate: () => handlers[def.id]?.(),
+  }));
+  const nav = new MenuNav(items);
+
+  const listEl = $('console-menu-list');
+  [...listEl.children].forEach((li, index) => {
+    li.classList.toggle('disabled', !!items[index].disabled);
+    li.onclick = () => {
+      if (items[index].disabled) return;
+      nav.select(index);
+      renderConsoleMenu(nav);
+      nav.activateSelected();
+    };
+    li.onmouseenter = () => {
+      if (items[index].disabled) return;
+      nav.select(index);
+      renderConsoleMenu(nav);
+    };
+  });
+  renderConsoleMenu(nav);
+  return nav;
+}
+
+export function renderConsoleMenu(nav) {
+  const listEl = $('console-menu-list');
+  [...listEl.children].forEach((li, index) => {
+    li.classList.toggle('selected', index === nav.selectedIndex);
+  });
+}
+
+// ---------- EPISODE REVEAL ----------
+export function populateEpisodeReveal(character, episode, onStart) {
+  const card = freshButton('episode-reveal-card');
+  $('episode-reveal-title').textContent = `"${episode.title}"`;
+  $('episode-reveal-character').textContent = `Character: ${character.name.toUpperCase()}`;
+  $('episode-reveal-objective').textContent = `Objective: ${episode.objective}`;
+  card.addEventListener('click', onStart);
+}
+
+// ---------- THE SIMPSON HOUSE (stub hub) ----------
+export function populateSimpsonHouse(onCharacters, onBack) {
+  freshButton('btn-simpson-house-characters').addEventListener('click', onCharacters);
+  freshButton('btn-simpson-house-back').addEventListener('click', onBack);
 }
 
 function characterCardHtml(character) {
-  const portraitUrl = character.unlocked ? getAssetUrl('characters', character.id) : null;
+  // Real art shows even for locked characters (dimmed via .locked) -- no
+  // emoji/lock-icon standins once an actual portrait exists for them.
+  const portraitUrl = getAssetUrl('characters', character.id);
   const portrait = portraitUrl
     ? `<img class="character-portrait" src="${portraitUrl}" alt="${character.name}" />`
     : `<div class="emoji">${character.unlocked ? character.emoji : '\u{1F512}'}</div>`;
-  if (!character.unlocked) {
-    return `${portrait}<div>${character.name}</div><small>${character.tagline}</small>`;
-  }
   return `
     ${portrait}
     <div class="character-card-name">${character.name}</div>
@@ -76,7 +132,8 @@ function characterCardHtml(character) {
       <li><span>Ability</span><span>${character.primaryAbility}</span></li>
       <li><span>Passive</span><span>${character.specialPassive}</span></li>
       <li><span>Difficulty</span><span>${character.difficulty}</span></li>
-    </ul>`;
+    </ul>
+    ${character.unlocked ? '' : `<div class="character-card-locked-tag">${character.secret ? 'SECRET' : 'COMING SOON'}</div>`}`;
 }
 
 export function populateCharacterSelect(characters, onSelect, onBack) {
@@ -161,6 +218,18 @@ export function populateBreakingNews(newsText) {
 
 // ---------- ARENA HUD (combat / miniBoss / boss nodes) ----------
 export function updateHud(runState, weapon, locationName) {
+  const portraitEl = $('hud-portrait');
+  const portraitUrl = getAssetUrl('characters', runState.character.id);
+  if (portraitEl.dataset.characterId !== runState.character.id) {
+    portraitEl.dataset.characterId = runState.character.id;
+    if (portraitUrl) {
+      portraitEl.src = portraitUrl;
+      portraitEl.alt = runState.character.name;
+      portraitEl.classList.remove('hidden');
+    } else {
+      portraitEl.classList.add('hidden');
+    }
+  }
   $('hud-location').textContent = locationName;
   const pct = Math.max(0, runState.hp / runState.maxHp) * 100;
   $('hud-hp-bar').style.width = `${pct}%`;
@@ -177,12 +246,31 @@ export function updateHud(runState, weapon, locationName) {
   $('hud-buffs').textContent = buffIcons.join(' ');
 }
 
+let bannerTimer = null;
+
 export function showBanner(text, ms = 1800) {
   const el = $('banner-text');
   el.textContent = text;
   el.classList.remove('hidden');
-  clearTimeout(showBanner._timer);
-  showBanner._timer = setTimeout(() => el.classList.add('hidden'), ms);
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => el.classList.add('hidden'), ms);
+}
+
+// Same banner, but fronted by a character's portrait when the registry has
+// one -- for NPC dialogue lines and boss intros. Falls back to a plain text
+// banner when no portrait is registered for that id (unknown speaker, or a
+// boss like Kang & Kodos with no uploaded art yet).
+export function showNpcBanner(characterId, text, ms = 2200) {
+  const portraitUrl = getPortraitUrl(characterId);
+  if (!portraitUrl) {
+    showBanner(text, ms);
+    return;
+  }
+  const el = $('banner-text');
+  el.innerHTML = `<img class="banner-npc-portrait" src="${portraitUrl}" alt="" />${text}`;
+  el.classList.remove('hidden');
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => el.classList.add('hidden'), ms);
 }
 
 export function showDonutModal(onEat, onSave) {
@@ -269,7 +357,13 @@ export function populateLevelComplete(summary, upgrades, onPick, options = {}) {
 // ---------- EVENT NODE ----------
 export function populateEvent(event, onChoose) {
   $('event-title').textContent = event.title;
-  $('event-emoji').textContent = event.emoji;
+  const portraitUrl = event.npcId ? getPortraitUrl(event.npcId) : null;
+  const emojiEl = $('event-emoji');
+  if (portraitUrl) {
+    emojiEl.innerHTML = `<img class="event-npc-portrait" src="${portraitUrl}" alt="" />`;
+  } else {
+    emojiEl.textContent = event.emoji;
+  }
   $('event-prompt').textContent = event.prompt;
   $('event-result').classList.add('hidden');
   $('btn-event-continue').classList.add('hidden');
