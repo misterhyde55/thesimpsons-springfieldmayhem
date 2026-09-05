@@ -27,9 +27,9 @@ const SCREEN_IDS = [
   'screen-run-failure',
 ];
 
-// Screens that get the full-bleed console title-screen treatment: no top
-// bar, background art fills the real viewport instead of #app's max-width.
-const MENU_ACTIVE_SCREEN_IDS = new Set(['screen-main-menu', 'screen-episode-reveal']);
+// Screens that get the full-bleed treatment: no top bar, background art
+// fills the real viewport instead of #app's max-width.
+const FULL_BLEED_SCREEN_IDS = new Set(['screen-main-menu', 'screen-episode-reveal', 'screen-battle', 'screen-boss-intro']);
 
 const $ = (id) => document.getElementById(id);
 
@@ -44,7 +44,7 @@ export function showScreen(id) {
   for (const screenId of SCREEN_IDS) {
     $(screenId).classList.toggle('hidden', screenId !== id);
   }
-  document.body.classList.toggle('menu-active', MENU_ACTIVE_SCREEN_IDS.has(id));
+  document.body.classList.toggle('full-bleed-active', FULL_BLEED_SCREEN_IDS.has(id));
 }
 
 export function updateMetaReadout(meta) {
@@ -234,7 +234,7 @@ export function populateBossIntro(boss, onStart) {
 
 // ---------- BATTLE ----------
 function resolveEnemyPortrait(templateId) {
-  return getAssetUrl('bosses', templateId) || getAssetUrl('characters', templateId) || null;
+  return getAssetUrl('bosses', templateId) || getAssetUrl('enemies', templateId) || getAssetUrl('characters', templateId) || null;
 }
 
 function statusPipsHtml(statuses) {
@@ -270,11 +270,12 @@ export function populateBattle(battle, runState, handlers) {
     const portraitUrl = resolveEnemyPortrait(enemy.templateId);
     slot.innerHTML = `
       <div class="enemy-intent"></div>
-      ${portraitUrl ? `<img class="battle-portrait enemy-portrait" src="${portraitUrl}" alt="" />` : `<div class="battle-portrait-fallback">${enemy.emoji}</div>`}
-      <div class="battle-name">${enemy.name}</div>
-      <div class="hp-bar-outer"><div class="hp-bar-inner"></div></div>
-      <div class="hp-text"></div>
       <div class="status-row"></div>
+      ${portraitUrl ? `<img class="battle-portrait enemy-portrait" src="${portraitUrl}" alt="" />` : `<div class="battle-portrait-fallback">${enemy.emoji}</div>`}
+      <div class="combatant-footer">
+        <div class="combatant-name">${enemy.name}</div>
+        <div class="hp-bar-outer"><div class="hp-bar-inner"></div><span class="hp-bar-label"></span></div>
+      </div>
     `;
     slot.addEventListener('click', () => handlers.onTargetEnemy(enemy.instanceId));
     enemiesContainer.appendChild(slot);
@@ -308,7 +309,8 @@ export function renderBattle(battle, runState) {
   $('battle-player-hp-bar').style.background = p.hp / p.maxHp < 0.3 ? '#d0021b' : '#3ec24c';
   $('battle-player-hp-text').textContent = `${Math.max(0, Math.round(p.hp))} / ${p.maxHp}`;
   $('battle-player-statuses').innerHTML = statusPipsHtml(p.statuses);
-  $('battle-energy-readout').textContent = `⚡ ${p.energy} / ${p.maxEnergy}`;
+  $('battle-energy-value').textContent = p.energy;
+  document.querySelector('#battle-energy-readout small').textContent = `/${p.maxEnergy}`;
   $('battle-mayhem-readout').textContent = `☠️ MAYHEM: ${runState.mayhem}%`;
 
   for (const enemy of battle.enemies) {
@@ -317,7 +319,7 @@ export function renderBattle(battle, runState) {
     const dead = enemy.hp <= 0;
     slot.classList.toggle('dead', dead);
     slot.querySelector('.hp-bar-inner').style.width = `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%`;
-    slot.querySelector('.hp-text').textContent = `${Math.max(0, Math.round(enemy.hp))} / ${enemy.maxHp}`;
+    slot.querySelector('.hp-bar-label').textContent = `${Math.max(0, Math.round(enemy.hp))} / ${enemy.maxHp}`;
     slot.querySelector('.status-row').innerHTML = statusPipsHtml(enemy.statuses);
     const intentEl = slot.querySelector('.enemy-intent');
     intentEl.textContent = !dead && enemy.intent ? `${enemy.intent.icon} ${enemy.intent.label}` : '';

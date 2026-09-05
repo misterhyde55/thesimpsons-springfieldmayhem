@@ -133,22 +133,33 @@
 
   <!-- ================= BATTLE (turn-based combat / elite / boss nodes) ================= -->
   <section id="screen-battle" class="screen battle-screen">
-    <div id="battle-mayhem-readout" class="mayhem-readout">☠️ MAYHEM: 0%</div>
-    <div class="battle-stage">
-      <div id="battle-side-player" class="battle-side battle-side-player">
-        <img id="battle-player-portrait" class="battle-portrait hidden" alt="" />
-        <div id="battle-player-name" class="battle-name">HOMER</div>
-        <div class="hp-bar-outer"><div id="battle-player-hp-bar" class="hp-bar-inner"></div></div>
-        <div id="battle-player-hp-text" class="hp-text">150 / 150</div>
-        <div id="battle-player-statuses" class="status-row"></div>
-        <div id="battle-energy-readout" class="energy-readout">⚡ 3 / 3</div>
-      </div>
-      <div class="battle-vs">VS</div>
-      <div id="battle-enemies" class="battle-side battle-side-enemies"></div>
+    <div class="battle-topbar">
+      <div id="battle-mayhem-readout" class="mayhem-readout">☠️ MAYHEM: 0%</div>
     </div>
+
+    <div class="battle-stage">
+      <div id="battle-side-player" class="battle-combatant battle-combatant-player">
+        <div id="battle-player-statuses" class="status-row"></div>
+        <img id="battle-player-portrait" class="battle-portrait hidden" alt="" />
+        <div class="combatant-footer">
+          <div id="battle-player-name" class="combatant-name">HOMER</div>
+          <div class="hp-bar-outer">
+            <div id="battle-player-hp-bar" class="hp-bar-inner"></div>
+            <span id="battle-player-hp-text" class="hp-bar-label">150 / 150</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="battle-enemies" class="battle-enemies-row"></div>
+    </div>
+
     <div id="battle-log" class="battle-log"></div>
-    <div id="battle-abilities" class="battle-abilities"></div>
-    <button id="btn-battle-end-turn" class="menu-link-button">END TURN</button>
+
+    <div class="battle-hand-bar">
+      <div id="battle-energy-readout" class="energy-orb"><span id="battle-energy-value">3</span><small>/3</small></div>
+      <div id="battle-abilities" class="battle-abilities"></div>
+      <button id="btn-battle-end-turn" class="end-turn-btn">End<br />Turn</button>
+    </div>
   </section>
 
   <!-- Floating toast for shop pickups / NPC lines / relationship shifts --

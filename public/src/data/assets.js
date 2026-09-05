@@ -44,8 +44,18 @@ export const ASSET_MANIFEST = {
   npcs: {},
   // Pickups: donuts and data/items.js entries, keyed by item id ('donut' for the donut itself).
   items: {},
-  // data/enemies.js entries, keyed by enemy id.
-  enemies: {},
+  // data/enemies.js entries, keyed by enemy id. The generic (unnamed)
+  // zombie mob shares one uploaded sprite; Patient Zero Flanders is a named
+  // character so he keeps his own portrait instead.
+  enemies: {
+    zombieBarfly: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
+    zombieMobGuy: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
+    shamblingIntern: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
+    undeadCafeteriaLady: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
+    zombieGroundskeeper: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
+    zombieHorde: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
+    patientZeroFlanders: `${BASE}/characters/Ned%20Flanders.png`,
+  },
   // data/bosses.js entries, keyed by boss id. Chief Wiggum and Mr. Burns reuse
   // their characters/ portrait here for the in-arena boss sprite -- one image
   // file, two lookup entries for two different rendering contexts.
