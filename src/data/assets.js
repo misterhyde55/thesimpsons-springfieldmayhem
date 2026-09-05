@@ -7,7 +7,7 @@
 // the game's procedural canvas-drawn look, so partial art coverage is safe.
 //
 // Categories match the folders already set up under public/assets/:
-// characters, npcs, items, enemies, bosses, buildings, ui.
+// characters, npcs, items, enemies, bosses, buildings, backgrounds, ui.
 const BASE = '/assets';
 
 export const ASSET_MANIFEST = {
@@ -23,8 +23,12 @@ export const ASSET_MANIFEST = {
   enemies: {},
   // data/bosses.js entries, keyed by boss id.
   bosses: {},
-  // Location backgrounds, keyed by location id (data/locations.js).
+  // In-arena/board location backgrounds, keyed by location id (data/locations.js).
   buildings: {},
+  // Full-scene backgrounds not tied to a specific location (menus, etc.)
+  backgrounds: {
+    mainMenu: `${BASE}/backgrounds/mainpage.jpeg`,
+  },
   // HUD/menu art not tied to a specific game entity.
   ui: {},
 };

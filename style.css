@@ -8,6 +8,8 @@ body {
 #app { max-width: 940px; margin: 0 auto; padding: 0 0 40px; }
 
 #top-bar {
+  position: relative;
+  z-index: 20;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -59,39 +61,30 @@ body {
 .trophy-shelf { min-height: 40px; font-size: 1.6rem; margin: 10px 0; }
 
 /* ---------------- Homepage ---------------- */
-.menu-screen { padding: 0; position: relative; overflow: hidden; min-height: 560px; }
-.homepage-scene {
-  position: relative;
-  height: 320px;
-  overflow: hidden;
-  background: linear-gradient(#4a90d9, #bfe3ff 70%, #7fbf6a 70%);
+/* Full-viewport background photo (independent of #app's max-width), with a
+   subtle readability gradient baked into the same layer. isolation:isolate
+   keeps the negative z-index scoped to this screen instead of escaping to
+   fight the top bar's stacking. */
+.menu-screen {
+  isolation: isolate;
+  min-height: calc(100vh - 52px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1b1b1f;
 }
-.hp-cloud { position: absolute; font-size: 2.4rem; opacity: 0.85; animation: driftRight 60s linear infinite; }
-.hp-cloud-1 { top: 20px; animation-duration: 70s; }
-.hp-cloud-2 { top: 55px; font-size: 1.8rem; animation-duration: 55s; animation-delay: -20s; }
-.hp-cloud-3 { top: 10px; font-size: 1.4rem; animation-duration: 85s; animation-delay: -40s; }
-@keyframes driftRight { from { left: -10%; } to { left: 110%; } }
+.menu-screen::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: linear-gradient(to bottom, rgba(10, 10, 15, 0.15), rgba(10, 10, 15, 0.6)), url('/assets/backgrounds/mainpage.jpeg');
+  background-size: cover, cover;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+}
 
-.hp-bird { position: absolute; font-size: 1rem; animation: driftRight 22s linear infinite; }
-.hp-bird-1 { top: 40px; animation-duration: 18s; }
-.hp-bird-2 { top: 70px; animation-duration: 26s; animation-delay: -8s; }
-
-.hp-plant { position: absolute; top: 90px; left: 8%; font-size: 2.6rem; }
-.hp-smoke { position: absolute; left: 14px; top: -10px; font-size: 1rem; opacity: 0; animation: smokeRise 6s ease-in infinite; }
-.hp-smoke-2 { animation-delay: 3s; }
-@keyframes smokeRise { 0% { opacity: 0; transform: translateY(0) scale(0.8); } 20% { opacity: 0.6; } 100% { opacity: 0; transform: translateY(-60px) scale(1.4); } }
-
-.hp-skyline { position: absolute; bottom: 60px; width: 100%; text-align: center; font-size: 2rem; letter-spacing: 18px; opacity: 0.9; }
-.hp-road { position: absolute; bottom: 0; width: 100%; height: 60px; background: #4a4a52; border-top: 4px dashed #f6d217; }
-.hp-car { position: absolute; bottom: 12px; font-size: 1.6rem; animation: driftRight 14s linear infinite; }
-.hp-car-2 { bottom: 12px; font-size: 1.4rem; animation-duration: 19s; animation-delay: -6s; }
-.hp-walker { position: absolute; bottom: 62px; font-size: 1.3rem; animation: driftRight 40s linear infinite; animation-delay: -10s; }
-
-.hp-tv { position: absolute; top: 12px; right: 16px; font-size: 1.6rem; }
-.hp-tv-flicker { position: absolute; inset: 0; animation: tvFlicker 3.4s steps(1) infinite; }
-@keyframes tvFlicker { 0%, 91%, 100% { background: transparent; } 92%, 95% { background: rgba(255,255,255,0.35); } }
-
-.homepage-foreground { position: relative; text-align: center; padding: 10px 20px 30px; margin-top: -30px; }
+.homepage-foreground { position: relative; text-align: center; padding: 30px 20px; }
 .game-logo {
   font-size: 1.6rem;
   font-weight: 800;
