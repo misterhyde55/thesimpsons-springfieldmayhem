@@ -1,5 +1,11 @@
-// Item registry. `category` decides how a pickup resolves:
-//  - 'donut'      -> triggers the eat/save decision (see systems/economy.js)
+import { addTimedBuff } from '../systems/timedBuffs.js';
+import { grantDuffRageBurst } from './upgrades.js';
+
+// Item registry. Items are bought at Shop board nodes (see systems/economy.js
+// getShopCatalog) rather than scattered as arena pickups now that combat
+// levels award their build-crafting via the level-complete upgrade choice
+// instead. `category` decides how a purchase resolves:
+//  - 'donut'      -> triggers the eat/save decision (still an arena pickup)
 //  - 'consumable' -> applies `apply(runState)` once, immediately
 //  - 'weapon'     -> swaps the player's current weapon to `weaponId`
 //  - 'passive'    -> applies `apply(runState)` once and stays owned for the run
@@ -33,6 +39,7 @@ export const ITEMS = {
     apply(runState) {
       runState.buffs.damageMult += 0.2;
       runState.buffs.accuracy -= 0.15;
+      if (runState.buffs.duffRageUpgrade) grantDuffRageBurst(runState);
     },
   },
   buzzCola: {
@@ -53,13 +60,13 @@ export const ITEMS = {
     category: 'consumable',
     tags: ['sugar'],
     description: 'Huge speed rush... then a sugar crash.',
-    apply(runState, ctx) {
+    apply(runState) {
       if (runState.buffs.sugarRushOverdrive) {
         runState.buffs.speedMult += 0.35;
         return;
       }
-      ctx.addTimedBuff({ speedMult: 0.6 }, 8000);
-      ctx.scheduleAfter(8000, () => ctx.addTimedBuff({ speedMult: -0.35 }, 5000));
+      addTimedBuff(runState, 'speedMult', 0.6, 8000);
+      setTimeout(() => addTimedBuff(runState, 'speedMult', -0.35, 5000), 8000);
     },
   },
   radioactiveRod: {

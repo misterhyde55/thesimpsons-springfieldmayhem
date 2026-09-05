@@ -1,6 +1,12 @@
 import { angleTo, angleDiff, distance, randRange } from '../engine/collision.js';
 
-export function resolveMeleeAttack(attacker, weapon, damageMult, enemies) {
+const RADIATION_STATUS = { kind: 'poison', duration: 3000, tickInterval: 500, dps: 4 };
+
+export function maybeApplyRadiation(entity, chance) {
+  if (chance > 0 && Math.random() < chance) entity.applyStatus(RADIATION_STATUS);
+}
+
+export function resolveMeleeAttack(attacker, weapon, damageMult, enemies, radiationChance = 0) {
   const arcRad = (weapon.arcDegrees * Math.PI) / 180;
   const hits = [];
   for (const enemy of enemies) {
@@ -11,6 +17,7 @@ export function resolveMeleeAttack(attacker, weapon, damageMult, enemies) {
     if (angleDiff(ang, attacker.facing) > arcRad / 2) continue;
     enemy.takeDamage(weapon.damage * damageMult);
     if (weapon.appliesStatus) enemy.applyStatus(weapon.appliesStatus);
+    maybeApplyRadiation(enemy, radiationChance);
     const kb = weapon.knockback || 0;
     enemy.x += Math.cos(ang) * kb * 0.15;
     enemy.y += Math.sin(ang) * kb * 0.15;

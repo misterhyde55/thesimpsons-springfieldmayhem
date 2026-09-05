@@ -1,5 +1,6 @@
-// Each character is a roguelike "class". Only Homer is playable in this prototype;
-// the rest are registered here so unlocking one later is a data change, not a rewrite.
+// Each character is a roguelike "class" with their own journey (data/journeys.js)
+// through Springfield. Only Homer has a built journey right now; the rest are
+// registered so unlocking one later is a data + journey addition, not a rewrite.
 export const CHARACTERS = {
   homer: {
     id: 'homer',
@@ -12,6 +13,11 @@ export const CHARACTERS = {
     emoji: '🍩',
     startingWeapon: 'fists',
     tagline: 'Tank / Melee / Food.',
+    healthLabel: 'High',
+    speedLabel: 'Slow',
+    primaryAbility: 'Bare Fists — heavy melee swings',
+    specialPassive: 'Eats twice the donuts. Twice the gains.',
+    difficulty: 'Easy',
   },
   bart: {
     id: 'bart',
@@ -24,6 +30,11 @@ export const CHARACTERS = {
     emoji: '🛹',
     startingWeapon: 'slingshot',
     tagline: 'Speed / Tricks / Ranged. Coming soon.',
+    healthLabel: 'Low',
+    speedLabel: 'Very Fast',
+    primaryAbility: 'Slingshot — ranged pest control',
+    specialPassive: 'Skateboard dash between attacks.',
+    difficulty: 'Hard',
   },
   lisa: {
     id: 'lisa',
@@ -36,6 +47,11 @@ export const CHARACTERS = {
     emoji: '🎷',
     startingWeapon: 'saxophone',
     tagline: 'Intelligence / Status Effects. Coming soon.',
+    healthLabel: 'Low',
+    speedLabel: 'Medium',
+    primaryAbility: 'Saxophone — damaging sound waves',
+    specialPassive: 'Status effects linger longer.',
+    difficulty: 'Medium',
   },
   marge: {
     id: 'marge',
@@ -48,6 +64,11 @@ export const CHARACTERS = {
     emoji: '🧹',
     startingWeapon: 'fryingPan',
     tagline: 'Control / Defense. Coming soon.',
+    healthLabel: 'Medium',
+    speedLabel: 'Medium',
+    primaryAbility: 'Frying Pan — wide crowd control',
+    specialPassive: 'Tougher the lower her health gets.',
+    difficulty: 'Medium',
   },
   maggie: {
     id: 'maggie',
@@ -61,6 +82,11 @@ export const CHARACTERS = {
     emoji: '👶',
     startingWeapon: 'pacifier',
     tagline: 'Secret character. ???',
+    healthLabel: '???',
+    speedLabel: '???',
+    primaryAbility: '???',
+    specialPassive: '???',
+    difficulty: '???',
   },
 };
 

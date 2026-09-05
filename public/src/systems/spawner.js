@@ -1,9 +1,6 @@
-import { ENEMIES, enemiesForScenario } from '../data/enemies.js';
-import { ITEMS } from '../data/items.js';
+import { enemiesForScenario } from '../data/enemies.js';
 import { ARENA_WIDTH, ARENA_HEIGHT } from '../engine/config.js';
 import { randRange, pickRandom } from '../engine/collision.js';
-
-const NON_DONUT_ITEM_IDS = Object.keys(ITEMS).filter((id) => ITEMS[id].category !== 'donut');
 
 function randomPoint(margin = 60) {
   return {
@@ -12,9 +9,12 @@ function randomPoint(margin = 60) {
   };
 }
 
-export function buildEnemyWave(location, stageIndex, scenarioId, twistActive) {
+// `progressCount` (nodes already completed this run) scales the wave up as
+// the board goes on; `elite` (a harder branch-choice node) adds more on top.
+export function buildEnemyWave(location, progressCount, scenarioId, twistActive, elite = false) {
   const pool = twistActive ? enemiesForScenario(scenarioId) : enemiesForScenario('any');
-  const waveSize = (location.waveBase || 0) + Math.floor(stageIndex / 2);
+  let waveSize = (location.waveBase || 0) + Math.floor(progressCount / 2);
+  if (elite) waveSize += 2;
   const wave = [];
   for (let i = 0; i < waveSize; i += 1) {
     const template = pickRandom(pool);
@@ -24,25 +24,14 @@ export function buildEnemyWave(location, stageIndex, scenarioId, twistActive) {
   return wave;
 }
 
-export function buildPickups(location) {
+// Combat levels only drop donuts now — non-donut build-crafting comes from
+// the level-complete upgrade choice (systems/upgradeSystem.js) and shop nodes.
+export function buildPickups() {
   const pickups = [];
   const donutCount = Math.random() < 0.5 ? 1 : 2;
   for (let i = 0; i < donutCount; i += 1) {
     const point = randomPoint(80);
     pickups.push({ kind: 'donut', x: point.x, y: point.y });
   }
-  const itemCount = location.itemDropCount || 0;
-  const chosenIds = new Set();
-  let attempts = 0;
-  while (chosenIds.size < itemCount && attempts < itemCount * 6) {
-    attempts += 1;
-    chosenIds.add(pickRandom(NON_DONUT_ITEM_IDS));
-  }
-  for (const itemId of chosenIds) {
-    const point = randomPoint(80);
-    pickups.push({ kind: 'item', itemId, x: point.x, y: point.y });
-  }
   return pickups;
 }
-
-export { ENEMIES };
