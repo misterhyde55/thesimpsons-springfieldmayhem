@@ -206,16 +206,28 @@ body.menu-active #top-bar { display: none; }
   padding: 10px 14px;
   width: 150px;
   background: #26262e;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 .character-card.select-card { cursor: pointer; }
-.character-card.select-card:hover { border-color: #f6d217; }
+.character-card.select-card:not(.locked):hover {
+  border-color: #f6d217;
+  transform: scale(1.06);
+  animation: cardBounce 0.3s ease-out;
+}
 .character-card.locked { opacity: 0.45; cursor: not-allowed; }
+.character-card.locked:hover { border-color: #666; }
+@keyframes cardBounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1.06); }
+}
 .character-card .emoji { font-size: 2rem; }
 .character-card .character-portrait { height: 72px; width: auto; object-fit: contain; margin-bottom: 4px; }
 .character-card-name { font-weight: 700; margin: 4px 0; }
 .character-card-stats { list-style: none; padding: 0; margin: 0; font-size: 0.72rem; text-align: left; }
 .character-card-stats li { display: flex; justify-content: space-between; gap: 6px; padding: 1px 0; color: #c9c9d3; }
 .character-card-stats li span:first-child { color: #8c8c99; }
+.character-card-locked-tag { margin-top: 6px; font-size: 0.7rem; font-weight: 800; letter-spacing: 1px; color: #8c8c99; }
 
 .seasons-list { max-width: 560px; margin: 0 auto; text-align: left; }
 .history-row { border-bottom: 1px solid #333; padding: 8px 0; display: flex; justify-content: space-between; gap: 10px; font-size: 0.85rem; }
@@ -271,6 +283,8 @@ canvas#boardCanvas {
   max-width: 900px;
   margin: 0 auto 6px;
 }
+.hud-left { display: flex; align-items: center; gap: 8px; }
+.hud-portrait { height: 46px; width: auto; object-fit: contain; }
 .hp-bar-outer {
   width: 220px;
   height: 16px;
@@ -302,6 +316,14 @@ canvas#gameCanvas {
   color: #fff;
   text-shadow: 2px 2px 0 #000;
   pointer-events: none;
+}
+.banner-npc-portrait {
+  height: 56px;
+  width: auto;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 10px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
 }
 
 .modal {
@@ -372,6 +394,7 @@ canvas#gameCanvas {
   50% { box-shadow: 0 0 36px 10px rgba(246, 210, 23, 0.6); }
 }
 
+.event-npc-portrait { height: 88px; width: auto; object-fit: contain; }
 .event-options { display: flex; flex-direction: column; align-items: center; }
 .event-option-btn { width: 100%; max-width: 320px; }
 

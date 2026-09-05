@@ -1,4 +1,5 @@
 import { getAssetUrl } from '../data/assets.js';
+import { getPortraitUrl } from '../data/characterRegistry.js';
 import { RARITY_COLOR } from '../data/upgrades.js';
 import { ITEMS } from '../data/items.js';
 import { UPGRADES } from '../data/upgrades.js';
@@ -116,13 +117,12 @@ export function populateSimpsonHouse(onCharacters, onBack) {
 }
 
 function characterCardHtml(character) {
-  const portraitUrl = character.unlocked ? getAssetUrl('characters', character.id) : null;
+  // Real art shows even for locked characters (dimmed via .locked) -- no
+  // emoji/lock-icon standins once an actual portrait exists for them.
+  const portraitUrl = getAssetUrl('characters', character.id);
   const portrait = portraitUrl
     ? `<img class="character-portrait" src="${portraitUrl}" alt="${character.name}" />`
     : `<div class="emoji">${character.unlocked ? character.emoji : '\u{1F512}'}</div>`;
-  if (!character.unlocked) {
-    return `${portrait}<div>${character.name}</div><small>${character.tagline}</small>`;
-  }
   return `
     ${portrait}
     <div class="character-card-name">${character.name}</div>
@@ -132,7 +132,8 @@ function characterCardHtml(character) {
       <li><span>Ability</span><span>${character.primaryAbility}</span></li>
       <li><span>Passive</span><span>${character.specialPassive}</span></li>
       <li><span>Difficulty</span><span>${character.difficulty}</span></li>
-    </ul>`;
+    </ul>
+    ${character.unlocked ? '' : `<div class="character-card-locked-tag">${character.secret ? 'SECRET' : 'COMING SOON'}</div>`}`;
 }
 
 export function populateCharacterSelect(characters, onSelect, onBack) {
@@ -217,6 +218,18 @@ export function populateBreakingNews(newsText) {
 
 // ---------- ARENA HUD (combat / miniBoss / boss nodes) ----------
 export function updateHud(runState, weapon, locationName) {
+  const portraitEl = $('hud-portrait');
+  const portraitUrl = getAssetUrl('characters', runState.character.id);
+  if (portraitEl.dataset.characterId !== runState.character.id) {
+    portraitEl.dataset.characterId = runState.character.id;
+    if (portraitUrl) {
+      portraitEl.src = portraitUrl;
+      portraitEl.alt = runState.character.name;
+      portraitEl.classList.remove('hidden');
+    } else {
+      portraitEl.classList.add('hidden');
+    }
+  }
   $('hud-location').textContent = locationName;
   const pct = Math.max(0, runState.hp / runState.maxHp) * 100;
   $('hud-hp-bar').style.width = `${pct}%`;
@@ -233,12 +246,31 @@ export function updateHud(runState, weapon, locationName) {
   $('hud-buffs').textContent = buffIcons.join(' ');
 }
 
+let bannerTimer = null;
+
 export function showBanner(text, ms = 1800) {
   const el = $('banner-text');
   el.textContent = text;
   el.classList.remove('hidden');
-  clearTimeout(showBanner._timer);
-  showBanner._timer = setTimeout(() => el.classList.add('hidden'), ms);
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => el.classList.add('hidden'), ms);
+}
+
+// Same banner, but fronted by a character's portrait when the registry has
+// one -- for NPC dialogue lines and boss intros. Falls back to a plain text
+// banner when no portrait is registered for that id (unknown speaker, or a
+// boss like Kang & Kodos with no uploaded art yet).
+export function showNpcBanner(characterId, text, ms = 2200) {
+  const portraitUrl = getPortraitUrl(characterId);
+  if (!portraitUrl) {
+    showBanner(text, ms);
+    return;
+  }
+  const el = $('banner-text');
+  el.innerHTML = `<img class="banner-npc-portrait" src="${portraitUrl}" alt="" />${text}`;
+  el.classList.remove('hidden');
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => el.classList.add('hidden'), ms);
 }
 
 export function showDonutModal(onEat, onSave) {
@@ -325,7 +357,13 @@ export function populateLevelComplete(summary, upgrades, onPick, options = {}) {
 // ---------- EVENT NODE ----------
 export function populateEvent(event, onChoose) {
   $('event-title').textContent = event.title;
-  $('event-emoji').textContent = event.emoji;
+  const portraitUrl = event.npcId ? getPortraitUrl(event.npcId) : null;
+  const emojiEl = $('event-emoji');
+  if (portraitUrl) {
+    emojiEl.innerHTML = `<img class="event-npc-portrait" src="${portraitUrl}" alt="" />`;
+  } else {
+    emojiEl.textContent = event.emoji;
+  }
   $('event-prompt').textContent = event.prompt;
   $('event-result').classList.add('hidden');
   $('btn-event-continue').classList.add('hidden');

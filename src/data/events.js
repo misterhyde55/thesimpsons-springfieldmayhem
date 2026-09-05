@@ -9,6 +9,7 @@ export const EVENTS = {
     id: 'flandersNeedsHelp',
     title: "Flanders Needs Help",
     emoji: '🏡',
+    npcId: 'flanders',
     prompt: 'Ned: "Homer! My tool shed\'s gone all poltergeist on me. Help a neighborino out?"',
     options: [
       {

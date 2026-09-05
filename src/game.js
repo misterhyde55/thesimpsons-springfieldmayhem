@@ -425,11 +425,11 @@ export class Game {
       if (moeSupportsInBossFight(this.runState)) {
         this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30);
         this.runState.hp = this.player.hp;
-        screens.showBanner('Moe: "Take this one for the road!" (+30 HP)', 2200);
+        screens.showNpcBanner('moe', 'Moe: "Take this one for the road!" (+30 HP)', 2200);
       }
 
       screens.showScreen('screen-arena');
-      screens.showBanner(bossTemplate.intro, 2400);
+      screens.showNpcBanner(bossId, bossTemplate.intro, 2400);
       this.startArenaLoop();
       return;
     }
@@ -443,7 +443,7 @@ export class Game {
     if (this.currentLocation.hasMoeRelationship) {
       this.moeJukebox = makeMoeJukeboxProp(ARENA_WIDTH - 90, 90);
       this.enemies.push(this.moeJukebox);
-      screens.showBanner(moeGreeting(this.runState), 2200);
+      screens.showNpcBanner('moe', moeGreeting(this.runState), 2200);
     }
 
     this.pickups = buildPickups().map((p) => new Pickup({ x: p.x, y: p.y, kind: p.kind, itemId: p.itemId }));
@@ -453,9 +453,11 @@ export class Game {
     this.player.y = PLAYER_START.y;
     this.nodeStartHp = this.player.hp;
 
-    if (twistActive) {
-      const flavor = this.currentLocation.flavorAlien;
-      if (flavor && flavor.length) screens.showBanner(pickRandom(flavor), 2200);
+    const flavor = twistActive ? this.currentLocation.flavorAlien : this.currentLocation.flavorNormal;
+    if (flavor && flavor.length) {
+      const line = pickRandom(flavor);
+      if (this.currentLocation.npcId) screens.showNpcBanner(this.currentLocation.npcId, line, 2200);
+      else screens.showBanner(line, 2200);
     }
 
     screens.showScreen('screen-arena');
@@ -708,7 +710,7 @@ export class Game {
       if (enemy.dead) {
         if (enemy.isProp) {
           shiftRelationship(this.runState, 'moe', -2);
-          screens.showBanner('Moe: "MY JUKEBOX! GET OUT!"', 2000);
+          screens.showNpcBanner('moe', 'Moe: "MY JUKEBOX! GET OUT!"', 2000);
         } else {
           this.runState.stats.enemiesDefeated += 1;
           this.nodeEnemiesDefeated += 1;
