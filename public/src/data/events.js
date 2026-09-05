@@ -1,4 +1,5 @@
 import { shiftRelationship } from '../systems/relationships.js';
+import { addTimedBuff } from '../systems/timedBuffs.js';
 
 // Event nodes present a prompt and a small set of options, each with its own
 // outcome. `apply(runState)` mutates the run; `resultText` is shown after the
@@ -51,6 +52,30 @@ export const EVENTS = {
         apply(runState) {
           runState.hp = Math.max(1, runState.hp - 15);
         },
+      },
+    ],
+  },
+  lardLadDare: {
+    id: 'lardLadDare',
+    title: 'The Lard Lad Dare',
+    emoji: '🍩',
+    prompt: 'A dare-devil kid bets you can\'t eat the entire 50-pound Lard Lad donut statue prop in one bite.',
+    options: [
+      {
+        id: 'dare',
+        label: 'DO IT',
+        resultText: 'You inhale a donut the size of a tire. Sugar shock hits like a truck, but so does the rush.',
+        apply(runState) {
+          addTimedBuff(runState, 'damageMult', 0.5, 6000);
+          addTimedBuff(runState, 'speedMult', -0.3, 6000);
+          runState.hp = Math.max(1, runState.hp - 10);
+        },
+      },
+      {
+        id: 'decline',
+        label: 'Absolutely not',
+        resultText: 'You keep your dignity and your stomach lining intact.',
+        apply() {},
       },
     ],
   },

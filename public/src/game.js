@@ -11,6 +11,7 @@ import { ENEMIES } from './data/enemies.js';
 import { BOSSES } from './data/bosses.js';
 import { LOCATIONS } from './data/locations.js';
 import { getEvent } from './data/events.js';
+import { UPGRADES } from './data/upgrades.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
 import { getNode, getAvailableNodeIds, markNodeCompleted, isJourneyComplete, resolveBossForNode } from './systems/board.js';
@@ -274,7 +275,8 @@ export class Game {
 
   // ---------- EVENT ----------
   showEventScreen(node) {
-    const event = getEvent(node.eventId);
+    const eventId = node.eventId || pickRandom(node.eventPool);
+    const event = getEvent(eventId);
     screens.showScreen('screen-event');
     screens.populateEvent(event, (option) => {
       option.apply(this.runState);
@@ -705,17 +707,26 @@ export class Game {
       return;
     }
 
-    const choices = rollUpgradeChoices(this.runState, 3);
+    const milestoneId = node.milestoneUpgradeId;
+    const milestoneUpgrade = milestoneId && !this.runState.upgradesChosen.has(milestoneId) ? UPGRADES[milestoneId] : null;
+    const choices = milestoneUpgrade ? [milestoneUpgrade] : rollUpgradeChoices(this.runState, 3);
+
     screens.showScreen('screen-level-complete');
-    screens.populateLevelComplete(summary, choices, (upgrade) => {
-      if (upgrade) {
-        applyUpgrade(this.runState, upgrade);
-        recordDiscoveries(this.meta, [upgrade.id]);
-        saveMeta(this.meta);
-      }
-      saveActiveRun(this.runState);
-      this.showBoard();
-    });
+    screens.populateLevelComplete(
+      summary,
+      choices,
+      (upgrade) => {
+        if (upgrade) {
+          applyUpgrade(this.runState, upgrade);
+          recordDiscoveries(this.meta, [upgrade.id]);
+          saveMeta(this.meta);
+          if (milestoneUpgrade) screens.showBanner(`${this.runState.character.name.toUpperCase()} LEARNED ${upgrade.name}!`, 2400);
+        }
+        saveActiveRun(this.runState);
+        this.showBoard();
+      },
+      { milestone: !!milestoneUpgrade }
+    );
   }
 
   // ---------- END OF RUN ----------
