@@ -52,9 +52,18 @@ export const ASSET_MANIFEST = {
   bosses: {
     chiefWiggum: `${BASE}/characters/chiefwiggum.png`,
     mrBurns: `${BASE}/characters/mrburns.png`,
+    // No dedicated "zombified" art uploaded yet -- reuses Skinner's normal
+    // portrait so the boss intro/battle screen isn't emoji-only; swap this
+    // for zombie-specific art the moment it's uploaded, no code changes needed.
+    zombieSkinner: `${BASE}/characters/principalskinner.png`,
   },
-  // In-arena/board location backgrounds, keyed by location id (data/locations.js).
-  buildings: {},
+  // Battle/board location backgrounds, keyed by location id (data/locations.js).
+  buildings: {
+    simpsonHouse: `${BASE}/buildings/742_Evergreen_Terrace.webp`,
+    homeFrontYard: `${BASE}/buildings/742_Evergreen_Terrace.webp`,
+    moesTavern: `${BASE}/buildings/Moe%27s_Tavern.webp`,
+    springfieldElementary: `${BASE}/buildings/Springfield_Elementary_School.webp`,
+  },
   // Full-scene backgrounds not tied to a specific location (menus, etc.)
   backgrounds: {
     // Note: real filename on disk is capitalized ("Homescreen.jfif") -- Vercel's

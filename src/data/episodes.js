@@ -1,27 +1,21 @@
-// Episode modifiers describe how a run's twist transforms Springfield. Only
-// `implemented: true` modifiers are eligible for random selection right now;
-// the rest are here so wiring up a new one is a data entry + a spawn table,
-// not a rewrite of the run loop.
+// Horror scenarios describe which flavor of Treehouse-of-Horror apocalypse
+// a run is set in. Only `implemented: true` scenarios are eligible for
+// random selection right now; the rest are here so wiring up a new one is a
+// data entry + an enemy/boss roster, not a rewrite of the run loop --
+// exactly like data/journeys.js `horrorScenarioId` already expects one id
+// per character journey.
 export const EPISODE_MODIFIERS = {
+  zombieOutbreak: {
+    id: 'zombieOutbreak',
+    name: 'Zombie Springfield',
+    implemented: true,
+    newsText: 'THE DEAD HAVE RISEN AND THEY WANT BRAINS. OR AT LEAST DONUTS.',
+  },
   alienInvasion: {
     id: 'alienInvasion',
     name: 'Alien Invasion',
-    implemented: true,
+    implemented: false,
     newsText: 'KANG & KODOS ARE INVADING SPRINGFIELD!',
-    bossId: 'kangKodos',
-    twistFlavor: 'Buildings glow green. The sky splits open.',
-  },
-  treehouseOfHorror: {
-    id: 'treehouseOfHorror',
-    name: 'Treehouse of Horror',
-    implemented: false,
-    newsText: 'SPRINGFIELD HAS BECOME A HORROR SHOW!',
-  },
-  zombieOutbreak: {
-    id: 'zombieOutbreak',
-    name: 'Zombie Outbreak',
-    implemented: false,
-    newsText: 'RESIDENTS ARE TURNING INTO ZOMBIES!',
   },
   sideshowBob: {
     id: 'sideshowBob',
@@ -31,27 +25,27 @@ export const EPISODE_MODIFIERS = {
   },
   radioactiveSpringfield: {
     id: 'radioactiveSpringfield',
-    name: 'Radioactive Springfield',
+    name: 'Radioactive Nightmare',
     implemented: false,
     newsText: 'THE POWER PLANT HAS HAD "ANOTHER" ACCIDENT!',
   },
   itchyScratchyRevolt: {
     id: 'itchyScratchyRevolt',
-    name: 'Itchy & Scratchy Robot Revolt',
+    name: 'Itchy & Scratchy Massacre',
     implemented: false,
     newsText: 'ANIMATRONIC CARTOON ROBOTS ARE ON A RAMPAGE!',
   },
-  springfieldRiot: {
-    id: 'springfieldRiot',
-    name: 'Springfield Riot',
+  evilKrusty: {
+    id: 'evilKrusty',
+    name: 'Evil Krusty',
     implemented: false,
-    newsText: 'THE ENTIRE TOWN HAS TURNED AGAINST ITSELF!',
+    newsText: 'KRUSTY MERCHANDISE HAS TURNED MURDEROUS!',
   },
-  burnsTakesOver: {
-    id: 'burnsTakesOver',
-    name: 'Mr. Burns Takes Over',
+  bodySnatchers: {
+    id: 'bodySnatchers',
+    name: 'Body Snatchers',
     implemented: false,
-    newsText: 'MR. BURNS HAS SEIZED CONTROL OF SPRINGFIELD!',
+    newsText: 'SOME RESIDENTS ARE SECRETLY IMPOSTORS!',
   },
 };
 
@@ -59,8 +53,25 @@ export function getImplementedModifiers() {
   return Object.values(EPISODE_MODIFIERS).filter((m) => m.implemented);
 }
 
-const TITLE_ADJECTIVES = ['Excellent', 'Radioactive', 'Sticky', 'Regrettable', 'Squeaky-Clean', 'Deep-Fried', 'Unlicensed'];
-const TITLE_NOUNS = ['Disaster', 'Adventure', 'Meltdown', 'Detour', 'Catastrophe', 'Road Trip', 'Fiasco'];
+// Springfield Mayhem (state/gameState.js `runState.mayhem`, 0-100) describes
+// how far a run's horror scenario has spiraled. These are just the flavor
+// bands shown on the HUD; game.js picks a location's `flavorCorrupted` text
+// once Mayhem crosses CORRUPTION_MAYHEM_THRESHOLD.
+export const MAYHEM_BANDS = [
+  { max: 20, label: 'Mostly Normal' },
+  { max: 40, label: 'Something Is Off' },
+  { max: 60, label: 'Mutations Spreading' },
+  { max: 80, label: 'Springfield Is Corrupted' },
+  { max: 99, label: 'Falling Apart' },
+  { max: 100, label: 'MAYHEM MODE' },
+];
+
+export function mayhemLabel(mayhem) {
+  return (MAYHEM_BANDS.find((b) => mayhem <= b.max) || MAYHEM_BANDS[MAYHEM_BANDS.length - 1]).label;
+}
+
+const TITLE_ADJECTIVES = ['Excellent', 'Radioactive', 'Sticky', 'Regrettable', 'Squeaky-Clean', 'Deep-Fried', 'Unlicensed', 'Undead'];
+const TITLE_NOUNS = ['Disaster', 'Adventure', 'Meltdown', 'Detour', 'Catastrophe', 'Road Trip', 'Fiasco', 'Night of the Living Dead'];
 
 export function generateEpisodeTitle(characterName) {
   const adjective = TITLE_ADJECTIVES[Math.floor(Math.random() * TITLE_ADJECTIVES.length)];

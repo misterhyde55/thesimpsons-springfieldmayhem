@@ -1,54 +1,34 @@
-// A "journey" is a character's level board: a directed graph of nodes the
-// player routes through over one run. Coordinates are normalized (0-1); the
-// board renders y=0 at the top (final boss) down to y=1 at the bottom
-// (run start), climbing upward like a Slay the Spire-style map.
+// A "journey" is a character's branching Springfield map: a directed graph
+// of nodes the player routes through over one run. Coordinates are
+// normalized (0-1); the board renders y=0 at the top (boss) down to y=1 at
+// the bottom (run start), climbing upward like a Slay the Spire-style map.
 //
-// Node `type` drives which screen/flow handles it (see systems/board.js and
-// game.js): 'combat' | 'event' | 'shop' | 'rest' | 'miniBoss' | 'boss'.
-// `locationId` points at data/locations.js for arena flavor/visuals.
-// `elite` marks a harder combat node with better upgrade odds.
-// `alienFinalBossLocationId` / `alienFinalBossId` let a node swap to the
-// Alien Invasion version of a boss when that episode modifier is active.
-// `milestoneUpgradeId` (data/upgrades.js id) makes clearing that node a
-// guaranteed story-tied skill unlock instead of the usual random 3-choice
-// reward -- this is how a character's signature abilities reliably show up
+// Node `type` drives which flow handles it (see systems/board.js and
+// game.js): 'combat' | 'event' | 'shop' | 'rest' | 'boss'. `elite` marks a
+// harder combat node with better ability-draft odds. `enemyIds` (combat/
+// elite/boss nodes) point at data/enemies.js or data/bosses.js. `eventPool`
+// (event nodes) points at data/events.js; one is picked at random on entry.
+// `milestoneAbilityId` (data/abilities.js id) makes clearing that node a
+// guaranteed story-tied ability unlock instead of the usual random 3-choice
+// draft -- this is how a character's signature abilities reliably show up
 // over the course of their specific run rather than being left to chance.
 export const JOURNEYS = {
   homer: {
     characterId: 'homer',
-    objective: 'Get to Moe\'s... eventually.',
-    startNodeId: 'homeFrontYard',
+    objective: "Survive the night. Something ate Springfield.",
+    startNodeId: 'simpsonHouse',
+    horrorScenarioId: 'zombieOutbreak',
     nodes: {
-      homeFrontYard: {
-        id: 'homeFrontYard',
+      simpsonHouse: {
+        id: 'simpsonHouse',
         type: 'combat',
-        locationId: 'homeFrontYard',
+        locationId: 'simpsonHouse',
+        enemyIds: ['zombieMobGuy'],
         name: '742 Evergreen Terrace',
         emoji: '🏠',
         x: 0.5,
-        y: 0.92,
-        next: ['evergreenTerraceBlock', 'flandersHouse'],
-      },
-      evergreenTerraceBlock: {
-        id: 'evergreenTerraceBlock',
-        type: 'combat',
-        locationId: 'evergreenTerraceBlock',
-        name: 'Evergreen Terrace',
-        emoji: '🏘️',
-        x: 0.3,
-        y: 0.82,
-        next: ['kwikEMart'],
-      },
-      flandersHouse: {
-        id: 'flandersHouse',
-        type: 'event',
-        locationId: 'flandersHouse',
-        eventPool: ['flandersNeedsHelp', 'lardLadDare'],
-        name: "Flanders' House",
-        emoji: '🏡',
-        x: 0.7,
-        y: 0.82,
-        next: ['kwikEMart'],
+        y: 0.94,
+        next: ['kwikEMart', 'flandersHouseElite', 'springfieldCemetery'],
       },
       kwikEMart: {
         id: 'kwikEMart',
@@ -56,98 +36,76 @@ export const JOURNEYS = {
         locationId: 'kwikEMart',
         name: 'Kwik-E-Mart',
         emoji: '🏪',
-        x: 0.5,
-        y: 0.72,
-        next: ['springfieldStreets'],
-      },
-      springfieldStreets: {
-        id: 'springfieldStreets',
-        type: 'combat',
-        locationId: 'springfieldStreets',
-        name: 'Springfield Streets',
-        emoji: '🛣️',
-        x: 0.5,
-        y: 0.62,
-        next: ['nuclearPlant'],
-        milestoneUpgradeId: 'donutArmor',
-      },
-      nuclearPlant: {
-        id: 'nuclearPlant',
-        type: 'combat',
-        locationId: 'nuclearPlant',
-        name: 'Nuclear Power Plant',
-        emoji: '☢️',
-        x: 0.5,
-        y: 0.52,
-        next: ['chiefWiggum'],
-      },
-      chiefWiggum: {
-        id: 'chiefWiggum',
-        type: 'miniBoss',
-        locationId: 'policeStation',
-        bossId: 'chiefWiggum',
-        name: 'Chief Wiggum',
-        emoji: '🚓',
-        x: 0.5,
-        y: 0.42,
-        next: ['krustyBurger'],
-        milestoneUpgradeId: 'duffRage',
-      },
-      krustyBurger: {
-        id: 'krustyBurger',
-        type: 'rest',
-        locationId: 'krustyBurger',
-        name: 'Krusty Burger',
-        emoji: '🍔',
-        x: 0.5,
-        y: 0.32,
-        next: ['downtown', 'downtownElite'],
-      },
-      downtown: {
-        id: 'downtown',
-        type: 'combat',
-        locationId: 'downtownSpringfield',
-        name: 'Downtown Springfield',
-        emoji: '🏙️',
-        x: 0.3,
-        y: 0.22,
+        x: 0.2,
+        y: 0.78,
         next: ['moesTavern'],
-        milestoneUpgradeId: 'bowlingNight',
       },
-      downtownElite: {
-        id: 'downtownElite',
+      flandersHouseElite: {
+        id: 'flandersHouseElite',
         type: 'combat',
         elite: true,
-        locationId: 'downtownSpringfield',
-        name: 'Downtown Springfield (Elite)',
-        emoji: '🏙️',
-        x: 0.7,
-        y: 0.22,
+        locationId: 'flandersHouse',
+        enemyIds: ['patientZeroFlanders'],
+        name: "Flanders' House",
+        emoji: '🏡',
+        x: 0.5,
+        y: 0.78,
         next: ['moesTavern'],
-        milestoneUpgradeId: 'bowlingNight',
+      },
+      springfieldCemetery: {
+        id: 'springfieldCemetery',
+        type: 'combat',
+        locationId: 'springfieldCemetery',
+        enemyIds: ['shamblingIntern', 'rabidStrayDog'],
+        name: 'Springfield Cemetery',
+        emoji: '⚰️',
+        x: 0.8,
+        y: 0.78,
+        next: ['moesTavern'],
       },
       moesTavern: {
         id: 'moesTavern',
-        type: 'combat',
+        type: 'rest',
         locationId: 'moesTavern',
         name: "Moe's Tavern",
         emoji: '🍺',
         x: 0.5,
-        y: 0.12,
-        next: ['mrBurnsBoss'],
-        milestoneUpgradeId: 'homersLuck',
+        y: 0.6,
+        next: ['nuclearPlantElite', 'elementaryMystery'],
       },
-      mrBurnsBoss: {
-        id: 'mrBurnsBoss',
+      nuclearPlantElite: {
+        id: 'nuclearPlantElite',
+        type: 'combat',
+        elite: true,
+        locationId: 'nuclearPlant',
+        enemyIds: ['zombieHorde'],
+        name: 'Springfield Nuclear Power Plant',
+        emoji: '☢️',
+        x: 0.25,
+        y: 0.4,
+        next: ['schoolBoss'],
+        milestoneAbilityId: 'nuclearUppercut',
+      },
+      elementaryMystery: {
+        id: 'elementaryMystery',
+        type: 'event',
+        locationId: 'springfieldElementary',
+        eventPool: ['glowingDonut', 'kwikEMartRobbery', 'flandersNeedsHelp', 'lardLadDare'],
+        name: 'Springfield Elementary: The Halls',
+        emoji: '❓',
+        x: 0.75,
+        y: 0.4,
+        next: ['schoolBoss'],
+      },
+      schoolBoss: {
+        id: 'schoolBoss',
         type: 'boss',
-        locationId: 'burnsManor',
-        bossId: 'mrBurns',
-        alienFinalBossLocationId: 'bossArena',
-        alienFinalBossId: 'kangKodos',
-        name: 'Burns Manor',
-        emoji: '🏰',
+        locationId: 'springfieldElementary',
+        bossId: 'zombieSkinner',
+        name: 'Springfield Elementary: Detention',
+        emoji: '🧟‍♂️',
         x: 0.5,
-        y: 0.02,
+        y: 0.18,
         next: [],
       },
     },

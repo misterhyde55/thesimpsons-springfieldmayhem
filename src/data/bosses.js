@@ -1,54 +1,31 @@
-// Boss templates. `phases` are HP-percent thresholds that swap attack pattern sets.
-// `summonEnemyId` (optional) points at data/enemies.js for the 'summon' attack;
-// bosses that never list 'summon' in their phases don't need one.
+// Turn-based bosses. `phases` swap the enemy's intent pool at HP thresholds
+// (see systems/enemyAI.js) so a fight visibly escalates. `intro` is shown on
+// the dramatic boss-intro screen before the fight starts.
 export const BOSSES = {
-  kangKodos: {
-    id: 'kangKodos',
-    name: 'Kang & Kodos',
-    emoji: '👽',
-    hp: 620,
-    speed: 55,
-    contactDamage: 18,
-    radius: 42,
-    color: '#38d63f',
-    scenario: 'alienInvasion',
-    intro: '"IT\'S TIME TO ELIMINATE ONE OF EARTH\'S DUMBEST SPECIES!"',
-    summonEnemyId: 'kodosSpawnling',
+  zombieSkinner: {
+    id: 'zombieSkinner',
+    name: 'Zombie Principal Skinner',
+    emoji: '🧟‍♂️',
+    hp: 140,
+    subtitle: 'THE DETENTION FROM HELL',
+    intro: '"DEEETENTIOOOON," moans the thing that used to be Principal Skinner.',
     phases: [
-      { minHpPct: 0.5, attackInterval: 2600, attacks: ['charge', 'spreadBlast'] },
-      { minHpPct: 0, attackInterval: 1700, attacks: ['charge', 'spreadBlast', 'summon'] },
-    ],
-  },
-  chiefWiggum: {
-    id: 'chiefWiggum',
-    name: 'Chief Wiggum',
-    emoji: '👮',
-    hp: 260,
-    speed: 60,
-    contactDamage: 14,
-    radius: 34,
-    color: '#5b7fbf',
-    intro: '"Alright, this donut stand is now a crime scene. Also, I\'m eating the evidence."',
-    projectileColor: '#ffd23f',
-    phases: [
-      { minHpPct: 0.4, attackInterval: 2200, attacks: ['charge', 'spreadBlast'] },
-      { minHpPct: 0, attackInterval: 1500, attacks: ['charge', 'spreadBlast'] },
-    ],
-  },
-  mrBurns: {
-    id: 'mrBurns',
-    name: 'Mr. Burns',
-    emoji: '🧓',
-    hp: 700,
-    speed: 45,
-    contactDamage: 20,
-    radius: 38,
-    color: '#8a6aa8',
-    intro: '"Ahh, Homer Simpson. Release the hounds. Excellent."',
-    projectileColor: '#c9a8ff',
-    phases: [
-      { minHpPct: 0.5, attackInterval: 2400, attacks: ['charge', 'spreadBlast'] },
-      { minHpPct: 0, attackInterval: 1400, attacks: ['charge', 'spreadBlast'] },
+      {
+        minHpPct: 0.5,
+        intents: [
+          { type: 'attack', value: 16, weight: 45, label: 'Attack', icon: '🩸' },
+          { type: 'defend', value: 20, weight: 30, label: 'Defend', icon: '🛡️' },
+          { type: 'infect', value: 3, weight: 25, label: 'Detention Slap', icon: '☣️' },
+        ],
+      },
+      {
+        minHpPct: 0,
+        intents: [
+          { type: 'attack', value: 22, weight: 40, label: 'Attack', icon: '🩸' },
+          { type: 'infect', value: 6, weight: 35, label: 'Infect', icon: '☣️' },
+          { type: 'buff', value: 6, weight: 25, label: 'Enrage', icon: '💪' },
+        ],
+      },
     ],
   },
 };
