@@ -15,6 +15,8 @@ export class Player extends Entity {
     });
     this.character = character;
     this.runState = runState;
+    this.renderKind = 'player';
+    this.expression = 'player';
     this.maxHp = runState.maxHp;
     this.hp = Math.min(runState.hp, runState.maxHp);
     this.attackCooldownRemaining = 0;

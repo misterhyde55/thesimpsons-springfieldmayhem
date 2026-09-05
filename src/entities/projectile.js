@@ -2,7 +2,7 @@ import { Entity } from '../engine/entity.js';
 
 export class Projectile extends Entity {
   constructor({ x, y, vx, vy, radius, damage, color, owner, pierce = false, appliesStatus = null, knockback = 0 }) {
-    super({ x, y, radius, hp: 1, color, emoji: owner === 'player' ? '🎳' : '🔴' });
+    super({ x, y, radius, hp: 1, color });
     this.vx = vx;
     this.vy = vy;
     this.damage = damage;
@@ -11,6 +11,7 @@ export class Projectile extends Entity {
     this.appliesStatus = appliesStatus;
     this.knockback = knockback;
     this.hitEntityIds = new Set();
+    this.renderKind = 'projectile';
   }
 
   update(dt, bounds) {

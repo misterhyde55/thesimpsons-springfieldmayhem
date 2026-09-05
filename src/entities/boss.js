@@ -18,6 +18,8 @@ export class Boss extends Entity {
     this.contactDamage = template.contactDamage;
     this.attackTimer = 1200;
     this.contactCooldown = 0;
+    this.renderKind = 'boss';
+    this.expression = 'alien';
   }
 
   /** Moves toward the player, ticks its attack timer, and returns an attack name

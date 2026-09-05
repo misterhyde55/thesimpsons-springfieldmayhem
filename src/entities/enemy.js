@@ -12,6 +12,8 @@ export class Enemy extends Entity {
     this.contactCooldown = 0;
     this.shootCooldown = template.shootCooldown ? randRange(400, template.shootCooldown) : 0;
     this.isProp = !!template.isProp;
+    this.renderKind = this.isProp ? 'prop' : 'enemy';
+    this.expression = template.scenario === 'alienInvasion' ? 'alien' : 'angry';
   }
 
   update(dt, player, onShoot) {
