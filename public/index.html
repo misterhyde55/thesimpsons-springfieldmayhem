@@ -43,11 +43,36 @@
   <section id="screen-episode-reveal" class="screen episode-reveal-screen">
     <div id="episode-reveal-card" class="episode-card episode-reveal-card">
       <div class="episode-reveal-eyebrow">THE SIMPSONS</div>
-      <div class="episode-reveal-tonight">TONIGHT'S EPISODE</div>
-      <h1 id="episode-reveal-title">"Episode Title"</h1>
-      <p id="episode-reveal-character">Character: HOMER SIMPSON</p>
-      <p id="episode-reveal-objective">Objective: Get to Moe's</p>
+      <h1 id="episode-reveal-title">TREEHOUSE OF HORROR</h1>
+      <div class="episode-reveal-tonight">TONIGHT'S TERRIFYING TALES</div>
+      <ol id="episode-reveal-segments" class="episode-reveal-segments"></ol>
+      <p id="episode-reveal-character">Starring: HOMER SIMPSON</p>
       <div class="console-press-enter">PRESS ENTER</div>
+    </div>
+  </section>
+
+  <!-- ================= SEGMENT TITLE CARD (shown at the start of each segment) ================= -->
+  <section id="screen-segment-title" class="screen segment-title-screen">
+    <div id="segment-title-card" class="segment-title-card">
+      <div id="segment-title-eyebrow" class="segment-title-eyebrow">SEGMENT I</div>
+      <h1 id="segment-title-name">"Segment Title"</h1>
+      <p id="segment-title-objective">Objective text.</p>
+      <div id="segment-title-rules" class="segment-title-rules"></div>
+      <div class="console-press-enter">PRESS ENTER</div>
+    </div>
+  </section>
+
+  <!-- ================= COMMERCIAL BREAK (segment-boundary reward) ================= -->
+  <section id="screen-commercial-break" class="screen commercial-break-screen">
+    <div class="tv-static" id="commercial-static"></div>
+    <div id="commercial-break-intro" class="commercial-break-intro">
+      <h1>WE'LL BE RIGHT BACK</h1>
+    </div>
+    <div id="commercial-break-content" class="commercial-break-content hidden">
+      <h2>A WORD FROM OUR SPONSOR</h2>
+      <div id="commercial-break-choices" class="upgrade-grid"></div>
+      <button id="btn-commercial-break-skip" class="menu-link-button">SKIP</button>
+      <p class="flavor">AND NOW BACK TO OUR SHOW...</p>
     </div>
   </section>
 
@@ -105,6 +130,7 @@
       <div id="board-episode-title">"Episode Title"</div>
       <div id="board-episode-modifier">Normal Springfield</div>
       <div id="board-mayhem-readout" class="mayhem-readout">☠️ MAYHEM: 0%</div>
+      <div id="board-cast-strip" class="cast-strip"></div>
     </div>
     <canvas id="boardCanvas" width="900" height="600"></canvas>
     <p id="board-node-hint" class="hint">Choose your next destination.</p>
@@ -216,11 +242,16 @@
     <div class="tv-frame">
       <h2 id="run-complete-header">SEASON 1 · EPISODE 1</h2>
       <h1 id="run-complete-title">"Episode Title"</h1>
-      <p id="run-complete-sub">Character · Modifier</p>
-      <h2 style="color:#f6d217;">RUN COMPLETE</h2>
+      <p id="run-complete-sub">Character · Cast</p>
+      <h2 id="run-complete-ending" style="color:#f6d217;">ENDING NAME</h2>
+      <p id="run-complete-ending-desc" class="flavor"></p>
       <ul id="run-complete-stats" class="stat-list"></ul>
       <div id="run-complete-rating" class="rating"></div>
       <p id="run-complete-legacy" class="flavor"></p>
+      <div class="couch-gag-box">
+        <div class="couch-gag-label">COUCH GAG</div>
+        <p id="run-complete-couch-gag" class="couch-gag-text"></p>
+      </div>
       <button id="btn-run-complete-home" class="big-button">RETURN HOME</button>
     </div>
   </section>
@@ -228,11 +259,16 @@
   <!-- ================= RUN FAILURE ================= -->
   <section id="screen-run-failure" class="screen">
     <div class="tv-frame">
-      <h2 style="color:#d0021b;">RUN OVER</h2>
+      <h2 id="run-failure-ending" style="color:#d0021b;">RUN OVER</h2>
+      <p id="run-failure-ending-desc" class="flavor"></p>
       <p id="run-failure-character">Character</p>
       <p>Reached: <span id="run-failure-node">???</span></p>
       <ul id="run-failure-stats" class="stat-list"></ul>
       <p id="run-failure-legacy" class="flavor"></p>
+      <div class="couch-gag-box">
+        <div class="couch-gag-label">COUCH GAG</div>
+        <p id="run-failure-couch-gag" class="couch-gag-text"></p>
+      </div>
       <button id="btn-run-failure-home" class="big-button">RETURN HOME</button>
     </div>
   </section>

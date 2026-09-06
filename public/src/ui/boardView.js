@@ -1,4 +1,4 @@
-import { getJourney } from '../data/journeys.js';
+import { getCurrentSegment } from '../systems/board.js';
 
 const MARGIN_X = 70;
 const MARGIN_Y = 50;
@@ -10,7 +10,6 @@ const TYPE_BADGE = {
   event: '❓',
   shop: '🛒',
   rest: '💤',
-  miniBoss: '👑',
   boss: '💀',
 };
 
@@ -19,9 +18,10 @@ const TYPE_LABEL = {
   event: 'Event',
   shop: 'Shop',
   rest: 'Rest',
-  miniBoss: 'Mini Boss',
   boss: 'Boss',
 };
+
+const ELITE_BADGE = '☠️';
 
 function nodePixelPos(canvas, node) {
   return {
@@ -74,8 +74,8 @@ function drawNode(ctx, canvas, node, state) {
   ctx.arc(pos.x, pos.y, NODE_RADIUS, 0, Math.PI * 2);
   ctx.fillStyle = state === 'completed' ? '#3a4a3a' : '#26262e';
   ctx.fill();
-  ctx.lineWidth = state === 'available' ? 4 : 2.5;
-  ctx.strokeStyle = state === 'available' ? '#f6d217' : OUTLINE;
+  ctx.lineWidth = node.elite ? 4 : state === 'available' ? 4 : 2.5;
+  ctx.strokeStyle = node.elite ? '#d0021b' : state === 'available' ? '#f6d217' : OUTLINE;
   ctx.stroke();
 
   ctx.font = `${NODE_RADIUS}px serif`;
@@ -89,7 +89,7 @@ function drawNode(ctx, canvas, node, state) {
     ctx.fillText('✔', pos.x + NODE_RADIUS - 6, pos.y - NODE_RADIUS + 8);
   } else {
     ctx.font = '14px sans-serif';
-    ctx.fillText(TYPE_BADGE[node.type] || '', pos.x + NODE_RADIUS - 4, pos.y - NODE_RADIUS + 6);
+    ctx.fillText(node.elite ? ELITE_BADGE : TYPE_BADGE[node.type] || '', pos.x + NODE_RADIUS - 4, pos.y - NODE_RADIUS + 6);
   }
 
   ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
@@ -98,28 +98,28 @@ function drawNode(ctx, canvas, node, state) {
   ctx.fillText(node.name, pos.x, pos.y + NODE_RADIUS + 16);
   ctx.font = '11px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = '#c9c9d3';
-  ctx.fillText(TYPE_LABEL[node.type] || '', pos.x, pos.y + NODE_RADIUS + 30);
+  ctx.fillText(node.elite ? 'Elite Combat' : TYPE_LABEL[node.type] || '', pos.x, pos.y + NODE_RADIUS + 30);
 
   ctx.restore();
 }
 
-export function renderBoard(canvas, characterId, runState, markerOverride) {
+export function renderBoard(canvas, runState, markerOverride) {
   const ctx = canvas.getContext('2d');
-  const journey = getJourney(characterId);
+  const segment = getCurrentSegment(runState);
   const availableIds = runState.boardPosition === null
-    ? [journey.startNodeId]
-    : journey.nodes[runState.boardPosition].next;
+    ? [segment.startNodeId]
+    : segment.nodes[runState.boardPosition].next;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#3a5a3a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const nodes = Object.values(journey.nodes);
+  const nodes = Object.values(segment.nodes);
   for (const node of nodes) {
     const from = nodePixelPos(canvas, node);
     for (const nextId of node.next) {
-      const next = journey.nodes[nextId];
-      const dimmed = !(runState.completedNodeIds.has(node.id) || (runState.boardPosition === null && node.id === journey.startNodeId));
+      const next = segment.nodes[nextId];
+      const dimmed = !(runState.completedNodeIds.has(node.id) || (runState.boardPosition === null && node.id === segment.startNodeId));
       drawRoad(ctx, from, nodePixelPos(canvas, next), dimmed);
     }
   }
@@ -130,7 +130,7 @@ export function renderBoard(canvas, characterId, runState, markerOverride) {
 
   const markerNodeId = markerOverride || runState.boardPosition;
   if (markerNodeId) {
-    const pos = nodePixelPos(canvas, journey.nodes[markerNodeId]);
+    const pos = nodePixelPos(canvas, segment.nodes[markerNodeId]);
     ctx.save();
     ctx.beginPath();
     ctx.arc(pos.x, pos.y - NODE_RADIUS - 14, 9, 0, Math.PI * 2);
@@ -145,16 +145,16 @@ export function renderBoard(canvas, characterId, runState, markerOverride) {
 
 // Slides the player marker from one node to another over `durationMs`,
 // re-rendering the static board each frame, then calls onDone.
-export function animateMarkerMove(canvas, characterId, runState, fromNodeId, toNodeId, durationMs, onDone) {
-  const journey = getJourney(characterId);
-  const from = fromNodeId ? nodePixelPos(canvas, journey.nodes[fromNodeId]) : nodePixelPos(canvas, journey.nodes[toNodeId]);
-  const to = nodePixelPos(canvas, journey.nodes[toNodeId]);
+export function animateMarkerMove(canvas, runState, fromNodeId, toNodeId, durationMs, onDone) {
+  const segment = getCurrentSegment(runState);
+  const from = fromNodeId ? nodePixelPos(canvas, segment.nodes[fromNodeId]) : nodePixelPos(canvas, segment.nodes[toNodeId]);
+  const to = nodePixelPos(canvas, segment.nodes[toNodeId]);
   const ctx = canvas.getContext('2d');
   const start = performance.now();
 
   function step(now) {
     const t = Math.min(1, (now - start) / durationMs);
-    renderBoard(canvas, characterId, runState, null);
+    renderBoard(canvas, runState, null);
     const x = from.x + (to.x - from.x) * t;
     const y = from.y + (to.y - from.y) * t;
     ctx.save();
@@ -172,9 +172,9 @@ export function animateMarkerMove(canvas, characterId, runState, fromNodeId, toN
   requestAnimationFrame(step);
 }
 
-export function findNodeAtPoint(canvas, characterId, px, py) {
-  const journey = getJourney(characterId);
-  for (const node of Object.values(journey.nodes)) {
+export function findNodeAtPoint(canvas, runState, px, py) {
+  const segment = getCurrentSegment(runState);
+  for (const node of Object.values(segment.nodes)) {
     const pos = nodePixelPos(canvas, node);
     if (Math.hypot(px - pos.x, py - pos.y) <= NODE_RADIUS + 6) return node;
   }

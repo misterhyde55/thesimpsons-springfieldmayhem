@@ -1,18 +1,19 @@
-import { getImplementedModifiers, generateEpisodeTitle } from '../data/episodes.js';
 import { getJourney } from '../data/journeys.js';
-import { pickRandom } from '../engine/collision.js';
+import { generateEpisodeTitle } from '../data/episodes.js';
 
-// Picks the run's horror scenario (Zombie Springfield, ...) and title. The
-// journey/board itself comes from systems/board.js + data/journeys.js.
-export function generateEpisode(character) {
-  const modifier = pickRandom(getImplementedModifiers());
+// Generates the whole episode up front: its Treehouse-of-Horror title and
+// the three segment titles ("Tonight's Terrifying Tales"). The segments
+// themselves (locations, enemies, horror rule) already live in
+// data/journeys.js -- this just packages the framing text runState.episode
+// carries around. `episodeNumber` feeds the Roman-numeral title
+// (meta.totalEpisodes + 1, i.e. it counts across the player's whole
+// history, not just this season).
+export function generateEpisode(character, episodeNumber) {
   const journey = getJourney(character.id);
   return {
-    modifierId: modifier.id,
-    modifierName: modifier.name,
-    newsText: modifier.newsText,
-    title: generateEpisodeTitle(character.name),
+    title: generateEpisodeTitle(episodeNumber),
+    segmentTitles: journey.segments.map((s) => s.segmentTitle),
     characterId: character.id,
-    objective: journey.objective,
+    objective: journey.segments[0].objective,
   };
 }

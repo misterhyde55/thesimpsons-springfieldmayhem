@@ -3,8 +3,8 @@ import { ITEMS } from '../data/items.js';
 import { ABILITIES, STARTER_ABILITY_IDS } from '../data/abilities.js';
 import { RELICS } from '../data/relics.js';
 
-const META_KEY = 'springfieldMayhem.meta.v3';
-const ACTIVE_RUN_KEY = 'springfieldMayhem.activeRun.v2';
+const META_KEY = 'springfieldMayhem.meta.v4';
+const ACTIVE_RUN_KEY = 'springfieldMayhem.activeRun.v3';
 
 // --- Meta (persists across runs forever) -----------------------------------
 export function loadMeta() {
@@ -27,6 +27,8 @@ function withMetaDefaults(meta) {
     unlockedCharacterIds: ['homer'],
     legacyPoints: 0,
     itemsDiscoveredIds: [],
+    couchGagsSeenIds: [],
+    endingsSeenIds: [],
     settings: { musicOn: true, sfxOn: true },
     ...meta,
   };
@@ -50,6 +52,14 @@ export function recordDiscoveries(meta, ids) {
   const set = new Set(meta.itemsDiscoveredIds);
   for (const id of ids) set.add(id);
   meta.itemsDiscoveredIds = Array.from(set);
+}
+
+export function recordCouchGag(meta, couchGagId) {
+  if (!meta.couchGagsSeenIds.includes(couchGagId)) meta.couchGagsSeenIds.push(couchGagId);
+}
+
+export function recordEnding(meta, endingId) {
+  if (!meta.endingsSeenIds.includes(endingId)) meta.endingsSeenIds.push(endingId);
 }
 
 export function recordEpisodeResult(meta, result) {
@@ -78,14 +88,16 @@ function legacyPointsForResult(result) {
 }
 
 function trophyForResult(result) {
-  if (result.victory && result.modifier === 'zombieOutbreak') return '🧟';
+  if (result.endingId === 'treehouseTranscendence') return '💫';
+  if (result.endingId === 'kangKodosWin') return '👽';
+  if (result.endingId === 'zombieEnding') return '🧟';
   if (result.stats.peakMayhem >= 100) return '☠️';
   if (result.stats.enemiesDefeated >= 15) return '💥';
   if (!result.victory) return '🦴';
   return null;
 }
 
-// --- Run state (one playthrough of a character's journey) ------------------
+// --- Run state (one playthrough of a character's episode) -------------------
 export function createRunState(character) {
   return {
     character,
@@ -94,6 +106,7 @@ export function createRunState(character) {
     abilityDeck: [...STARTER_ABILITY_IDS],
     relics: [],
     mayhem: 0,
+    infection: 0,
     donutsCurrency: 0,
     stats: {
       enemiesDefeated: 0,
@@ -105,6 +118,19 @@ export function createRunState(character) {
       flanders: 'neutral',
       apu: 'neutral',
     },
+    // The episode cast always starts with just the main character; other
+    // Springfield residents join via event outcomes (data/events.js) or the
+    // Moe's Tavern "talk" option (game.js). Cast membership unlocks that
+    // character's abilities (data/abilities.js getDraftPool) and any
+    // Character Synergy that requires them (data/synergies.js).
+    cast: [character.id],
+    // Horror Rules accumulate across segments and never leave -- see
+    // systems/board.js advanceSegment and data/horrorRules.js.
+    activeHorrorRuleIds: [],
+    segmentIndex: 0,
+    callbackFlags: {},
+    firedCallbackIds: [],
+    pendingCallbackEffects: {},
     episode: null,
     boardPosition: null,
     completedNodeIds: new Set(),

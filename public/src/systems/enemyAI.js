@@ -5,7 +5,9 @@ import { addStatus, computeOutgoingDamage, applyIncomingDamage } from './statusE
 // Enemies (and boss phases) declare a weighted `intents` list; this module
 // just picks one and later resolves it. Intent types: 'attack' (hits the
 // player once), 'attackTwice' (hits twice at half value, rounded), 'defend'
-// (Armor on self), 'buff' (Strength on self), 'infect' (Poison on player).
+// (Armor on self), 'buff' (Strength on self), 'infect' (Poison on player,
+// and -- via battleEngine.js -- raises the run's Infection meter), 'phase'
+// (Dodge on self; alien enemies "beaming" partway out of reality).
 function intentsForEnemy(enemy) {
   if (enemy.template.phases) {
     const hpPct = enemy.hp / enemy.maxHp;
@@ -51,6 +53,10 @@ export function resolveEnemyIntent(battle, enemy) {
   if (intent.type === 'infect') {
     addStatus(battle.player, STATUS.POISON, intent.value);
     return { type: 'infect', value: intent.value };
+  }
+  if (intent.type === 'phase') {
+    addStatus(enemy, STATUS.DODGE, intent.value);
+    return { type: 'phase', value: intent.value };
   }
   return { type: 'none' };
 }

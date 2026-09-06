@@ -7,7 +7,7 @@ import { pickWeighted } from '../engine/collision.js';
 // bypass this and hand back a single fixed ability instead.
 export function rollAbilityChoices(runState, count) {
   const owned = new Set(runState.abilityDeck);
-  const pool = getDraftPool(runState.character.id).filter((a) => !owned.has(a.id));
+  const pool = getDraftPool(runState.cast).filter((a) => !owned.has(a.id));
   const choices = [];
   const remaining = [...pool];
   for (let i = 0; i < count && remaining.length > 0; i += 1) {

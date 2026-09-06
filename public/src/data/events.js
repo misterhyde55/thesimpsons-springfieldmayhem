@@ -1,4 +1,5 @@
 import { shiftRelationship } from '../systems/relationships.js';
+import { setCallbackFlag } from '../systems/callbackEngine.js';
 import { getRelicShopPool } from './relics.js';
 
 // Event nodes present a prompt and a small set of options, each with its own
@@ -149,6 +150,89 @@ export const EVENTS = {
         id: 'hide',
         label: 'Hide behind the counter',
         resultText: 'You avoid the chaos entirely. Your dignity does not survive.',
+        apply() {},
+      },
+    ],
+  },
+  mysteriousButton: {
+    id: 'mysteriousButton',
+    title: 'A Mysterious Button',
+    emoji: '🔴',
+    prompt: 'Behind a loose panel in the hallway, there is a single, unlabeled red button.',
+    options: [
+      {
+        id: 'press',
+        label: 'PRESS IT',
+        resultText: 'Nothing happens. You continue on, slightly disappointed. (Or so it seems.)',
+        apply(runState) {
+          setCallbackFlag(runState, 'pressedButton');
+        },
+      },
+      {
+        id: 'leave',
+        label: 'Leave it alone',
+        resultText: "That's probably the smart choice. You'll never know.",
+        apply() {},
+      },
+    ],
+  },
+  strangeLights: {
+    id: 'strangeLights',
+    title: 'Strange Lights',
+    emoji: '🛸',
+    prompt: 'Marge points at the sky. Something is up there, and it is not a weather balloon.',
+    options: [
+      {
+        id: 'investigate',
+        label: 'Go investigate',
+        resultText: 'You get a closer look than you wanted. Something has definitely noticed you now.',
+        apply(runState) {
+          runState.donutsCurrency += 1;
+        },
+      },
+      {
+        id: 'hide',
+        label: 'Get everyone inside',
+        resultText: 'You lock the doors. It does not feel like it will help.',
+        apply() {},
+      },
+    ],
+  },
+  milhouseTrustTest: {
+    id: 'milhouseTrustTest',
+    title: 'Milhouse Appears',
+    emoji: '🤓',
+    npcId: 'milhouse',
+    prompt: 'Milhouse: "Homer! I saw the UFO! It probed me! Well -- it looked at me weird. Can I come with you?"',
+    options: [
+      {
+        id: 'join',
+        label: 'Let Milhouse join',
+        resultText: 'MILHOUSE HAS JOINED THE EPISODE. Probably fine. Probably.',
+        apply(runState) {
+          if (!runState.cast.includes('milhouse')) runState.cast.push('milhouse');
+        },
+      },
+      {
+        id: 'question',
+        label: 'Question him first',
+        resultText: 'He answers every question correctly. Suspiciously correctly. You let him tag along anyway.',
+        apply(runState) {
+          if (!runState.cast.includes('milhouse')) runState.cast.push('milhouse');
+        },
+      },
+      {
+        id: 'attack',
+        label: 'Attack him, just in case',
+        resultText: "It's really just Milhouse. He's crying now. He will not be joining you.",
+        apply(runState) {
+          runState.hp = Math.max(1, runState.hp - 5);
+        },
+      },
+      {
+        id: 'leave',
+        label: 'Leave him behind',
+        resultText: 'You walk away. Milhouse watches you go, betrayed.',
         apply() {},
       },
     ],

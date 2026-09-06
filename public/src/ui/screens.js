@@ -1,7 +1,8 @@
 import { getAssetUrl } from '../data/assets.js';
-import { getPortraitUrl } from '../data/characterRegistry.js';
+import { getPortraitUrl, getCharacterInfo } from '../data/characterRegistry.js';
 import { RARITY_COLOR, ABILITIES } from '../data/abilities.js';
 import { RELICS } from '../data/relics.js';
+import { HORROR_RULES } from '../data/horrorRules.js';
 import { STATUS_INFO } from '../data/statusEffects.js';
 import { ITEMS } from '../data/items.js';
 import { getPlayableAbilities, canPlayAbility, abilityCost } from '../systems/battleEngine.js';
@@ -10,6 +11,7 @@ import { MenuNav } from './menuNav.js';
 const SCREEN_IDS = [
   'screen-main-menu',
   'screen-episode-reveal',
+  'screen-segment-title',
   'screen-character-select',
   'screen-characters-info',
   'screen-seasons-info',
@@ -21,6 +23,7 @@ const SCREEN_IDS = [
   'screen-boss-intro',
   'screen-battle',
   'screen-ability-draft',
+  'screen-commercial-break',
   'screen-event',
   'screen-rest',
   'screen-run-complete',
@@ -29,7 +32,14 @@ const SCREEN_IDS = [
 
 // Screens that get the full-bleed treatment: no top bar, background art
 // fills the real viewport instead of #app's max-width.
-const FULL_BLEED_SCREEN_IDS = new Set(['screen-main-menu', 'screen-episode-reveal', 'screen-battle', 'screen-boss-intro']);
+const FULL_BLEED_SCREEN_IDS = new Set([
+  'screen-main-menu',
+  'screen-episode-reveal',
+  'screen-segment-title',
+  'screen-battle',
+  'screen-boss-intro',
+  'screen-commercial-break',
+]);
 
 const $ = (id) => document.getElementById(id);
 
@@ -105,11 +115,29 @@ export function renderConsoleMenu(nav) {
 }
 
 // ---------- EPISODE REVEAL ----------
+const SEGMENT_ORDINALS = ['SEGMENT I', 'SEGMENT II', 'SEGMENT III', 'SEGMENT IV', 'SEGMENT V'];
+
 export function populateEpisodeReveal(character, episode, onStart) {
   const card = freshButton('episode-reveal-card');
-  $('episode-reveal-title').textContent = `"${episode.title}"`;
-  $('episode-reveal-character').textContent = `Character: ${character.name.toUpperCase()}`;
-  $('episode-reveal-objective').textContent = `Objective: ${episode.objective}`;
+  $('episode-reveal-title').textContent = episode.title.toUpperCase();
+  $('episode-reveal-segments').innerHTML = episode.segmentTitles
+    .map((title, i) => `<li><span>${SEGMENT_ORDINALS[i] || `SEGMENT ${i + 1}`}</span>"${title}"</li>`)
+    .join('');
+  $('episode-reveal-character').textContent = `Starring: ${character.name.toUpperCase()}`;
+  card.addEventListener('click', onStart);
+}
+
+// ---------- SEGMENT TITLE CARD ----------
+export function populateSegmentTitleCard(segmentIndex, segment, activeRuleIds, onStart) {
+  const card = freshButton('segment-title-card');
+  $('segment-title-eyebrow').textContent = SEGMENT_ORDINALS[segmentIndex] || `SEGMENT ${segmentIndex + 1}`;
+  $('segment-title-name').textContent = `"${segment.segmentTitle}"`;
+  $('segment-title-objective').textContent = segment.objective;
+  $('segment-title-rules').innerHTML = activeRuleIds
+    .map((id) => HORROR_RULES[id])
+    .filter(Boolean)
+    .map((rule) => `<span class="segment-title-rule-pip">${rule.icon} ${rule.name}</span>`)
+    .join('');
   card.addEventListener('click', onStart);
 }
 
@@ -170,13 +198,21 @@ export function populateSeasonsInfo(meta, onBack) {
     list.innerHTML = '<p class="flavor">No episodes recorded yet. Go make some chaos.</p>';
   } else {
     list.innerHTML = meta.history
-      .map(
-        (r) => `
+      .map((r) => {
+        const rules = (r.horrorRuleNames || []).join(' + ') || 'Normal Springfield';
+        const cast = (r.cast || [r.character]).join(', ');
+        return `
       <div class="history-row">
-        <div><strong>"${r.title}"</strong> — ${r.character} · ${r.modifierName}</div>
-        <div class="${r.victory ? 'history-victory' : 'history-defeat'}">${r.victory ? 'VICTORY' : 'DEFEAT'} ${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</div>
-      </div>`
-      )
+        <div>
+          <strong>"${r.title}"</strong> — ${cast}<br />
+          <small>${rules} · Peak Mayhem ${r.stats.peakMayhem}%</small>
+        </div>
+        <div class="${r.victory ? 'history-victory' : 'history-defeat'}">
+          ${r.ending ? r.ending.name : r.victory ? 'VICTORY' : 'DEFEAT'}<br />
+          ${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}
+        </div>
+      </div>`;
+      })
       .join('');
   }
   freshButton('btn-seasons-info-back').addEventListener('click', onBack);
@@ -204,11 +240,25 @@ export function bindSettings(onReset, onBack) {
 }
 
 // ---------- BOARD ----------
-export function populateBoardInfo(episode, node, mayhem) {
-  $('board-episode-title').textContent = `"${episode.title}"`;
-  $('board-episode-modifier').textContent = episode.modifierName;
-  $('board-mayhem-readout').textContent = `☠️ MAYHEM: ${mayhem}%`;
+export function populateBoardInfo(runState, segment, node) {
+  $('board-episode-title').textContent = `"${runState.episode.title}"`;
+  const activeRules = runState.activeHorrorRuleIds.map((id) => HORROR_RULES[id]).filter(Boolean);
+  $('board-episode-modifier').textContent = activeRules.length
+    ? activeRules.map((r) => `${r.icon} ${r.name}`).join(' + ')
+    : segment.segmentTitle;
+  $('board-mayhem-readout').textContent = `☠️ MAYHEM: ${runState.mayhem}%`;
   $('board-node-hint').textContent = node ? `Next up: ${node.name} (${node.type})` : 'Choose your next destination.';
+
+  const strip = $('board-cast-strip');
+  strip.innerHTML = runState.cast
+    .map((id) => {
+      const info = getCharacterInfo(id);
+      if (!info) return '';
+      return info.portraitUrl
+        ? `<img src="${info.portraitUrl}" alt="${info.name}" title="${info.name}" />`
+        : `<span title="${info.name}">🧑</span>`;
+    })
+    .join('');
 }
 
 export function populateBreakingNews(newsText) {
@@ -312,6 +362,7 @@ export function renderBattle(battle, runState) {
   $('battle-energy-value').textContent = p.energy;
   document.querySelector('#battle-energy-readout small').textContent = `/${p.maxEnergy}`;
   $('battle-mayhem-readout').textContent = `☠️ MAYHEM: ${runState.mayhem}%`;
+  applyMayhemVisuals(runState.mayhem);
 
   for (const enemy of battle.enemies) {
     const slot = document.querySelector(`.enemy-slot[data-enemy-id="${enemy.instanceId}"]`);
@@ -338,6 +389,18 @@ export function renderBattle(battle, runState) {
 
 export function setBattleTargetingAbility(abilityId) {
   $('battle-abilities').dataset.targetingAbilityId = abilityId || '';
+}
+
+// Springfield visibly corrupts as Mayhem climbs -- filter-only, no new DOM,
+// so it never gets in the way of reading the battle. Thresholds loosely
+// track data/episodes.js MAYHEM_BANDS (see style.css .battle-screen.mayhem-*).
+const MAYHEM_VISUAL_CLASSES = ['mayhem-mid', 'mayhem-high', 'mayhem-max'];
+export function applyMayhemVisuals(mayhem) {
+  const el = $('screen-battle');
+  el.classList.remove(...MAYHEM_VISUAL_CLASSES);
+  if (mayhem >= 100) el.classList.add('mayhem-max');
+  else if (mayhem >= 70) el.classList.add('mayhem-high');
+  else if (mayhem >= 40) el.classList.add('mayhem-mid');
 }
 
 export function showFloatingNumber(enemyInstanceId, text, kind) {
@@ -468,6 +531,36 @@ export function populateAbilityDraft(summary, abilities, onPick, options = {}) {
   }
 }
 
+// ---------- COMMERCIAL BREAK (segment-boundary reward) ----------
+// Replaces a generic reward screen at every segment boundary. Self-manages
+// the TV-static "WE'LL BE RIGHT BACK" beat before revealing the sponsor
+// products, same way showBanner self-manages its own timeout -- game.js
+// just shows the screen and calls this once.
+export function populateCommercialBreak(products, onPick, onSkip) {
+  $('commercial-break-intro').classList.remove('hidden');
+  $('commercial-break-content').classList.add('hidden');
+
+  const choices = $('commercial-break-choices');
+  choices.innerHTML = '';
+  for (const product of products) {
+    const card = document.createElement('div');
+    card.className = 'upgrade-card';
+    card.innerHTML = `
+      <div class="emoji">${product.emoji}</div>
+      <div class="upgrade-name">${product.name}</div>
+      <div class="upgrade-desc">${product.description}</div>
+    `;
+    card.addEventListener('click', () => onPick(product));
+    choices.appendChild(card);
+  }
+  freshButton('btn-commercial-break-skip').addEventListener('click', onSkip);
+
+  setTimeout(() => {
+    $('commercial-break-intro').classList.add('hidden');
+    $('commercial-break-content').classList.remove('hidden');
+  }, 1800);
+}
+
 // ---------- EVENT NODE ----------
 export function populateEvent(event, onChoose) {
   $('event-title').textContent = event.title;
@@ -529,19 +622,25 @@ function statsListHtml(result) {
 export function populateRunComplete(meta, result, onReturnHome) {
   $('run-complete-header').textContent = `SEASON ${result.season} · EPISODE ${result.episodeNum}`;
   $('run-complete-title').textContent = `"${result.title}"`;
-  $('run-complete-sub').textContent = `${result.character} · ${result.modifierName}`;
+  $('run-complete-sub').textContent = `${result.character} · Starring: ${result.cast.join(', ')}`;
+  $('run-complete-ending').textContent = result.ending.name;
+  $('run-complete-ending-desc').textContent = result.ending.description;
   $('run-complete-stats').innerHTML = statsListHtml(result);
   $('run-complete-rating').textContent = '★'.repeat(result.rating) + '☆'.repeat(5 - result.rating);
-  $('run-complete-legacy').textContent = `+${result.legacyPointsEarned} Legacy Points`;
+  $('run-complete-legacy').textContent = `+${result.legacyPointsEarned} Legacy Points · VIEWERS: ${result.viewers} MILLION`;
+  $('run-complete-couch-gag').textContent = result.couchGag.description;
   updateMetaReadout(meta);
   freshButton('btn-run-complete-home').addEventListener('click', onReturnHome);
 }
 
 export function populateRunFailure(meta, result, onReturnHome) {
-  $('run-failure-character').textContent = result.character;
+  $('run-failure-ending').textContent = result.ending.name;
+  $('run-failure-ending-desc').textContent = result.ending.description;
+  $('run-failure-character').textContent = `${result.character} · Starring: ${result.cast.join(', ')}`;
   $('run-failure-node').textContent = result.lastLocationName;
   $('run-failure-stats').innerHTML = statsListHtml(result);
   $('run-failure-legacy').textContent = `+${result.legacyPointsEarned} Legacy Points`;
+  $('run-failure-couch-gag').textContent = result.couchGag.description;
   updateMetaReadout(meta);
   freshButton('btn-run-failure-home').addEventListener('click', onReturnHome);
 }

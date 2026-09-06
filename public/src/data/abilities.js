@@ -293,10 +293,75 @@ export const ABILITIES = {
       api.clearStatus(STATUS.VULNERABLE, 'self');
     },
   },
+  // ---- Cast abilities: unlocked once that Springfield resident has joined
+  // the episode cast (state/gameState.js runState.cast). Recruiting a
+  // character is a build decision, not just a story beat -- their kit
+  // should be worth drafting.
+  lastCall: {
+    id: 'lastCall',
+    name: 'Last Call',
+    emoji: '🍸',
+    cost: 2,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'moe',
+    archetype: 'duff',
+    target: 'enemy',
+    description: 'Deal 16 damage.',
+    effect(api) {
+      api.damage(16);
+    },
+  },
+  onTheHouse: {
+    id: 'onTheHouse',
+    name: 'On the House',
+    emoji: '🍻',
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'moe',
+    archetype: 'duff',
+    target: 'self',
+    description: 'Heal 12 HP.',
+    effect(api) {
+      api.heal(12, 'self');
+    },
+  },
+  nervousWreck: {
+    id: 'nervousWreck',
+    name: 'Nervous Wreck',
+    emoji: '😰',
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'milhouse',
+    archetype: 'universal',
+    target: 'self',
+    description: 'Gain 6 Armor.',
+    effect(api) {
+      api.status(STATUS.ARMOR, 6, 'self');
+    },
+  },
+  everybodyLovesMilhouse: {
+    id: 'everybodyLovesMilhouse',
+    name: 'Everybody Loves Milhouse',
+    emoji: '🤓',
+    cost: 2,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'milhouse',
+    archetype: 'universal',
+    target: 'enemy',
+    description: 'Deal 10 damage. Apply 2 Weak.',
+    effect(api) {
+      api.damage(10);
+      api.status(STATUS.WEAK, 2, 'target');
+    },
+  },
 };
 
-export function getDraftPool(characterId) {
+// `castIds` is every character currently in the episode cast (always
+// includes the main character; see state/gameState.js). An ability with
+// characterId: null is universal; anything else needs that resident to
+// have joined the run first.
+export function getDraftPool(castIds) {
   return Object.values(ABILITIES).filter(
-    (a) => !STARTER_ABILITY_IDS.includes(a.id) && (a.characterId === null || a.characterId === characterId)
+    (a) => !STARTER_ABILITY_IDS.includes(a.id) && (a.characterId === null || castIds.includes(a.characterId))
   );
 }
