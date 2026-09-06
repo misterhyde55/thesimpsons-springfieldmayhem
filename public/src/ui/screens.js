@@ -47,6 +47,7 @@ const FULL_BLEED_SCREEN_IDS = new Set([
   'screen-commercial-break',
   'screen-travel',
   'screen-location-interior',
+  'screen-board',
 ]);
 
 const $ = (id) => document.getElementById(id);
@@ -555,9 +556,9 @@ export function applyMayhemVisuals(mayhem) {
 }
 
 // The Springfield map itself visibly corrupts too -- fog/hue-shift on the
-// canvas as Mayhem climbs, same tiers as the battle screen.
+// map viewport as Mayhem climbs, same tiers as the battle screen.
 export function applyMapMayhemVisuals(mayhem) {
-  applyMayhemVisualsToElement($('boardCanvas'), mayhem);
+  applyMayhemVisualsToElement($('map-viewport'), mayhem);
 }
 
 export function showFloatingNumber(enemyInstanceId, text, kind) {

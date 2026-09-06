@@ -5,33 +5,43 @@
 // roads are open can change mid-run (see blockRoad / data/travelEvents.js),
 // so the same seven-location map can feel different by Segment III.
 //
-// Coordinates are normalized (0-1) the same way the old board-view nodes
-// were, so ui/worldMapView.js can reuse simple canvas-scaling math.
+// Coordinates are normalized (0-1) against the real Springfieldmap2.png
+// artwork's own natural size (1594x986 -- see data/assets.js ui.springfieldMap
+// and ui/worldMapView.js, which positions every hotspot with plain
+// percentage left/top inside the image's own box, so they stay correct at
+// any pan/zoom). Measured directly off the art's baked-in building icons,
+// not guessed -- when new locations are added later, measure them the same
+// way rather than picking round numbers.
 export const WORLD_LOCATIONS = {
-  simpsonHouse: { x: 0.5, y: 0.88 },
-  flandersHouse: { x: 0.22, y: 0.8 },
-  kwikEMart: { x: 0.78, y: 0.68 },
-  moesTavern: { x: 0.48, y: 0.6 },
-  springfieldElementary: { x: 0.2, y: 0.38 },
-  springfieldCemetery: { x: 0.76, y: 0.36 },
-  nuclearPlant: { x: 0.48, y: 0.12 },
+  simpsonHouse: { x: 0.217, y: 0.401 },
+  flandersHouse: { x: 0.29, y: 0.304 },
+  kwikEMart: { x: 0.489, y: 0.304 },
+  moesTavern: { x: 0.627, y: 0.304 },
+  springfieldElementary: { x: 0.496, y: 0.091 },
+  springfieldCemetery: { x: 0.143, y: 0.756 },
+  nuclearPlant: { x: 0.897, y: 0.193 },
   // ---- Map expansion: 9 additional locations, each with its own gameplay
   // identity (data/journeys.js / data/events.js) rather than just being
   // another combat node. With BOSS_UNLOCK_VISIT_COUNT staying at 2 (see
   // systems/board.js), a run through this much bigger Springfield only ever
   // touches a handful of these -- that's the point, not a gap to fill.
-  policeStation: { x: 0.66, y: 0.8 },
-  krustyBurger: { x: 0.94, y: 0.62 },
-  androidsDungeon: { x: 0.92, y: 0.3 },
-  bowlarama: { x: 0.68, y: 0.5 },
-  springfieldHospital: { x: 0.34, y: 0.58 },
-  burnsManor: { x: 0.06, y: 0.55 },
-  retirementCastle: { x: 0.05, y: 0.82 },
-  springfieldChurch: { x: 0.58, y: 0.22 },
-  // Secret: no un-gated road leads here (see ROADS below) -- it stays
-  // rendered as an unexplored "???" node until the Kwik-E-Mart's
-  // Mysterious Key (data/items.js) opens the one road in.
-  springfieldSewer: { x: 0.36, y: 0.42 },
+  policeStation: { x: 0.538, y: 0.756 },
+  krustyBurger: { x: 0.681, y: 0.177 },
+  androidsDungeon: { x: 0.765, y: 0.401 },
+  bowlarama: { x: 0.712, y: 0.548 },
+  springfieldHospital: { x: 0.916, y: 0.644 },
+  // Not pictured on the art itself -- placed on a quiet, iconless patch of
+  // map (the far corner / open lawn respectively) rather than crowding an
+  // existing building, which doubles as a nice "off the beaten path" /
+  // "nothing marks it until you find it" fit for these two specifically.
+  burnsManor: { x: 0.038, y: 0.152 },
+  retirementCastle: { x: 0.917, y: 0.87 },
+  springfieldChurch: { x: 0.188, y: 0.619 },
+  // Secret: no un-gated road leads here (see ROADS below), and it has no
+  // baked-in icon on the art either -- it stays rendered as an unexplored
+  // "???" node until the Kwik-E-Mart's Mysterious Key (data/items.js) opens
+  // the one road in.
+  springfieldSewer: { x: 0.376, y: 0.659 },
 };
 
 const ROADS = [

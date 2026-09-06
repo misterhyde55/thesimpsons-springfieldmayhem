@@ -134,15 +134,40 @@
   </section>
 
   <!-- ================= LEVEL BOARD ================= -->
-  <section id="screen-board" class="screen">
-    <div class="board-header">
+  <!-- ================= SPRINGFIELD MAP (the real Springfieldmap2.png artwork,
+       full-viewport, pannable/zoomable, with an interactive DOM hotspot
+       layer over it -- see src/ui/worldMapView.js). The image is the world;
+       everything gameplay-relevant is a real element positioned with
+       percentage left/top against the image's own natural size, so it
+       stays correct through any pan/zoom (src/data/worldMap.js). ================= -->
+  <section id="screen-board" class="screen map-screen">
+    <div id="map-viewport" class="map-viewport">
+      <div id="map-world" class="map-world">
+        <img id="map-image" class="map-image" alt="Springfield" draggable="false" />
+        <svg id="map-roads" class="map-roads" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
+        <div id="map-hotspots" class="map-hotspots"></div>
+        <div id="map-homer-marker" class="map-homer-marker">
+          <img id="map-homer-portrait" class="map-homer-portrait" alt="" draggable="false" />
+        </div>
+      </div>
+    </div>
+
+    <div id="map-hover-panel" class="map-hover-panel hidden"></div>
+
+    <div class="map-hud-top-left">
       <div id="board-episode-title">"Episode Title"</div>
       <div id="board-episode-modifier">Normal Springfield</div>
-      <div id="board-mayhem-readout" class="mayhem-readout">☠️ MAYHEM: 0%</div>
       <div id="board-cast-strip" class="cast-strip"></div>
     </div>
-    <canvas id="boardCanvas" width="900" height="600"></canvas>
-    <p id="board-node-hint" class="hint">Choose your next destination.</p>
+    <div class="map-hud-top-right">
+      <div id="board-mayhem-readout" class="mayhem-readout">MAYHEM: 0%</div>
+    </div>
+    <div class="map-zoom-controls">
+      <button id="btn-map-zoom-in" type="button" title="Zoom in">+</button>
+      <button id="btn-map-zoom-reset" type="button" title="Reset view">&#8962;</button>
+      <button id="btn-map-zoom-out" type="button" title="Zoom out">&minus;</button>
+    </div>
+    <p id="board-node-hint" class="hint map-hint">Choose your next destination.</p>
   </section>
 
   <!-- ================= TRAVEL (atmospheric scene between locations) ================= -->

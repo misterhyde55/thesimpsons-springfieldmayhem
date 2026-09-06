@@ -1,209 +1,294 @@
+// The Springfield map is the real Springfieldmap2.png artwork -- not a
+// canvas drawing, not a CSS approximation. `.map-world` (index.html) holds
+// the `<img>` at its natural 1594x986 size plus an SVG road layer and a DOM
+// hotspot layer, all positioned with plain percentages against that same
+// 1594x986 box; pan/zoom then just transforms `.map-world` as a whole
+// (translate + scale), so every hotspot/road stays glued to the art at any
+// pan/zoom without ever recomputing its own position. Homer's marker is a
+// real element too, animated between locations via a CSS transition on
+// left/top rather than a per-frame redraw loop -- nothing here runs on a
+// requestAnimationFrame loop the way the old canvas board did.
 import { WORLD_LOCATIONS, getAllRoads, isRoadBlocked, getReachableLocationIds, START_LOCATION_ID } from '../data/worldMap.js';
 import { getCurrentSegment, isBossLocationUnlocked } from '../systems/board.js';
 import { LOCATIONS } from '../data/locations.js';
 import { getAssetUrl } from '../data/assets.js';
 
-// Real map art, loaded once and cached -- canvas needs a decoded <img>
-// element to drawImage from, not just a URL, so this can't go through the
-// same onerror-swap pattern as a DOM <img> tag. `null` means "not ready
-// yet or doesn't exist," in which case renderWorldMap falls back to the
-// plain fill it always used, same "partial art coverage is safe" rule as
-// every other asset in the game.
-let mapBackgroundImage;
-function getMapBackgroundImage() {
-  if (mapBackgroundImage !== undefined) return mapBackgroundImage.complete && mapBackgroundImage.naturalWidth ? mapBackgroundImage : null;
-  const url = getAssetUrl('ui', 'springfieldMap');
-  if (!url) {
-    mapBackgroundImage = null;
-    return null;
-  }
-  mapBackgroundImage = new Image();
-  mapBackgroundImage.src = url;
-  return null;
+const MAP_WIDTH = 1594;
+const MAP_HEIGHT = 986;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2.5;
+const START_ZOOM = 1.5;
+
+let dom = null;
+let camera = { x: 0, y: 0, zoom: START_ZOOM };
+let dragState = null;
+let hotspotEls = {}; // locationId -> {root, pin, label}
+let clickHandler = null;
+let cameraSettledHandler = null;
+let cameraSaveTimer = null;
+
+// Debounced so a wheel-zoom flurry or an active drag doesn't spam
+// saveActiveRun -- fires ~400ms after the camera stops moving.
+function scheduleCameraSettled() {
+  if (!cameraSettledHandler) return;
+  clearTimeout(cameraSaveTimer);
+  cameraSaveTimer = setTimeout(() => cameraSettledHandler(getCameraState()), 400);
 }
 
-const MARGIN_X = 80;
-const MARGIN_Y = 55;
-const NODE_RADIUS = 34;
-const OUTLINE = '#1b1b1f';
+function pct(n) {
+  return `${(n * 100).toFixed(3)}%`;
+}
 
-function pixelPos(canvas, id) {
-  const loc = WORLD_LOCATIONS[id];
-  return {
-    x: MARGIN_X + loc.x * (canvas.width - MARGIN_X * 2),
-    y: MARGIN_Y + loc.y * (canvas.height - MARGIN_Y * 2),
+function clampZoom(z) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+}
+
+function applyCameraTransform() {
+  dom.world.style.transform = `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`;
+}
+
+export function getCameraState() {
+  return { ...camera };
+}
+
+export function setCameraState(state) {
+  if (!state) return;
+  camera = { x: state.x ?? camera.x, y: state.y ?? camera.y, zoom: clampZoom(state.zoom ?? camera.zoom) };
+  if (dom) applyCameraTransform();
+}
+
+function centerCameraOn(locationId, zoom) {
+  const loc = WORLD_LOCATIONS[locationId];
+  const rect = dom.viewport.getBoundingClientRect();
+  const targetZoom = clampZoom(zoom ?? camera.zoom);
+  const worldX = loc.x * MAP_WIDTH;
+  const worldY = loc.y * MAP_HEIGHT;
+  camera = {
+    zoom: targetZoom,
+    x: rect.width / 2 - worldX * targetZoom,
+    y: rect.height / 2 - worldY * targetZoom,
   };
+  applyCameraTransform();
 }
 
-// 'current' -- standing here right now. 'locked' -- reachable by road, but
-// it's this segment's boss location and the map hasn't been explored
-// enough yet (systems/board.js isBossLocationUnlocked). 'available' /
-// 'visited-available' -- reachable and travelable. 'visited' -- been here
-// this run, not reachable from here right now. 'unreachable' -- no direct
-// road from the current location.
-function nodeState(id, runState, reachableIds, segment, bossUnlocked) {
+// Called once when a fresh episode starts -- "camera should start focused
+// around the Simpsons House... do not immediately show the entire map."
+export function focusCameraOnStart() {
+  centerCameraOn(START_LOCATION_ID, START_ZOOM);
+}
+
+// The zoom-reset (home) button and any other "recenter on where I am now" call.
+export function resetViewToCurrentLocation(runState) {
+  centerCameraOn(runState.world.currentLocationId || START_LOCATION_ID, START_ZOOM);
+}
+
+function zoomAtPoint(clientX, clientY, factor) {
+  const rect = dom.viewport.getBoundingClientRect();
+  const px = clientX - rect.left;
+  const py = clientY - rect.top;
+  const newZoom = clampZoom(camera.zoom * factor);
+  if (newZoom === camera.zoom) return;
+  const worldX = (px - camera.x) / camera.zoom;
+  const worldY = (py - camera.y) / camera.zoom;
+  camera = {
+    zoom: newZoom,
+    x: px - worldX * newZoom,
+    y: py - worldY * newZoom,
+  };
+  applyCameraTransform();
+}
+
+export function zoomIn() {
+  const rect = dom.viewport.getBoundingClientRect();
+  zoomAtPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.25);
+  scheduleCameraSettled();
+}
+
+export function zoomOut() {
+  const rect = dom.viewport.getBoundingClientRect();
+  zoomAtPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.8);
+  scheduleCameraSettled();
+}
+
+function onPointerMove(e) {
+  if (!dragState) return;
+  const dx = e.clientX - dragState.startX;
+  const dy = e.clientY - dragState.startY;
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragState.moved = true;
+  camera = { ...camera, x: dragState.camX + dx, y: dragState.camY + dy };
+  applyCameraTransform();
+}
+
+function onPointerUp() {
+  dragState = null;
+  dom.viewport.classList.remove('is-panning');
+  document.removeEventListener('pointermove', onPointerMove);
+  document.removeEventListener('pointerup', onPointerUp);
+  scheduleCameraSettled();
+}
+
+function bindPanZoom() {
+  dom.viewport.addEventListener('pointerdown', (e) => {
+    // A hotspot handles its own click -- don't start a background drag on it.
+    if (e.target.closest && e.target.closest('.map-hotspot')) return;
+    if (e.button !== undefined && e.button !== 0) return;
+    dragState = { startX: e.clientX, startY: e.clientY, camX: camera.x, camY: camera.y, moved: false };
+    dom.viewport.classList.add('is-panning');
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  });
+  dom.viewport.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      zoomAtPoint(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 0.89);
+      scheduleCameraSettled();
+    },
+    { passive: false }
+  );
+}
+
+function buildRoads() {
+  dom.roadsSvg.setAttribute('viewBox', `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
+}
+
+function renderRoads(runState) {
+  const svg = dom.roadsSvg;
+  svg.innerHTML = '';
+  for (const [a, b] of getAllRoads()) {
+    const posA = WORLD_LOCATIONS[a];
+    const posB = WORLD_LOCATIONS[b];
+    const blocked = isRoadBlocked(runState, a, b);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', posA.x * MAP_WIDTH);
+    line.setAttribute('y1', posA.y * MAP_HEIGHT);
+    line.setAttribute('x2', posB.x * MAP_WIDTH);
+    line.setAttribute('y2', posB.y * MAP_HEIGHT);
+    line.setAttribute('stroke', blocked ? '#d0021b' : '#f6d217');
+    line.setAttribute('stroke-width', '5');
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('stroke-dasharray', blocked ? '10 14' : '2 18');
+    line.setAttribute('opacity', blocked ? '0.6' : '0.55');
+    svg.appendChild(line);
+  }
+}
+
+function buildHotspots(handlers) {
+  dom.hotspotsLayer.innerHTML = '';
+  hotspotEls = {};
+  for (const id of Object.keys(WORLD_LOCATIONS)) {
+    const loc = WORLD_LOCATIONS[id];
+    const info = LOCATIONS[id];
+    const root = document.createElement('div');
+    root.className = 'map-hotspot';
+    root.style.left = pct(loc.x);
+    root.style.top = pct(loc.y);
+    root.innerHTML = `<div class="map-hotspot-pin">${info.emoji}</div><div class="map-hotspot-label">${info.name}</div>`;
+    root.addEventListener('pointerup', (e) => {
+      e.stopPropagation();
+      if (clickHandler) clickHandler(id);
+    });
+    root.addEventListener('pointerenter', () => handlers.onHotspotHover(id));
+    root.addEventListener('pointerleave', () => handlers.onHotspotHover(null));
+    dom.hotspotsLayer.appendChild(root);
+    hotspotEls[id] = { root, pin: root.querySelector('.map-hotspot-pin') };
+  }
+}
+
+function nodeStateClass(id, runState, reachableIds, segment, bossUnlocked) {
   const here = runState.world.currentLocationId || START_LOCATION_ID;
-  if (id === here) return 'current';
+  if (id === here) return 'state-current';
   const visited = runState.world.visitedLocationIds.includes(id);
   const roadReachable = reachableIds.includes(id);
   const isBoss = id === segment.bossLocationId;
-  if (roadReachable && isBoss && !bossUnlocked) return visited ? 'visited' : 'locked';
-  if (roadReachable) return visited ? 'visited-available' : 'available';
-  return visited ? 'visited' : 'unreachable';
+  if (roadReachable && isBoss && !bossUnlocked) return visited ? 'state-visited' : 'state-locked';
+  if (roadReachable) return visited ? 'state-visited-available' : 'state-available';
+  return visited ? 'state-visited' : 'state-unreachable';
 }
 
-function drawRoad(ctx, a, b, blocked) {
-  ctx.save();
-  ctx.strokeStyle = blocked ? '#4a2020' : '#6b6b73';
-  ctx.lineWidth = 10;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
-  ctx.strokeStyle = blocked ? '#d0021b' : '#f6d217';
-  ctx.lineWidth = 3;
-  ctx.setLineDash(blocked ? [4, 8] : [10, 10]);
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
-  if (blocked) {
-    ctx.save();
-    ctx.font = '20px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('🚫', (a.x + b.x) / 2, (a.y + b.y) / 2 + 7);
-    ctx.restore();
-  }
+function moveHomerMarker(locationId) {
+  const loc = WORLD_LOCATIONS[locationId];
+  dom.homerMarker.style.left = pct(loc.x);
+  dom.homerMarker.style.top = pct(loc.y);
 }
 
-function drawNode(ctx, canvas, id, state, isBossLocation, flagText) {
-  const pos = pixelPos(canvas, id);
-  const loc = LOCATIONS[id];
-  ctx.save();
-  ctx.globalAlpha = state === 'unreachable' ? 0.45 : 1;
-
-  const pulsing = state === 'available' || state === 'visited-available';
-  if (pulsing) {
-    const pulse = 6 + Math.sin(performance.now() / 220) * 3;
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, NODE_RADIUS + pulse, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(246, 210, 23, 0.35)';
-    ctx.fill();
-  }
-
-  ctx.beginPath();
-  ctx.arc(pos.x, pos.y, NODE_RADIUS, 0, Math.PI * 2);
-  ctx.fillStyle = state === 'visited' || state === 'visited-available' ? '#3a4a3a' : '#26262e';
-  ctx.fill();
-  ctx.lineWidth = isBossLocation ? 4 : pulsing ? 4 : 2.5;
-  ctx.strokeStyle = isBossLocation ? '#d0021b' : pulsing ? '#f6d217' : state === 'current' ? '#3ec2ff' : OUTLINE;
-  ctx.stroke();
-
-  ctx.font = `${NODE_RADIUS}px serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(loc.emoji, pos.x, pos.y + 1);
-
-  ctx.font = '16px sans-serif';
-  if (state === 'locked') {
-    ctx.fillText('🔒', pos.x + NODE_RADIUS - 8, pos.y - NODE_RADIUS + 10);
-  } else if (state === 'visited' || state === 'visited-available') {
-    ctx.font = 'bold 16px sans-serif';
-    ctx.fillStyle = '#3ec24c';
-    ctx.fillText('✔', pos.x + NODE_RADIUS - 6, pos.y - NODE_RADIUS + 8);
-  } else if (isBossLocation) {
-    ctx.fillText('☠️', pos.x + NODE_RADIUS - 8, pos.y - NODE_RADIUS + 10);
-  }
-
-  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#fff8ea';
-  ctx.fillText(loc.name, pos.x, pos.y + NODE_RADIUS + 16);
-
-  ctx.font = '11px "Segoe UI", Arial, sans-serif';
-  if (flagText) {
-    ctx.fillStyle = '#ff6b6b';
-    ctx.fillText(flagText, pos.x, pos.y + NODE_RADIUS + 31);
-  } else if (state === 'unreachable') {
-    ctx.fillStyle = '#8a8a92';
-    ctx.fillText('???', pos.x, pos.y + NODE_RADIUS + 31);
-  } else if (state === 'locked') {
-    ctx.fillStyle = '#8a8a92';
-    ctx.fillText('explore more first', pos.x, pos.y + NODE_RADIUS + 31);
-  }
-  ctx.restore();
+export function hotspotInfo(locationId, runState) {
+  const loc = LOCATIONS[locationId];
+  const segment = getCurrentSegment(runState);
+  const visited = runState.world.visitedLocationIds.includes(locationId);
+  const isBoss = locationId === segment.bossLocationId;
+  const flag = runState.world.locationFlags[locationId];
+  const bits = [];
+  bits.push(visited ? 'VISITED' : 'NOT VISITED YET');
+  if (isBoss) bits.push('☠ BOSS LOCATION');
+  if (typeof flag === 'string') bits.push(flag.toUpperCase());
+  return { name: loc.name, status: bits.join(' • ') };
 }
 
-function drawMarker(ctx, pos) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(pos.x, pos.y - NODE_RADIUS - 14, 9, 0, Math.PI * 2);
-  ctx.fillStyle = '#3ec2ff';
-  ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = 2;
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
+// Mounted once (from game.js's constructor) -- rebuilding the hotspot/road
+// DOM every board visit would be wasteful since neither the art nor the
+// location registry changes mid-session, only their *state* does (see
+// renderMap, called on every board entry and after anything that changes
+// the map).
+export function mountMapView(handlers) {
+  if (dom) return;
+  dom = {
+    viewport: document.getElementById('map-viewport'),
+    world: document.getElementById('map-world'),
+    image: document.getElementById('map-image'),
+    roadsSvg: document.getElementById('map-roads'),
+    hotspotsLayer: document.getElementById('map-hotspots'),
+    homerMarker: document.getElementById('map-homer-marker'),
+    homerPortrait: document.getElementById('map-homer-portrait'),
+    hoverPanel: document.getElementById('map-hover-panel'),
+  };
+  clickHandler = handlers.onHotspotClick;
+  cameraSettledHandler = handlers.onCameraSettled || null;
+  dom.image.src = getAssetUrl('ui', 'springfieldMap') || '';
+  buildRoads();
+  buildHotspots({
+    onHotspotHover: (locationId) => handlers.onHotspotHover(locationId),
+  });
+  bindPanZoom();
+  document.getElementById('btn-map-zoom-in').addEventListener('click', () => zoomIn());
+  document.getElementById('btn-map-zoom-out').addEventListener('click', () => zoomOut());
+  document.getElementById('btn-map-zoom-reset').addEventListener('click', () => handlers.onZoomReset());
 }
 
-export function renderWorldMap(canvas, runState, markerOverride) {
-  const ctx = canvas.getContext('2d');
+// Refreshes every hotspot's visible state, the road layer, and Homer's
+// marker/portrait against the current runState -- call this whenever the
+// board screen is (re)entered and there is nothing already animating
+// (travelHomerMarker below handles the one time there is: mid-travel).
+export function renderMap(runState) {
   const segment = getCurrentSegment(runState);
   const reachableIds = getReachableLocationIds(runState);
   const bossUnlocked = isBossLocationUnlocked(runState);
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const bgImage = getMapBackgroundImage();
-  if (bgImage) {
-    ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-    // Real map art needs a little darkening so node/road contrast still
-    // reads the same as it did over the flat fill.
-    ctx.fillStyle = 'rgba(10, 15, 10, 0.35)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  } else {
-    ctx.fillStyle = '#2f4a2f';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (const [id, els] of Object.entries(hotspotEls)) {
+    const state = nodeStateClass(id, runState, reachableIds, segment, bossUnlocked);
+    els.root.className = `map-hotspot ${state}${id === segment.bossLocationId ? ' is-boss' : ''}`;
   }
+  renderRoads(runState);
 
-  for (const [a, b] of getAllRoads()) {
-    drawRoad(ctx, pixelPos(canvas, a), pixelPos(canvas, b), isRoadBlocked(runState, a, b));
-  }
-
-  for (const id of Object.keys(WORLD_LOCATIONS)) {
-    const state = nodeState(id, runState, reachableIds, segment, bossUnlocked);
-    drawNode(ctx, canvas, id, state, id === segment.bossLocationId, runState.world.locationFlags[id]);
-  }
-
-  const markerId = markerOverride || runState.world.currentLocationId || START_LOCATION_ID;
-  drawMarker(ctx, pixelPos(canvas, markerId));
+  const homerPortraitUrl = getAssetUrl('characters', runState.character.id);
+  if (homerPortraitUrl) dom.homerPortrait.src = homerPortraitUrl;
+  moveHomerMarker(runState.world.currentLocationId || START_LOCATION_ID);
 }
 
-// Slides the marker from one location to another over `durationMs`,
-// re-rendering the static map each frame, then calls onDone.
-export function animateTravelMarker(canvas, runState, fromId, toId, durationMs, onDone) {
-  const from = fromId ? pixelPos(canvas, fromId) : pixelPos(canvas, toId);
-  const to = pixelPos(canvas, toId);
-  const ctx = canvas.getContext('2d');
-  const start = performance.now();
-
-  function step(now) {
-    const t = Math.min(1, (now - start) / durationMs);
-    renderWorldMap(canvas, runState, null);
-    const x = from.x + (to.x - from.x) * t;
-    const y = from.y + (to.y - from.y) * t;
-    drawMarker(ctx, { x, y });
-    if (t < 1) requestAnimationFrame(step);
-    else onDone();
+export function showHoverPanel(locationId, runState) {
+  if (!locationId) {
+    dom.hoverPanel.classList.add('hidden');
+    return;
   }
-  requestAnimationFrame(step);
+  const info = hotspotInfo(locationId, runState);
+  dom.hoverPanel.innerHTML = `<div class="map-hover-panel-name">${info.name}</div><div class="map-hover-panel-status">${info.status}</div>`;
+  dom.hoverPanel.classList.remove('hidden');
 }
 
-export function findLocationAtPoint(canvas, px, py) {
-  for (const id of Object.keys(WORLD_LOCATIONS)) {
-    const pos = pixelPos(canvas, id);
-    if (Math.hypot(px - pos.x, py - pos.y) <= NODE_RADIUS + 6) return id;
-  }
-  return null;
+// Slides Homer's marker to the destination via the CSS transition already
+// on .map-homer-marker (index.html/style.css), then calls onDone -- the
+// direct replacement for the old canvas animateTravelMarker.
+export function travelHomerMarker(toId, durationMs, onDone) {
+  moveHomerMarker(toId);
+  setTimeout(onDone, durationMs);
 }

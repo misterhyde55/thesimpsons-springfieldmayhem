@@ -162,6 +162,11 @@ export function createRunState(character) {
       locationFlags: {},
       locationStates: {},
       secretsFoundIds: [],
+      // The player's last pan/zoom on the Springfield map (ui/worldMapView.js
+      // {x, y, zoom}) -- null until they've actually moved the camera once,
+      // at which point game.js starts framed on it instead of resetting to
+      // the Simpsons House. "Do not reset the map" on returning to a screen.
+      mapCamera: null,
     },
   };
 }
