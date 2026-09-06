@@ -117,6 +117,11 @@ export function createRunState(character) {
     // bought; only the rare finds (data/items.js's `rare: true` entries) are
     // worth saving for later, so this bag only ever holds those.
     consumables: {},
+    // Quest progress, keyed by quest id -> 'active' | 'resolved' | a more
+    // specific outcome string ('killed'/'saved', see data/quests.js). Absent
+    // key means "not started yet" -- quests start silently, from an
+    // ordinary dialogue choice or event, not a quest log the player opens.
+    quests: {},
     stats: {
       enemiesDefeated: 0,
       elitesDefeated: 0,
@@ -176,6 +181,7 @@ export function deserializeRunState(obj) {
     // Saves from before the Kwik-E-Mart held-item bag existed won't have
     // this key -- default it so economy.js doesn't have to guard everywhere.
     consumables: obj.consumables || {},
+    quests: obj.quests || {},
   };
 }
 

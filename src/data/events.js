@@ -269,6 +269,15 @@ export const EVENTS = {
         resultText: 'You leave Wiggum to it. He salutes you for no reason.',
         apply() {},
       },
+      {
+        id: 'missingOfficers',
+        label: 'Anything else going on?',
+        apply(runState) {
+          if (runState.quests.missingOfficers) return 'Wiggum: "Nope! Everything\'s under control here." (You already know better.)';
+          runState.quests.missingOfficers = 'active';
+          return 'Wiggum: "Actually... a couple of my officers went to check out Burns Manor and never called it in. If you\'re headed that way, keep an eye out."';
+        },
+      },
     ],
   },
   krustyBurgerCombo: {

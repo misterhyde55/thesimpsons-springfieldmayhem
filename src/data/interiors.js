@@ -19,6 +19,7 @@ import { getRelicShopPool } from './relics.js';
 import { getEvent } from './events.js';
 import { ITEMS } from './items.js';
 import { sellPriceFor } from '../systems/economy.js';
+import { helpApuReportInteraction } from './quests.js';
 
 function grantUndiscoveredRelic(runState) {
   const pool = getRelicShopPool().filter((r) => !runState.relics.includes(r.id));
@@ -138,6 +139,7 @@ export const INTERIORS = {
                     label: "WHAT'S HAPPENED?",
                     run(runState) {
                       runState.world.locationFlags.springfieldElementary = 'Possible Infection';
+                      runState.quests.helpApu = 'active';
                       return { text: 'Apu: "I saw something shamble past Springfield Elementary. It wasn\'t walking right." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
                     },
                   },
@@ -220,6 +222,7 @@ export const INTERIORS = {
                     label: 'WHAT HAPPENED HERE?',
                     run(runState) {
                       runState.world.locationFlags.springfieldElementary = 'Possible Infection';
+                      runState.quests.helpApu = 'active';
                       return { text: 'Apu: "A whole busload of them came from the school. Be careful there." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
                     },
                   },
@@ -279,6 +282,7 @@ export const INTERIORS = {
                     label: 'QUESTION THE LIGHTS',
                     run(runState) {
                       runState.world.locationFlags.springfieldElementary = 'Possible Infection';
+                      runState.quests.helpApu = 'active';
                       return { text: 'Apu: "They circled the school twice. I counted." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
                     },
                   },
@@ -422,8 +426,9 @@ export const INTERIORS = {
                   {
                     id: 'whereBarney',
                     label: 'WHAT HAPPENED TO BARNEY?',
-                    run() {
-                      return { text: 'Moe: "He went to the back for a keg. That was an hour ago."' };
+                    run(runState) {
+                      if (!runState.quests.wheresBarney) runState.quests.wheresBarney = 'active';
+                      return { text: 'Moe: "He went to the back for a keg. That was an hour ago." (You should go looking for him.)' };
                     },
                   },
                   {
@@ -546,7 +551,7 @@ export const INTERIORS = {
 // than repeating them in each block above -- USE AN ITEM everywhere, SELL AN
 // ITEM only where Apu is standing behind the counter.
 for (const state of Object.values(INTERIORS.kwikEMart.states)) {
-  state.interactions.push(sellItemInteraction(), unlockStorageCageInteraction());
+  state.interactions.push(sellItemInteraction(), unlockStorageCageInteraction(), helpApuReportInteraction());
 }
 for (const interior of Object.values(INTERIORS)) {
   for (const state of Object.values(interior.states)) {
