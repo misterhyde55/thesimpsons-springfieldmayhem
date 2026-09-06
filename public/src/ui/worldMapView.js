@@ -1,6 +1,26 @@
 import { WORLD_LOCATIONS, getAllRoads, isRoadBlocked, getReachableLocationIds, START_LOCATION_ID } from '../data/worldMap.js';
 import { getCurrentSegment, isBossLocationUnlocked } from '../systems/board.js';
 import { LOCATIONS } from '../data/locations.js';
+import { getAssetUrl } from '../data/assets.js';
+
+// Real map art, loaded once and cached -- canvas needs a decoded <img>
+// element to drawImage from, not just a URL, so this can't go through the
+// same onerror-swap pattern as a DOM <img> tag. `null` means "not ready
+// yet or doesn't exist," in which case renderWorldMap falls back to the
+// plain fill it always used, same "partial art coverage is safe" rule as
+// every other asset in the game.
+let mapBackgroundImage;
+function getMapBackgroundImage() {
+  if (mapBackgroundImage !== undefined) return mapBackgroundImage.complete && mapBackgroundImage.naturalWidth ? mapBackgroundImage : null;
+  const url = getAssetUrl('ui', 'springfieldMap');
+  if (!url) {
+    mapBackgroundImage = null;
+    return null;
+  }
+  mapBackgroundImage = new Image();
+  mapBackgroundImage.src = url;
+  return null;
+}
 
 const MARGIN_X = 80;
 const MARGIN_Y = 55;
@@ -135,8 +155,17 @@ export function renderWorldMap(canvas, runState, markerOverride) {
   const bossUnlocked = isBossLocationUnlocked(runState);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#2f4a2f';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const bgImage = getMapBackgroundImage();
+  if (bgImage) {
+    ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+    // Real map art needs a little darkening so node/road contrast still
+    // reads the same as it did over the flat fill.
+    ctx.fillStyle = 'rgba(10, 15, 10, 0.35)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    ctx.fillStyle = '#2f4a2f';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 
   for (const [a, b] of getAllRoads()) {
     drawRoad(ctx, pixelPos(canvas, a), pixelPos(canvas, b), isRoadBlocked(runState, a, b));
