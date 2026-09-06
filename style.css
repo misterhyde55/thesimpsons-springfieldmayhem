@@ -264,17 +264,187 @@ body.full-bleed-active #top-bar { display: none; }
   margin: 40px auto;
 }
 
-/* ---------------- Level board ---------------- */
-.board-header { max-width: 900px; margin: 0 auto 6px; text-align: center; }
-#board-episode-title { font-size: 1.1rem; font-weight: 700; }
-#board-episode-modifier { color: #f6d217; font-size: 0.85rem; }
-canvas#boardCanvas {
+/* ---------------- Springfield map (Springfieldmap2.png + DOM hotspot layer,
+   src/ui/worldMapView.js) ---------------- */
+.map-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  padding: 0;
+  overflow: hidden;
+  background: #0a0f0a;
+}
+.map-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.map-viewport.is-panning { cursor: grabbing; }
+/* transform-origin stays at 0,0 -- ui/worldMapView.js's pan/zoom math
+   (translate then scale) assumes that, and every hotspot/road inside is
+   positioned in this element's own untransformed coordinate space via
+   plain percentages, so they never need recomputing on pan/zoom. */
+.map-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.map-image {
   display: block;
-  margin: 0 auto;
-  border: 4px solid #0e63a8;
-  border-radius: 8px;
-  max-width: 100%;
+  width: 1594px;
+  height: 986px;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.map-roads {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.map-hotspots { position: absolute; inset: 0; }
+
+.map-hotspot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   cursor: pointer;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+}
+.map-hotspot-pin {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #26262e;
+  border: 2.5px solid #8c8c99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.map-hotspot-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: #fff8ea;
+  background: rgba(10, 10, 14, 0.75);
+  padding: 1px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.map-hotspot.state-current .map-hotspot-pin { border-color: #3ec2ff; box-shadow: 0 0 0 3px rgba(62, 194, 255, 0.35); }
+.map-hotspot.state-available .map-hotspot-pin, .map-hotspot.state-visited-available .map-hotspot-pin {
+  border-color: #f6d217;
+  animation: hotspotPulse 1.8s ease-in-out infinite;
+}
+.map-hotspot.state-visited .map-hotspot-pin { border-color: #3ec24c; }
+.map-hotspot.state-locked .map-hotspot-pin { border-color: #d0021b; opacity: 0.85; }
+.map-hotspot.state-unreachable { opacity: 0.55; }
+.map-hotspot.is-boss .map-hotspot-pin { border-color: #d0021b; border-width: 3px; }
+.map-hotspot:hover .map-hotspot-pin { transform: scale(1.12); }
+@keyframes hotspotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(246, 210, 23, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(246, 210, 23, 0); }
+}
+
+.map-homer-marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  transition: left 0.5s ease, top 0.5s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+.map-homer-portrait { height: 64px; width: auto; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.7)); }
+
+.map-hover-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 90px;
+  transform: translateX(-50%);
+  z-index: 6;
+  background: rgba(10, 10, 14, 0.9);
+  border: 2px solid #f6d217;
+  border-radius: 10px;
+  padding: 10px 16px;
+  text-align: center;
+  max-width: min(90vw, 320px);
+  pointer-events: none;
+}
+.map-hover-panel-name { font-weight: 800; color: #f6d217; }
+.map-hover-panel-status { font-size: 0.8rem; color: #c9c9d3; margin-top: 2px; }
+
+/* Both HUD groups anchor to the right, stacked -- the art's own baked-in
+   title banner and legend live along the whole left edge, so the real,
+   dynamic HUD deliberately stays clear of it rather than fighting it. */
+.map-hud-top-left {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 6;
+  text-align: right;
+  background: rgba(10, 10, 14, 0.6);
+  border-radius: 10px;
+  padding: 8px 14px;
+  max-width: 60vw;
+}
+.map-hud-top-right {
+  position: absolute;
+  top: 76px;
+  right: 12px;
+  z-index: 6;
+  background: rgba(10, 10, 14, 0.6);
+  border-radius: 10px;
+  padding: 8px 14px;
+}
+#board-episode-title { font-size: 1rem; font-weight: 700; }
+#board-episode-modifier { color: #f6d217; font-size: 0.8rem; }
+
+.map-zoom-controls {
+  position: absolute;
+  bottom: 90px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.map-zoom-controls button {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: #f6d217;
+  color: #1b1b1f;
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #b89b0f;
+}
+.map-zoom-controls button:hover { background: #ffe14d; }
+.map-zoom-controls button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b89b0f; }
+
+.map-hint {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  margin: 0;
+  background: rgba(10, 10, 14, 0.6);
+  padding: 4px 14px;
+  border-radius: 8px;
 }
 
 .news-flash {
@@ -847,7 +1017,7 @@ canvas#boardCanvas {
 .commercial-break-content h2 { color: #f6d217; font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif; }
 
 /* ---------------- Cast strip / couch gag ---------------- */
-.cast-strip { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+.cast-strip { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
 .cast-strip img { height: 36px; width: auto; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5)); }
 
 .couch-gag-box {
@@ -871,10 +1041,10 @@ canvas#boardCanvas {
   95% { transform: translate(2px, -1px); }
   97% { transform: translate(-1px, 0); }
 }
-/* The Springfield map corrupts the same way, right on the canvas itself. */
-canvas#boardCanvas.mayhem-mid { filter: saturate(0.85) contrast(1.05) sepia(0.12); }
-canvas#boardCanvas.mayhem-high { filter: saturate(0.7) contrast(1.15) hue-rotate(-6deg) brightness(0.85); }
-canvas#boardCanvas.mayhem-max { filter: saturate(1.3) contrast(1.3) hue-rotate(-12deg) brightness(0.75); animation: mayhemGlitch 2.4s steps(1) infinite; }
+/* The Springfield map corrupts the same way, right on the map viewport. */
+#map-viewport.mayhem-mid { filter: saturate(0.85) contrast(1.05) sepia(0.12); }
+#map-viewport.mayhem-high { filter: saturate(0.7) contrast(1.15) hue-rotate(-6deg) brightness(0.85); }
+#map-viewport.mayhem-max { filter: saturate(1.3) contrast(1.3) hue-rotate(-12deg) brightness(0.75); animation: mayhemGlitch 2.4s steps(1) infinite; }
 
 /* ---------------- Travel scene ---------------- */
 .travel-screen {

@@ -51,7 +51,7 @@ import {
   clearActiveRun,
 } from './state/gameState.js';
 import * as screens from './ui/screens.js';
-import { renderWorldMap, animateTravelMarker, findLocationAtPoint } from './ui/worldMapView.js';
+import * as mapView from './ui/worldMapView.js';
 
 // Once a run's Mayhem meter crosses this, locations show their
 // `flavorCorrupted` line instead of `flavorNormal` -- Springfield visibly
@@ -83,7 +83,6 @@ export class Game {
     this.pendingAbilityId = null;
     this.pendingCharacterId = null;
     this.pendingEpisode = null;
-    this.boardRunning = false;
     this.mainMenuNav = null;
 
     // Set while resolving a map location's combat/event content (see
@@ -100,7 +99,6 @@ export class Game {
     this.interiorState = null;
     this.interiorActionsRemaining = 0;
 
-    document.getElementById('boardCanvas').addEventListener('click', (e) => this.handleBoardClick(e));
     document.getElementById('btn-news-continue').addEventListener('click', () => this.continueAfterNews());
     document.addEventListener('keydown', (e) => this.handleGlobalKeydown(e));
   }
@@ -140,7 +138,6 @@ export class Game {
   }
 
   showMainMenu() {
-    this.stopBoardLoop();
     playMusic('homeMenuMusic');
     screens.showScreen('screen-main-menu');
     this.mainMenuNav = screens.populateMainMenu(this.meta, hasActiveRun(), {
@@ -168,7 +165,6 @@ export class Game {
   }
 
   showSimpsonHouse() {
-    this.stopBoardLoop();
     screens.showScreen('screen-simpson-house');
     screens.populateSimpsonHouse(() => this.showCharactersInfo(), () => this.showMainMenu());
   }
@@ -340,22 +336,34 @@ export class Game {
     const reachableIds = getReachableLocationIds(this.runState);
     screens.populateBoardInfo(this.runState, segment, reachableIds.length);
     screens.applyMapMayhemVisuals(this.runState.mayhem);
-    this.startBoardLoop();
+    mapView.mountMapView({
+      onHotspotClick: (locationId) => this.handleHotspotClick(locationId),
+      onHotspotHover: (locationId) => mapView.showHoverPanel(locationId, this.runState),
+      onZoomReset: () => {
+        mapView.resetViewToCurrentLocation(this.runState);
+        this.saveMapCamera();
+      },
+      onCameraSettled: (camera) => {
+        if (!this.runState) return;
+        this.runState.world.mapCamera = camera;
+        saveActiveRun(this.runState);
+      },
+    });
+    // A brand-new run has no saved camera yet -- start framed on the
+    // Simpsons House rather than showing the whole map at once. Returning
+    // to an in-progress run restores exactly where the player left the
+    // camera (pan + zoom), per "do not reset the map."
+    if (this.runState.world.mapCamera) {
+      mapView.setCameraState(this.runState.world.mapCamera);
+    } else {
+      mapView.focusCameraOnStart();
+    }
+    mapView.renderMap(this.runState);
   }
 
-  startBoardLoop() {
-    this.boardRunning = true;
-    const canvas = document.getElementById('boardCanvas');
-    const step = () => {
-      if (!this.boardRunning) return;
-      renderWorldMap(canvas, this.runState);
-      requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }
-
-  stopBoardLoop() {
-    this.boardRunning = false;
+  saveMapCamera() {
+    this.runState.world.mapCamera = mapView.getCameraState();
+    saveActiveRun(this.runState);
   }
 
   isLocationClickable(locationId) {
@@ -365,20 +373,12 @@ export class Game {
     return true;
   }
 
-  handleBoardClick(e) {
-    if (!this.boardRunning || !this.runState) return;
-    const canvas = e.target;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const px = (e.clientX - rect.left) * scaleX;
-    const py = (e.clientY - rect.top) * scaleY;
-    const locationId = findLocationAtPoint(canvas, px, py);
-    if (!locationId || !this.isLocationClickable(locationId)) return;
-
-    this.stopBoardLoop();
-    const fromId = this.runState.world.currentLocationId;
-    animateTravelMarker(canvas, this.runState, fromId, locationId, 500, () => this.travelTo(locationId));
+  handleHotspotClick(locationId) {
+    if (!this.runState) return;
+    if (!this.isLocationClickable(locationId)) return;
+    mapView.showHoverPanel(null);
+    this.saveMapCamera();
+    mapView.travelHomerMarker(locationId, 500, () => this.travelTo(locationId));
   }
 
   increaseMayhem(amount) {
