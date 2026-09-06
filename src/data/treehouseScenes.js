@@ -106,12 +106,56 @@ export const TREEHOUSE_SCENES = {
     title: 'GROUND ZERO',
     trigger: 'bossIntro',
     horrorRuleId: null,
-    locationId: null,
+    // Was `null` (any location) -- harmless while Kang & Kodos were the
+    // only Segment III boss fight, but Devil Ned (data/bosses.js) can now
+    // also be fought during Segment III at First Church of Springfield, and
+    // this scene has no business showing there. Scope it to its real fight.
+    locationId: 'springfieldCemetery',
     segmentIndex: 2,
     mayhemRange: null,
     rarity: 'common',
     narration: ['Somewhere above Springfield, two very smug aliens are watching the whole thing unfold.'],
     choices: null,
+  },
+  // Priority 4's CALLBACK! reveal -- fires once, several locations after
+  // the player eats the Cursed Donut (data/events.js), regardless of where
+  // they currently are (see the callback's own condition in
+  // data/callbacks.js and the 'locationArrival' check in game.js arriveAt).
+  devilNedRevealed: {
+    id: 'devilNedRevealed',
+    image: getAssetUrl('enemies', 'devilFlanders'),
+    title: 'THE DEVIL HAS COME TO COLLECT',
+    trigger: 'devilNedCallback',
+    horrorRuleId: null,
+    locationId: null,
+    segmentIndex: null,
+    mayhemRange: null,
+    rarity: 'rare',
+    narration: [
+      'The temperature drops. Then it rises, fast, and keeps going.',
+      'Someone is standing where no one was standing a second ago.',
+      'He is wearing a very familiar sweater. It is on fire. He does not seem to mind.',
+    ],
+    choices: [
+      {
+        id: 'faceDevilNed',
+        label: 'FACE HIM',
+        leadsTo: 'combat',
+        combatLocationId: 'springfieldChurch',
+        combatContent: { type: 'boss', bossId: 'devilNed' },
+        apply() {
+          return '"Hi-diddly-ho, Homer," says the thing wearing Ned Flanders. "I believe you owe me a donut."';
+        },
+      },
+      {
+        id: 'avoidDevilNed',
+        label: 'AVOID HIM (FOR NOW)',
+        leadsTo: 'board',
+        apply() {
+          return 'You turn and walk the other way. Somewhere behind you, you hear him start whistling. He knows where the church is. So do you, now.';
+        },
+      },
+    ],
   },
 };
 

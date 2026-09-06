@@ -364,6 +364,19 @@ export const ENEMIES = {
       battle.log.push({ turn: battle.turnNumber, actor: 'system', text: `Snake drops ${self.stolenTotal} stolen donuts as he goes down.` });
     },
   },
+  // Devil Ned's Phase 2 "Summon Demon" intent (data/bosses.js) spawns one of
+  // these mid-fight -- not zombie-tagged, since he's a hellspawn, not part
+  // of the outbreak.
+  demonImp: {
+    id: 'demonImp',
+    name: 'Demon Imp',
+    emoji: '👹',
+    hp: 18,
+    intents: [
+      { type: 'attack', value: 8, weight: 70, label: 'Claw', icon: '🩸' },
+      { type: 'defend', value: 6, weight: 30, label: 'Defend', icon: '🛡️' },
+    ],
+  },
   zombieGrandpa: {
     id: 'zombieGrandpa',
     name: 'Zombie Grandpa',

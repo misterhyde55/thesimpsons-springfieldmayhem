@@ -33,7 +33,7 @@ export const JOURNEYS = {
           nuclearPlant: { type: 'combat', elite: true, enemyIds: ['zombieHorde'], milestoneAbilityId: 'nuclearUppercut' },
           springfieldElementary: { type: 'boss', bossId: 'zombieSkinner' },
           policeStation: { type: 'event', eventPool: ['policeEvidenceRoom'] },
-          krustyBurger: { type: 'event', eventPool: ['krustyBurgerCombo'] },
+          krustyBurger: { type: 'event', eventPool: ['krustyBurgerCombo', 'cursedDonut'] },
           androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble'] },
           bowlarama: { type: 'event', eventPool: ['bowlaramaFrame'] },
           springfieldHospital: { type: 'event', eventPool: ['hospitalTriage'] },
@@ -56,7 +56,7 @@ export const JOURNEYS = {
           springfieldCemetery: { type: 'combat', enemyIds: ['abductedCitizen', 'abductedCitizen'] },
           nuclearPlant: { type: 'boss', bossId: 'kodos' },
           policeStation: { type: 'event', eventPool: ['policeEvidenceRoom'] },
-          krustyBurger: { type: 'event', eventPool: ['krustyBurgerCombo'] },
+          krustyBurger: { type: 'event', eventPool: ['krustyBurgerCombo', 'cursedDonut'] },
           androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble'] },
           bowlarama: { type: 'combat', enemyIds: ['zombieMilhouse'] },
           springfieldHospital: { type: 'event', eventPool: ['hospitalTriage'] },
@@ -87,7 +87,7 @@ export const JOURNEYS = {
           // glowingDonut/kwikEMartRobbery moved here from springfieldElementary
           // now that it's the School combo fight above.
           androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble', 'glowingDonut', 'kwikEMartRobbery'] },
-          bowlarama: { type: 'event', eventPool: ['bowlaramaFrame'] },
+          bowlarama: { type: 'event', eventPool: ['bowlaramaFrame', 'cursedDonut'] },
           // The "Hospital" encounter combo: Hibbert keeps healing the
           // Nurses, changing who's worth focusing down first.
           springfieldHospital: { type: 'combat', enemyIds: ['zombieHibbert', 'zombieNurse', 'zombieNurse'] },
@@ -114,5 +114,13 @@ export function getSegmentCount(characterId) {
 }
 
 export function getLocationContent(runState, locationId) {
+  // Priority 4: once the Devil Ned CALLBACK! has fired (data/callbacks.js
+  // devilNedAppears), First Church of Springfield is permanently corrupted
+  // into his optional boss fight instead of its normal churchConfession
+  // event -- "the map changes," not just a one-time cutscene detour.
+  if (locationId === 'springfieldChurch' && runState.world.locationFlags.hasDevilPortal) {
+    if (runState.world.locationFlags.devilNedDefeated) return null;
+    return { type: 'boss', bossId: 'devilNed' };
+  }
   return getSegment(runState.character.id, runState.segmentIndex).content[locationId] || null;
 }

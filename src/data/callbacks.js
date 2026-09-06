@@ -21,6 +21,28 @@ export const CALLBACKS = {
       return { text: 'THE BUTTON ACTIVATES. Something deep in the walls groans and gives way.' };
     },
   },
+  // Priority 4's Devil Ned reveal. Payoff for eating the Cursed Donut
+  // (data/events.js, which sets both flags below) -- fires the first time
+  // the player arrives ANYWHERE at least 3 locations after eating it (see
+  // game.js arriveAt's 'locationArrival' check), darkening the screen into
+  // the devilNedRevealed Treehouse Scene. `fire` only sets the flag that
+  // permanently corrupts First Church of Springfield into an optional
+  // Devil Ned fight (data/journeys.js getLocationContent) -- the actual
+  // FACE/AVOID choice lives in the scene itself.
+  devilNedAppears: {
+    id: 'devilNedAppears',
+    triggerPoint: 'locationArrival',
+    title: 'CALLBACK!',
+    condition(runState) {
+      if (!runState.callbackFlags.ateCursedDonut) return false;
+      const since = runState.world.visitedLocationIds.length - (runState.callbackFlags.ateCursedDonutVisitCount || 0);
+      return since >= 3;
+    },
+    fire(runState) {
+      runState.world.locationFlags.hasDevilPortal = true;
+      return { text: 'Something has been waiting for you.' };
+    },
+  },
   milhouseSaves: {
     id: 'milhouseSaves',
     triggerPoint: 'lowHp',

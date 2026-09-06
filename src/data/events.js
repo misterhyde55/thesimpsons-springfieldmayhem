@@ -417,6 +417,33 @@ export const EVENTS = {
       },
     ],
   },
+  // Discovery event for the optional Devil Ned boss (Priority 4) -- eating
+  // it sets the callback flags data/callbacks.js's devilNedAppears reads.
+  // The player is never told anything is coming; that's the point.
+  cursedDonut: {
+    id: 'cursedDonut',
+    title: 'A Cursed Donut',
+    emoji: '🍩',
+    prompt: 'Sitting on the curb, untouched, is a donut that radiates a faint, unpleasant warmth. It smells like sulfur and cinnamon.',
+    options: [
+      {
+        id: 'eat',
+        label: 'EAT IT',
+        resultText: 'It tastes incredible. Then it tastes like regret. You feel like something is now... owed.',
+        apply(runState) {
+          setCallbackFlag(runState, 'ateCursedDonut');
+          runState.callbackFlags.ateCursedDonutVisitCount = runState.world.visitedLocationIds.length;
+          runState.hp = Math.min(runState.maxHp, runState.hp + 15);
+        },
+      },
+      {
+        id: 'leave',
+        label: 'LEAVE IT',
+        resultText: "Some things aren't worth it, even at 2 AM. You walk away.",
+        apply() {},
+      },
+    ],
+  },
   churchConfession: {
     id: 'churchConfession',
     title: 'Confession',

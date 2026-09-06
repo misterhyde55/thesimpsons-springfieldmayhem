@@ -102,6 +102,9 @@ export const ASSET_MANIFEST = {
     // Original upload was a .tiff (no browser renders those) -- this is a
     // converted .png sibling with the same real transparency already intact.
     kangKodos: `${BASE}/enemies/Kang.png`,
+    // Devil Ned reuses the existing Devil Flanders art -- no separate boss
+    // portrait uploaded.
+    devilNed: `${BASE}/enemies/Devil_Flanders.png`,
   },
   // Battle/board location backgrounds, keyed by location id (data/locations.js).
   buildings: {

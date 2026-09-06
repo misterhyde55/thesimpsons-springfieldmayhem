@@ -18,6 +18,7 @@ import { INTERIORS, getInteriorState, checkRandomInterrupt } from './data/interi
 import { pickTravelScene, pickSceneLine } from './data/scenes.js';
 import { rollTravelEvent } from './data/travelEvents.js';
 import { pickTreehouseScene } from './data/treehouseScenes.js';
+import { DEVIL_DEALS } from './data/devilDeals.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
 import { getCurrentSegment, isFinalSegment, isSegmentComplete, isBossLocationUnlocked, markLocationVisited } from './systems/board.js';
@@ -315,8 +316,11 @@ export class Game {
       this.enterBoardScreen();
       return;
     }
-    const locationId = 'simpsonHouse';
-    const content = getLocationContent(this.runState, locationId);
+    // A choice can name its own fight (see the Devil Ned reveal scene,
+    // data/treehouseScenes.js devilNedRevealed) -- defaults to the zombie
+    // opening's original hardcoded Evergreen Terrace fight otherwise.
+    const locationId = choice.combatLocationId || 'simpsonHouse';
+    const content = choice.combatContent || getLocationContent(this.runState, locationId);
     this.currentLocationId = locationId;
     this.currentLocation = LOCATIONS[locationId];
     this.runState.world.currentLocationId = locationId;
@@ -377,7 +381,12 @@ export class Game {
   }
 
   increaseMayhem(amount) {
-    this.runState.mayhem = clamp(this.runState.mayhem + amount, 0, 100);
+    // The Devil's Pitchfork (Devil Ned's reward, data/devilDeals.js) trades
+    // combat power for a faster-rising Mayhem meter -- a single relic-id
+    // check here rather than a new generic hook, since it's the only relic
+    // that touches Mayhem gain itself rather than a battle event.
+    const multiplier = this.runState.relics.includes('devilsPitchfork') ? 1.5 : 1;
+    this.runState.mayhem = clamp(this.runState.mayhem + amount * multiplier, 0, 100);
     this.runState.stats.peakMayhem = Math.max(this.runState.stats.peakMayhem, this.runState.mayhem);
   }
 
@@ -398,12 +407,31 @@ export class Game {
     this.runState.world.currentLocationId = locationId;
     saveActiveRun(this.runState);
 
+    // Priority 4's CALLBACK! -- can interrupt arriving ANYWHERE, not just a
+    // specific location, since it's about timing (locations visited since
+    // the Cursed Donut) rather than a place. Fires at most once (see
+    // systems/callbackEngine.js).
+    const devilCallback = checkCallback(this.runState, 'locationArrival', { locationId });
+    if (devilCallback) {
+      const scene = pickTreehouseScene('devilNedCallback', {});
+      if (scene) {
+        this.showStoryScene(scene);
+        return;
+      }
+    }
+
     if (INTERIORS[locationId]) {
       this.enterInteriorScreen(locationId);
       return;
     }
 
-    const alreadyVisited = this.runState.world.segmentVisitedLocationIds.includes(locationId);
+    // First Church of Springfield stays revisitable once corrupted (see
+    // data/journeys.js getLocationContent) even if it was already visited
+    // earlier this segment for its normal confession event -- it's now
+    // offering something new. getLocationContent itself returns null again
+    // once Devil Ned is actually defeated (locationFlags.devilNedDefeated).
+    const isCorruptedChurch = locationId === 'springfieldChurch' && this.runState.world.locationFlags.hasDevilPortal;
+    const alreadyVisited = !isCorruptedChurch && this.runState.world.segmentVisitedLocationIds.includes(locationId);
     const content = alreadyVisited ? null : getLocationContent(this.runState, locationId);
     if (!content) {
       markLocationVisited(this.runState, locationId);
@@ -737,6 +765,15 @@ export class Game {
       return;
     }
 
+    // Devil Ned's TEMPTATION/THE CONTRACT (data/bosses.js, systems/enemyAI.js
+    // 'deal' intent) replaces his whole turn with a real choice instead of
+    // an automatic effect -- show it now, before anything else this turn.
+    const dealAction = result.enemyActions.find((a) => a.result && a.result.type === 'deal');
+    if (dealAction) {
+      this.showDevilDeal(dealAction.result.deal);
+      return;
+    }
+
     // CALLBACK! e.g. data/callbacks.js milhouseSaves -- checked here since
     // this is the first point after enemy damage where a fresh hpPct exists.
     const hpPct = this.battle.player.hp / this.battle.player.maxHp;
@@ -745,6 +782,23 @@ export class Game {
       screens.renderBattle(this.battle, this.runState);
       screens.showBanner(`${callback.title} ${callback.text}`, 2600);
     }
+  }
+
+  // ---------- DEVIL NED DEALS (data/devilDeals.js) ----------
+  showDevilDeal(deal) {
+    screens.showChoiceModal(deal, (choice) => {
+      const resultText = choice.apply(this.runState, this.battle);
+      screens.hideChoiceModal();
+      syncRunStateFromBattle(this.runState, this.battle);
+      saveActiveRun(this.runState);
+      screens.renderBattle(this.battle, this.runState);
+      screens.showBanner(resultText, 3200);
+      if (this.battle.outcome === 'victory') {
+        setTimeout(() => this.onBattleVictory(), 900);
+      } else if (this.battle.outcome === 'defeat') {
+        setTimeout(() => this.onBattleDefeat(), 900);
+      }
+    });
   }
 
   animateEnemyActions(enemyActions) {
@@ -777,6 +831,10 @@ export class Game {
   onBattleVictory() {
     const locationId = this.currentLocationId;
     const content = this.pendingLocationContent;
+    // Read before this.battle is cleared below -- distinguishes an ordinary
+    // HP-depleted Devil Ned win from the Contract's "GIVE UP MOE" instant
+    // win, which already grants its own reward (see data/devilDeals.js).
+    const gaveUpMoeWin = this.battle.flags.dealWinReason === 'gaveUpMoe';
     this.runState.stats.enemiesDefeated += this.battle.enemies.length;
     if (content.elite) this.runState.stats.elitesDefeated += 1;
     this.increaseMayhem(content.type === 'boss' ? 0 : content.elite ? 15 : 8);
@@ -784,6 +842,31 @@ export class Game {
 
     markLocationVisited(this.runState, locationId);
     saveActiveRun(this.runState);
+
+    // Devil Ned (optional boss, never a segment's real bossLocationId) has
+    // his own reward flow instead of the ordinary ability draft. A normal
+    // HP-depleted win gets a real choice between his two rewards
+    // (data/devilDeals.js victoryReward); the Contract's "GIVE UP MOE" path
+    // already handed over the Pitchfork as ITS reward, so it skips this
+    // second choice entirely rather than stacking both.
+    if (content.bossId === 'devilNed') {
+      this.runState.world.locationFlags.devilNedDefeated = true;
+      saveActiveRun(this.runState);
+      if (gaveUpMoeWin) {
+        this.showBoard();
+        return;
+      }
+      screens.showChoiceModal(DEVIL_DEALS.victoryReward, (choice) => {
+        const resultText = choice.apply(this.runState);
+        recordDiscoveries(this.meta, ['devilsPitchfork', 'forbiddenDonut']);
+        saveMeta(this.meta);
+        screens.hideChoiceModal();
+        saveActiveRun(this.runState);
+        screens.showBanner(resultText, 3200);
+        this.showBoard();
+      });
+      return;
+    }
 
     if (isSegmentComplete(this.runState)) {
       this.onSegmentBossVictory();

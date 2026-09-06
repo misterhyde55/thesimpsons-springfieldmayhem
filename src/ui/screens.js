@@ -389,15 +389,23 @@ function statusPipsHtml(statuses) {
     .join('');
 }
 
-// The current boss phase, purely for the "BOSS -- PHASE N" readout (see
-// data/bosses.js `phases`, already used by systems/enemyAI.js to pick the
-// active intent pool) -- 1-indexed to match how the design is talked about.
-function bossPhaseNumber(enemy) {
+// The current boss phase, for the "BOSS -- PHASE N" (or "-- N -- NAME" when
+// a phase sets one, e.g. Devil Ned's TEMPTATION/HELLFIRE/THE CONTRACT) --
+// see data/bosses.js `phases`, already used by systems/enemyAI.js to pick
+// the active intent pool. 1-indexed to match how the design is talked about.
+function bossPhaseInfo(enemy) {
   const phases = enemy.template.phases;
   if (!phases) return null;
   const hpPct = enemy.hp / enemy.maxHp;
   const idx = phases.findIndex((p) => hpPct > p.minHpPct);
-  return (idx === -1 ? phases.length - 1 : idx) + 1;
+  const i = idx === -1 ? phases.length - 1 : idx;
+  return { number: i + 1, name: phases[i].name || null };
+}
+
+function bossPhaseLabelText(enemy) {
+  const info = bossPhaseInfo(enemy);
+  if (!info) return '';
+  return `BOSS &mdash; PHASE ${info.number}${info.name ? ` &mdash; ${info.name}` : ''}`;
 }
 
 export function populateBattle(battle, runState, handlers) {
@@ -430,7 +438,6 @@ export function populateBattle(battle, runState, handlers) {
     slot.className = 'enemy-slot';
     slot.dataset.enemyId = enemy.instanceId;
     const portraitUrl = resolveEnemyPortrait(enemy.templateId);
-    const phaseNumber = battle.isBoss ? bossPhaseNumber(enemy) : null;
     slot.innerHTML = `
       <div class="enemy-intent"></div>
       <div class="status-row"></div>
@@ -442,7 +449,7 @@ export function populateBattle(battle, runState, handlers) {
       <div class="battle-portrait-fallback enemy-portrait-fallback${portraitUrl ? ' hidden' : ''}">${enemy.name[0]}</div>
       <div class="combatant-footer">
         <div class="combatant-name">${enemy.name}</div>
-        ${phaseNumber ? `<div class="boss-phase-label">BOSS &mdash; PHASE ${phaseNumber}</div>` : ''}
+        ${battle.isBoss ? `<div class="boss-phase-label">${bossPhaseLabelText(enemy)}</div>` : ''}
         <div class="hp-bar-outer"><div class="hp-bar-inner"></div><span class="hp-bar-label"></span></div>
       </div>
     `;
@@ -492,6 +499,8 @@ export function renderBattle(battle, runState) {
     slot.querySelector('.hp-bar-inner').style.width = `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%`;
     slot.querySelector('.hp-bar-label').textContent = `${Math.max(0, Math.round(enemy.hp))} / ${enemy.maxHp}`;
     slot.querySelector('.status-row').innerHTML = statusPipsHtml(enemy.statuses);
+    const phaseLabelEl = slot.querySelector('.boss-phase-label');
+    if (phaseLabelEl) phaseLabelEl.innerHTML = bossPhaseLabelText(enemy);
     const intentEl = slot.querySelector('.enemy-intent');
     if (!dead && enemy.intent) {
       intentEl.innerHTML = `${iconHtml('intent', intentIconId(enemy.intent.type), enemy.intent.label)}<span class="enemy-intent-value">${enemy.intent.value ?? ''}</span>`;
@@ -641,6 +650,29 @@ export function showShopModal(catalog, shopFlavor, onBuy, onLeave) {
 
 export function hideShopModal() {
   $('shop-modal').classList.add('hidden');
+}
+
+// ---------- CHOICE MODAL (Devil Ned's deals + reward, data/devilDeals.js) ----------
+// Generic 2-option modal: {title, prompt, choiceA, choiceB} where each
+// choice is {label, apply(...)}. Always exactly two buttons, no "leave" --
+// a deal or a reward always needs a real pick, never a shrug.
+export function showChoiceModal(deal, onChoose) {
+  $('choice-modal-title').textContent = deal.title || '';
+  $('choice-modal-prompt').textContent = deal.prompt;
+  const container = $('choice-modal-options');
+  container.innerHTML = '';
+  for (const choice of [deal.choiceA, deal.choiceB]) {
+    const btn = document.createElement('button');
+    btn.className = 'choice-modal-btn';
+    btn.textContent = choice.label;
+    btn.addEventListener('click', () => onChoose(choice));
+    container.appendChild(btn);
+  }
+  $('choice-modal').classList.remove('hidden');
+}
+
+export function hideChoiceModal() {
+  $('choice-modal').classList.add('hidden');
 }
 
 // ---------- ABILITY DRAFT (post-battle reward) ----------
