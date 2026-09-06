@@ -91,6 +91,21 @@ export const RELICS = {
       },
     },
   },
+  // Devil Ned's optional-boss reward -- never appears in a normal shop or
+  // secret-relic grant (see `exclusiveReward` filtered out in
+  // getRelicShopPool below), only handed out by data/devilDeals.js.
+  devilsPitchfork: {
+    id: 'devilsPitchfork',
+    name: "Devil's Pitchfork",
+    emoji: '🔱',
+    description: 'Your attacks apply 2 Poison ("Hellfire"). Mayhem now rises 50% faster.',
+    exclusiveReward: true,
+    hooks: {
+      onAbilityPlayed(runState, battle, ability, targetEnemy) {
+        if (targetEnemy && targetEnemy.hp > 0) addStatus(targetEnemy, STATUS.POISON, 2);
+      },
+    },
+  },
   bartsSkateboard: {
     id: 'bartsSkateboard',
     name: "Bart's Skateboard",
@@ -110,5 +125,5 @@ export const RELICS = {
 };
 
 export function getRelicShopPool() {
-  return Object.values(RELICS);
+  return Object.values(RELICS).filter((r) => !r.exclusiveReward);
 }

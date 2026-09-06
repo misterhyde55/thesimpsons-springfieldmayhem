@@ -719,6 +719,16 @@ canvas#boardCanvas {
 .shop-item-btn em { font-style: normal; opacity: 0.75; font-size: 0.85em; }
 .shop-empty-note { color: #ccc; font-style: italic; text-align: center; }
 
+.choice-modal-title {
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #d0021b;
+  font-size: 1.2rem;
+  margin: 0 0 10px;
+}
+.choice-modal-options { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.choice-modal-btn { background: #d0021b !important; color: #fff; }
+.choice-modal-btn:hover { background: #f6414d !important; }
+
 /* ---------------- Level complete / upgrades ---------------- */
 .stat-list { list-style: none; padding: 0; text-align: left; max-width: 320px; margin: 16px auto; }
 .stat-list li { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #333; }

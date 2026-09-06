@@ -53,6 +53,7 @@ const INTENT_ICON_IDS = {
   confuse: 'debuff',
   steal: 'debuff',
   summon: 'summon',
+  deal: 'bossSpecial',
 };
 
 export function intentIconId(type) {
@@ -91,6 +92,8 @@ export function describeIntent(enemyName, intent) {
       return `${enemyName} will try to steal up to ${intent.value} donuts.`;
     case 'summon':
       return `${enemyName} will call for backup.`;
+    case 'deal':
+      return `${enemyName} is about to make you an offer.`;
     default:
       return `${enemyName}'s next move is unknown.`;
   }
@@ -172,6 +175,13 @@ export function resolveEnemyIntent(battle, enemy) {
   // has without importing back into battleEngine.js and creating a cycle.
   if (intent.type === 'steal' || intent.type === 'summon') {
     return { type: intent.type, value: intent.value, summonId: intent.summonId };
+  }
+  // 'deal' (Devil Ned's TEMPTATION/THE CONTRACT) replaces the boss's whole
+  // turn with a real player choice instead of an automatic effect --
+  // game.js's endTurn shows the choice modal for it, same as it would show
+  // an animation for anything else in this list.
+  if (intent.type === 'deal') {
+    return { type: 'deal', deal: intent.deal };
   }
   return { type: 'none' };
 }

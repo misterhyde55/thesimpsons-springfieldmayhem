@@ -79,4 +79,17 @@ export const ITEMS = {
       runState.infection = Math.max(0, (runState.infection || 0) - 3);
     },
   },
+  // Devil Ned's optional-boss reward -- never appears in a normal shop,
+  // only handed out by data/devilDeals.js's victoryReward.
+  forbiddenDonut: {
+    id: 'forbiddenDonut',
+    name: 'Forbidden Donut',
+    emoji: '🍩',
+    description: 'A donut that should not exist. +40 Max HP and a full heal, permanently.',
+    exclusiveReward: true,
+    apply(runState) {
+      runState.maxHp += 40;
+      runState.hp = runState.maxHp;
+    },
+  },
 };
