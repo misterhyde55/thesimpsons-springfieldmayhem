@@ -119,6 +119,15 @@
   <section id="screen-settings" class="screen">
     <h1>Settings</h1>
     <p class="flavor">Springfield Mayhem is a prototype. Options are limited on purpose.</p>
+    <div class="settings-row">
+      <span class="settings-label">MUSIC</span>
+      <button id="btn-settings-music-toggle" class="menu-link-button settings-toggle">ON</button>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">MUSIC VOLUME</span>
+      <input id="settings-music-volume" type="range" min="0" max="100" step="1" value="100" class="settings-slider" />
+      <span id="settings-music-volume-label" class="settings-value">100%</span>
+    </div>
     <button id="btn-settings-reset" class="big-button secondary-button">RESET SAVE DATA</button>
     <br />
     <button id="btn-settings-back" class="menu-link-button">BACK</button>

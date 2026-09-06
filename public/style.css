@@ -1002,3 +1002,17 @@ canvas#boardCanvas.mayhem-max { filter: saturate(1.3) contrast(1.3) hue-rotate(-
 }
 .story-scene-choices { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 420px; margin-bottom: 10px; }
 .story-scene-continue { margin-top: 4px; }
+
+/* ---------------- Settings ---------------- */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  max-width: 360px;
+  margin: 0 auto 16px;
+}
+.settings-label { font-weight: 800; letter-spacing: 0.5px; font-size: 0.85rem; min-width: 120px; text-align: left; }
+.settings-toggle { min-width: 60px; text-align: center; }
+.settings-slider { flex: 1; accent-color: #f6d217; }
+.settings-value { font-weight: 700; font-size: 0.85rem; min-width: 42px; text-align: right; }

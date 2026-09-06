@@ -242,9 +242,27 @@ export function populateCollectionInfo(meta, onBack) {
   freshButton('btn-collection-info-back').addEventListener('click', onBack);
 }
 
-export function bindSettings(onReset, onBack) {
-  freshButton('btn-settings-reset').addEventListener('click', onReset);
-  freshButton('btn-settings-back').addEventListener('click', onBack);
+export function populateSettings(meta, handlers) {
+  const toggleBtn = freshButton('btn-settings-music-toggle');
+  const musicOn = meta.settings.musicOn;
+  toggleBtn.textContent = musicOn ? 'ON' : 'OFF';
+  toggleBtn.addEventListener('click', () => {
+    const next = toggleBtn.textContent !== 'ON';
+    toggleBtn.textContent = next ? 'ON' : 'OFF';
+    handlers.onMusicToggle(next);
+  });
+
+  const volumeSlider = freshButton('settings-music-volume');
+  const volumeLabel = $('settings-music-volume-label');
+  volumeSlider.value = Math.round((meta.settings.musicVolume ?? 1) * 100);
+  volumeLabel.textContent = `${volumeSlider.value}%`;
+  volumeSlider.addEventListener('input', () => {
+    volumeLabel.textContent = `${volumeSlider.value}%`;
+    handlers.onVolumeChange(Number(volumeSlider.value) / 100);
+  });
+
+  freshButton('btn-settings-reset').addEventListener('click', handlers.onReset);
+  freshButton('btn-settings-back').addEventListener('click', handlers.onBack);
 }
 
 // ---------- BOARD ----------

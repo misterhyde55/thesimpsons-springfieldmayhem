@@ -29,8 +29,12 @@ function withMetaDefaults(meta) {
     itemsDiscoveredIds: [],
     couchGagsSeenIds: [],
     endingsSeenIds: [],
-    settings: { musicOn: true, sfxOn: true },
     ...meta,
+    // Merged one level deep on purpose -- a save from before `musicVolume`
+    // existed has `settings: {musicOn, sfxOn}` with no volume key; a plain
+    // top-level spread of `meta` would let that older object win wholesale
+    // and silently drop the new default forever.
+    settings: { musicOn: true, sfxOn: true, musicVolume: 1, ...meta.settings },
   };
 }
 

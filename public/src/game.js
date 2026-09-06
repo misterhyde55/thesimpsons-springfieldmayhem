@@ -1,4 +1,4 @@
-import { playMenuMove, playMenuSelect, playEpisodeStart } from './engine/audio.js';
+import { playMenuMove, playMenuSelect, playEpisodeStart, playMusic, stopMusic, setMusicEnabled, setMusicVolume } from './engine/audio.js';
 import { pickRandom, clamp } from './engine/collision.js';
 
 import { CHARACTERS } from './data/characters.js';
@@ -63,6 +63,8 @@ const INTERIOR_STARTING_ACTIONS = 3;
 export class Game {
   constructor() {
     this.meta = loadMeta();
+    setMusicEnabled(this.meta.settings.musicOn);
+    setMusicVolume(this.meta.settings.musicVolume);
 
     this.runState = null;
     this.battle = null;
@@ -127,6 +129,7 @@ export class Game {
 
   showMainMenu() {
     this.stopBoardLoop();
+    playMusic('homeMenuMusic');
     screens.showScreen('screen-main-menu');
     this.mainMenuNav = screens.populateMainMenu(this.meta, hasActiveRun(), {
       'new-episode': () => this.beginNewEpisode(),
@@ -175,16 +178,30 @@ export class Game {
 
   showSettings() {
     screens.showScreen('screen-settings');
-    screens.bindSettings(
-      () => {
+    screens.populateSettings(this.meta, {
+      onReset: () => {
         if (window.confirm('Reset all save data? This cannot be undone.')) {
           localStorage.clear();
           this.meta = loadMeta();
+          setMusicEnabled(this.meta.settings.musicOn);
+          setMusicVolume(this.meta.settings.musicVolume);
+          if (this.meta.settings.musicOn) playMusic('homeMenuMusic');
           this.showMainMenu();
         }
       },
-      () => this.showMainMenu()
-    );
+      onBack: () => this.showMainMenu(),
+      onMusicToggle: (enabled) => {
+        this.meta.settings.musicOn = enabled;
+        saveMeta(this.meta);
+        setMusicEnabled(enabled);
+        if (enabled) playMusic('homeMenuMusic');
+      },
+      onVolumeChange: (volume01) => {
+        this.meta.settings.musicVolume = volume01;
+        saveMeta(this.meta);
+        setMusicVolume(volume01);
+      },
+    });
   }
 
   // ---------- RUN SETUP ----------
@@ -200,6 +217,7 @@ export class Game {
 
   confirmNewEpisode() {
     playEpisodeStart();
+    stopMusic({ fadeOutMs: 700 });
     const character = CHARACTERS[this.pendingCharacterId];
     this.runState = createRunState(character);
     this.runState.episode = this.pendingEpisode;
@@ -214,6 +232,7 @@ export class Game {
       this.showMainMenu();
       return;
     }
+    stopMusic({ fadeOutMs: 700 });
     this.runState = runState;
     this.enterBoardScreen();
   }
