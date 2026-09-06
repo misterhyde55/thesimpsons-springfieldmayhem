@@ -7,9 +7,21 @@ import { BOSSES } from './data/bosses.js';
 import { LOCATIONS } from './data/locations.js';
 import { getEvent } from './data/events.js';
 import { ABILITIES, STARTER_ABILITY_IDS } from './data/abilities.js';
+import { HORROR_RULES } from './data/horrorRules.js';
+import { rollProductChoices } from './data/products.js';
+import { resolveEnding } from './data/endings.js';
+import { pickCouchGag } from './data/couchGags.js';
+import { getCharacterInfo } from './data/characterRegistry.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
-import { getNode, getAvailableNodeIds, markNodeCompleted, isJourneyComplete } from './systems/board.js';
+import {
+  getCurrentSegment,
+  isFinalSegment,
+  getNode,
+  getAvailableNodeIds,
+  markNodeCompleted,
+  isSegmentComplete,
+} from './systems/board.js';
 import {
   createBattle,
   playAbility,
@@ -22,17 +34,20 @@ import {
 import { rollAbilityChoices, learnAbility } from './systems/abilityDraft.js';
 import { restHeal, getShopCatalog, purchaseEntry } from './systems/economy.js';
 import { shiftRelationship, moeSupportsInBossFight, moeGreeting } from './systems/relationships.js';
+import { checkCallback } from './systems/callbackEngine.js';
 
 import {
   loadMeta,
   saveMeta,
   recordEpisodeResult,
+  recordDiscoveries,
+  recordEnding,
+  recordCouchGag,
   createRunState,
   saveActiveRun,
   loadActiveRun,
   hasActiveRun,
   clearActiveRun,
-  recordDiscoveries,
 } from './state/gameState.js';
 import * as screens from './ui/screens.js';
 import { renderBoard, animateMarkerMove, findNodeAtPoint } from './ui/boardView.js';
@@ -53,7 +68,6 @@ export class Game {
     this.pendingAbilityId = null;
     this.pendingCharacterId = null;
     this.pendingEpisode = null;
-    this.firstBoardEntry = false;
     this.boardRunning = false;
     this.mainMenuNav = null;
 
@@ -160,11 +174,11 @@ export class Game {
 
   // ---------- RUN SETUP ----------
   // The episode is rolled once here (not again on confirm) so the reveal
-  // card's title/objective always match the run it's about to start.
+  // card's segment list always matches the run it's about to start.
   showEpisodeReveal(characterId) {
     const character = CHARACTERS[characterId];
     this.pendingCharacterId = characterId;
-    this.pendingEpisode = generateEpisode(character);
+    this.pendingEpisode = generateEpisode(character, this.meta.totalEpisodes + 1);
     screens.showScreen('screen-episode-reveal');
     screens.populateEpisodeReveal(character, this.pendingEpisode, () => this.confirmNewEpisode());
   }
@@ -174,9 +188,9 @@ export class Game {
     const character = CHARACTERS[this.pendingCharacterId];
     this.runState = createRunState(character);
     this.runState.episode = this.pendingEpisode;
+    this.activateCurrentSegmentRule();
     saveActiveRun(this.runState);
-    this.firstBoardEntry = true;
-    this.showBoard();
+    this.showSegmentTitleCard();
   }
 
   resumeActiveRun() {
@@ -186,31 +200,55 @@ export class Game {
       return;
     }
     this.runState = runState;
-    this.showBoard();
+    this.enterBoardScreen();
   }
 
-  // ---------- BOARD ----------
-  showBoard() {
-    this.currentNode = null;
-    if (this.firstBoardEntry) {
-      this.firstBoardEntry = false;
-      screens.populateBreakingNews(this.runState.episode.newsText);
-      screens.showScreen('screen-breaking-news');
+  // ---------- SEGMENT TRANSITIONS ----------
+  // Adds the current segment's Horror Rule to the run (a no-op for Segment
+  // III, which relies on the previous two rules still being active -- see
+  // data/journeys.js). Never removes an earlier rule: that's the whole
+  // point of Horror Rule stacking.
+  activateCurrentSegmentRule() {
+    const segment = getCurrentSegment(this.runState);
+    if (segment.horrorRuleId && !this.runState.activeHorrorRuleIds.includes(segment.horrorRuleId)) {
+      this.runState.activeHorrorRuleIds.push(segment.horrorRuleId);
+    }
+  }
+
+  showSegmentTitleCard() {
+    const segment = getCurrentSegment(this.runState);
+    screens.showScreen('screen-segment-title');
+    screens.populateSegmentTitleCard(this.runState.segmentIndex, segment, this.runState.activeHorrorRuleIds, () =>
+      this.showSegmentBreakingNews(segment)
+    );
+  }
+
+  showSegmentBreakingNews(segment) {
+    if (!segment.horrorRuleId) {
+      this.enterBoardScreen();
       return;
     }
-    this.enterBoardScreen();
+    screens.showScreen('screen-breaking-news');
+    screens.populateBreakingNews(HORROR_RULES[segment.horrorRuleId].newsText);
   }
 
   continueAfterNews() {
     this.enterBoardScreen();
   }
 
+  // ---------- BOARD ----------
+  showBoard() {
+    this.currentNode = null;
+    this.enterBoardScreen();
+  }
+
   enterBoardScreen() {
+    this.currentNode = null;
     screens.showScreen('screen-board');
-    const characterId = this.runState.character.id;
+    const segment = getCurrentSegment(this.runState);
     const availableIds = getAvailableNodeIds(this.runState);
-    const nextNode = availableIds.length === 1 ? getNode(characterId, availableIds[0]) : null;
-    screens.populateBoardInfo(this.runState.episode, nextNode, this.runState.mayhem);
+    const nextNode = availableIds.length === 1 ? getNode(this.runState, availableIds[0]) : null;
+    screens.populateBoardInfo(this.runState, segment, nextNode);
     this.startBoardLoop();
   }
 
@@ -219,7 +257,7 @@ export class Game {
     const canvas = document.getElementById('boardCanvas');
     const step = () => {
       if (!this.boardRunning) return;
-      renderBoard(canvas, this.runState.character.id, this.runState);
+      renderBoard(canvas, this.runState);
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -237,14 +275,13 @@ export class Game {
     const scaleY = canvas.height / rect.height;
     const px = (e.clientX - rect.left) * scaleX;
     const py = (e.clientY - rect.top) * scaleY;
-    const characterId = this.runState.character.id;
-    const node = findNodeAtPoint(canvas, characterId, px, py);
+    const node = findNodeAtPoint(canvas, this.runState, px, py);
     if (!node) return;
     if (!getAvailableNodeIds(this.runState).includes(node.id)) return;
 
     this.stopBoardLoop();
     const fromId = this.runState.boardPosition;
-    animateMarkerMove(canvas, characterId, this.runState, fromId, node.id, 500, () => this.enterNode(node));
+    animateMarkerMove(canvas, this.runState, fromId, node.id, 500, () => this.enterNode(node));
   }
 
   increaseMayhem(amount) {
@@ -332,7 +369,12 @@ export class Game {
       () => {
         if (this.currentLocation.hasMoeRelationship) {
           shiftRelationship(this.runState, 'moe', 1);
-          screens.setRestFlavor('Moe: "Eh, you\'re alright, Homer." (+Relationship)');
+          if (!this.runState.cast.includes('moe')) {
+            this.runState.cast.push('moe');
+            screens.setRestFlavor('Moe: "Eh, you\'re alright, Homer. Wanna tag along?" MOE HAS JOINED THE EPISODE.');
+          } else {
+            screens.setRestFlavor('Moe: "Eh, you\'re alright, Homer." (+Relationship)');
+          }
         } else {
           this.runState.donutsCurrency += 1;
           screens.setRestFlavor('A local shares gossip (and a donut). +1 donut currency.');
@@ -360,8 +402,12 @@ export class Game {
   enterBattleForNode(node) {
     if (node.type === 'boss') {
       const bossTemplate = BOSSES[node.bossId];
+      const callback = checkCallback(this.runState, 'bossIntro', { boss: bossTemplate });
       screens.showScreen('screen-boss-intro');
       screens.populateBossIntro(bossTemplate, () => this.startBattleForNode(node, [bossTemplate], true));
+      if (callback) {
+        setTimeout(() => screens.showBanner(`${callback.title} ${callback.text}`, 2600), 500);
+      }
       return;
     }
     const enemyTemplates = node.enemyIds.map((id) => ENEMIES[id]);
@@ -374,6 +420,16 @@ export class Game {
     }
 
     this.battle = createBattle(this.runState, enemyTemplates, node.locationId, isBoss);
+
+    // CALLBACK! An earlier choice (see data/callbacks.js buttonActivates)
+    // left a breadcrumb rather than acting immediately, since the boss
+    // enemy didn't exist yet at 'bossIntro' time -- apply it now that it does.
+    if (isBoss && this.runState.pendingCallbackEffects.vulnerableBoss) {
+      delete this.runState.pendingCallbackEffects.vulnerableBoss;
+      const boss = this.battle.enemies[0];
+      boss.hp = Math.max(1, Math.round(boss.hp * 0.75));
+    }
+
     screens.showScreen('screen-battle');
     screens.clearBattleLog();
     screens.populateBattle(this.battle, this.runState, {
@@ -470,6 +526,16 @@ export class Game {
 
     if (this.battle.outcome === 'defeat') {
       setTimeout(() => this.onBattleDefeat(), 900);
+      return;
+    }
+
+    // CALLBACK! e.g. data/callbacks.js milhouseSaves -- checked here since
+    // this is the first point after enemy damage where a fresh hpPct exists.
+    const hpPct = this.battle.player.hp / this.battle.player.maxHp;
+    const callback = checkCallback(this.runState, 'lowHp', { battle: this.battle, hpPct });
+    if (callback) {
+      screens.renderBattle(this.battle, this.runState);
+      screens.showBanner(`${callback.title} ${callback.text}`, 2600);
     }
   }
 
@@ -509,8 +575,8 @@ export class Game {
     markNodeCompleted(this.runState, node.id);
     saveActiveRun(this.runState);
 
-    if (isJourneyComplete(this.runState)) {
-      this.finalizeRun(true);
+    if (isSegmentComplete(this.runState)) {
+      this.onSegmentBossVictory();
       return;
     }
 
@@ -518,6 +584,14 @@ export class Game {
     const milestoneAbility = milestoneId && !this.runState.abilityDeck.includes(milestoneId) ? ABILITIES[milestoneId] : null;
     const choices = milestoneAbility ? [milestoneAbility] : rollAbilityChoices(this.runState, 3);
     this.showAbilityDraftScreen(node, choices, !!milestoneAbility);
+  }
+
+  onSegmentBossVictory() {
+    if (isFinalSegment(this.runState)) {
+      this.finalizeRun(true);
+      return;
+    }
+    this.showCommercialBreak();
   }
 
   onBattleDefeat() {
@@ -549,25 +623,59 @@ export class Game {
     );
   }
 
+  // ---------- COMMERCIAL BREAK (segment-boundary reward) ----------
+  showCommercialBreak() {
+    screens.showScreen('screen-commercial-break');
+    const products = rollProductChoices(3);
+    screens.populateCommercialBreak(
+      products,
+      (product) => {
+        product.apply(this.runState);
+        recordDiscoveries(this.meta, [product.id]);
+        saveMeta(this.meta);
+        this.advanceToNextSegment();
+      },
+      () => this.advanceToNextSegment()
+    );
+  }
+
+  advanceToNextSegment() {
+    this.runState.segmentIndex += 1;
+    this.runState.boardPosition = null;
+    this.activateCurrentSegmentRule();
+    saveActiveRun(this.runState);
+    this.showSegmentTitleCard();
+  }
+
   // ---------- END OF RUN ----------
   finalizeRun(victory) {
     const stats = this.runState.stats;
     const nodesCleared = this.runState.completedNodeIds.size;
 
+    const ending = resolveEnding(this.runState, { victory, stats });
+    const couchGag = pickCouchGag(ending.id);
+
     let rating = victory ? 3 : 1;
-    if (this.runState.stats.peakMayhem >= 50) rating += 1;
+    if (stats.peakMayhem >= 50) rating += 1;
     if (this.runState.relics.length >= 2) rating += 1;
     rating = clamp(rating, 1, 5);
+
+    const castNames = this.runState.cast.map((id) => getCharacterInfo(id)?.name || id);
+    const horrorRuleNames = this.runState.activeHorrorRuleIds.map((id) => HORROR_RULES[id]?.name).filter(Boolean);
 
     const result = {
       season: this.meta.season,
       episodeNum: this.meta.episodeInSeason + 1,
       title: this.runState.episode.title,
       character: this.runState.character.name,
-      modifier: this.runState.episode.modifierId,
-      modifierName: this.runState.episode.modifierName,
+      cast: castNames,
+      horrorRuleNames,
+      endingId: ending.id,
+      ending: { id: ending.id, name: ending.name, description: ending.description },
+      couchGag: { id: couchGag.id, description: couchGag.description },
       victory,
       rating,
+      viewers: (Math.random() * 8 + rating * 2).toFixed(1),
       nodesCleared,
       lastLocationName: this.currentLocation ? this.currentLocation.name : '???',
       stats: { ...stats },
@@ -578,6 +686,10 @@ export class Game {
     const legacyBefore = this.meta.legacyPoints;
     recordEpisodeResult(this.meta, result);
     result.legacyPointsEarned = this.meta.legacyPoints - legacyBefore;
+
+    recordEnding(this.meta, ending.id);
+    recordCouchGag(this.meta, couchGag.id);
+    saveMeta(this.meta);
 
     clearActiveRun();
 

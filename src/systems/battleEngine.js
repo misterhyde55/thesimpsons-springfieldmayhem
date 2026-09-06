@@ -1,5 +1,4 @@
 import { ABILITIES } from '../data/abilities.js';
-import { RELICS } from '../data/relics.js';
 import { STATUS } from '../data/statusEffects.js';
 import {
   getStatus,
@@ -12,8 +11,10 @@ import {
   tickTurnEnd,
 } from './statusEngine.js';
 import { rollIntent, resolveEnemyIntent } from './enemyAI.js';
+import { fireHooks } from './passiveHooks.js';
 
 const PLAYER_MAX_ENERGY = 3;
+const INFECTION_MAX = 100;
 let nextEnemyInstanceId = 1;
 
 function freshCombatantStatuses() {
@@ -30,20 +31,24 @@ function freshCombatantStatuses() {
   };
 }
 
-function fireRelicHooks(runState, hookName, ...args) {
-  const results = [];
-  for (const relicId of runState.relics) {
-    const relic = RELICS[relicId];
-    const hook = relic && relic.hooks[hookName];
-    if (hook) results.push(hook(...args));
-  }
-  return results;
-}
-
 function notePlayerDamage(battle, runState, amount) {
   if (amount <= 0) return;
   battle.flags.playerDamageTakenThisBattle = (battle.flags.playerDamageTakenThisBattle || 0) + amount;
-  fireRelicHooks(runState, 'onDamageTaken', battle, amount);
+  fireHooks(runState, 'onDamageTaken', battle, amount);
+}
+
+// Fired the instant any enemy's HP hits 0, before the victory check -- a
+// Horror Rule (e.g. Zombie Outbreak) can revive it here by setting enemy.hp
+// back above 0 and enemy.hasResurrected = true, which keeps it out of this
+// check for the rest of the battle.
+function resolveDefeatOrResurrect(battle, runState, enemy) {
+  if (enemy.hp > 0 || enemy.hasResurrected) return;
+  fireHooks(runState, 'onEnemyDefeated', battle, enemy);
+}
+
+function checkVictory(battle) {
+  if (battle.outcome) return;
+  if (getAliveEnemies(battle).length === 0) battle.outcome = 'victory';
 }
 
 export function createBattle(runState, enemyTemplates, locationId, isBoss) {
@@ -64,6 +69,9 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss) {
       hp: template.hp,
       maxHp: template.hp,
       statuses: freshCombatantStatuses(),
+      tags: new Set(template.tags || []),
+      hasResurrected: false,
+      comboApplied: false,
       intent: null,
     })),
     turnNumber: 1,
@@ -73,19 +81,17 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss) {
     isBoss: !!isBoss,
     outcome: null,
   };
-  for (const enemy of battle.enemies) rollIntent(enemy);
-  fireRelicHooks(runState, 'onBattleStart', battle);
-  fireRelicHooks(runState, 'onPlayerTurnStart', battle);
+  for (const enemy of battle.enemies) {
+    fireHooks(runState, 'onEnemySpawn', enemy);
+    rollIntent(enemy);
+  }
+  fireHooks(runState, 'onBattleStart', battle);
+  fireHooks(runState, 'onPlayerTurnStart', battle);
   return battle;
 }
 
 export function getAliveEnemies(battle) {
   return battle.enemies.filter((e) => e.hp > 0);
-}
-
-function checkVictory(battle) {
-  if (battle.outcome) return;
-  if (getAliveEnemies(battle).length === 0) battle.outcome = 'victory';
 }
 
 export function getPlayableAbilities(runState) {
@@ -94,7 +100,7 @@ export function getPlayableAbilities(runState) {
 
 export function abilityCost(battle, runState, ability) {
   let cost = ability.cost;
-  for (const override of fireRelicHooks(runState, 'onAbilityCost', battle, ability)) {
+  for (const override of fireHooks(runState, 'onAbilityCost', battle, ability)) {
     if (typeof override === 'number') cost = Math.min(cost, override);
   }
   return Math.max(0, cost);
@@ -136,14 +142,14 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
       if (who === 'allEnemies') {
         for (const enemy of getAliveEnemies(battle)) {
           addStatus(enemy, id, amount);
-          fireRelicHooks(runState, 'onStatusApplied', battle, enemy, id, getStatus(enemy, id));
+          fireHooks(runState, 'onStatusApplied', battle, enemy, id, getStatus(enemy, id));
         }
         events.push({ kind: 'status', who: 'allEnemies', statusId: id, amount });
         return;
       }
       const target = resolveWho(who);
       addStatus(target, id, amount);
-      fireRelicHooks(runState, 'onStatusApplied', battle, target, id, getStatus(target, id));
+      fireHooks(runState, 'onStatusApplied', battle, target, id, getStatus(target, id));
       events.push({ kind: 'status', who, statusId: id, amount });
     },
     consumeStatus(id, who) {
@@ -161,6 +167,7 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
       const outgoing = computeOutgoingDamage(battle.player, dmg);
       const { dealt, dodged } = applyIncomingDamage(targetEnemy, outgoing);
       events.push({ kind: 'damage', targetId: targetEnemy.instanceId, amount: dealt, dodged });
+      resolveDefeatOrResurrect(battle, runState, targetEnemy);
       checkVictory(battle);
       return dealt;
     },
@@ -174,12 +181,13 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
         const outgoing = computeOutgoingDamage(battle.player, dmg);
         const { dealt, dodged } = applyIncomingDamage(enemy, outgoing);
         events.push({ kind: 'damage', targetId: enemy.instanceId, amount: dealt, dodged });
+        resolveDefeatOrResurrect(battle, runState, enemy);
       }
       checkVictory(battle);
     },
     heal(amount, who) {
       let amt = amount;
-      for (const override of fireRelicHooks(runState, 'onHealAmount', battle, amt)) {
+      for (const override of fireHooks(runState, 'onHealAmount', battle, amt)) {
         if (typeof override === 'number') amt = override;
       }
       const target = resolveWho(who);
@@ -189,7 +197,7 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
     },
     ateFood() {
       battle.flags.foodEatenCount = (battle.flags.foodEatenCount || 0) + 1;
-      fireRelicHooks(runState, 'onAteFood', battle, battle.flags.foodEatenCount);
+      fireHooks(runState, 'onAteFood', battle, battle.flags.foodEatenCount);
       return battle.flags.foodEatenCount;
     },
     setNextAttackBonus(pct) {
@@ -199,7 +207,7 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
   };
 
   ability.effect(api);
-  fireRelicHooks(runState, 'onAbilityPlayed', battle, ability, targetEnemy);
+  fireHooks(runState, 'onAbilityPlayed', battle, ability, targetEnemy);
   battle.log.push({ turn: battle.turnNumber, actor: 'player', abilityId, events });
 
   return { ok: true, events };
@@ -227,6 +235,9 @@ export function endPlayerTurn(battle, runState) {
     } else {
       const result = resolveEnemyIntent(battle, enemy);
       if (result.dealt) notePlayerDamage(battle, runState, result.dealt);
+      if (result.type === 'infect') {
+        runState.infection = Math.min(INFECTION_MAX, (runState.infection || 0) + (result.value || 0));
+      }
       enemyActions.push({ enemyId: enemy.instanceId, stunned: false, intent: enemy.intent, result });
     }
     tickTurnEnd(enemy);
@@ -243,7 +254,7 @@ export function endPlayerTurn(battle, runState) {
   battle.turnNumber += 1;
   const { stunned } = tickTurnStart(battle.player);
   battle.player.energy = battle.player.maxEnergy;
-  fireRelicHooks(runState, 'onPlayerTurnStart', battle);
+  fireHooks(runState, 'onPlayerTurnStart', battle);
 
   return { enemyActions, playerStunned: stunned };
 }

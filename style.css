@@ -187,16 +187,26 @@ body.full-bleed-active #top-bar { display: none; }
   background: rgba(6, 6, 10, 0.88);
   animation: fadeIn 0.4s ease;
 }
-.episode-reveal-card { text-align: center; cursor: pointer; animation: revealCardIn 0.5s ease; }
+.episode-reveal-card { text-align: center; cursor: pointer; animation: revealCardIn 0.5s ease; max-width: 480px; }
 .episode-reveal-eyebrow { color: #0e9fd8; font-weight: 800; letter-spacing: 3px; font-size: 0.85rem; }
-.episode-reveal-tonight { color: #f6d217; font-weight: 800; letter-spacing: 2px; margin: 4px 0 14px; }
+.episode-reveal-tonight { color: #f6d217; font-weight: 800; letter-spacing: 2px; margin: 10px 0 14px; }
 #episode-reveal-title {
-  font-family: 'Luckiest Guy', 'Impact', 'Arial Black', sans-serif;
-  color: #fff8ea;
-  font-size: clamp(1.4rem, 4vw, 2.2rem);
-  margin: 0 0 12px;
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #d0021b;
+  -webkit-text-stroke: 1.5px #170f00;
+  text-shadow: 3px 3px 0 #000;
+  font-size: clamp(1.6rem, 4.5vw, 2.6rem);
+  margin: 6px 0 0;
 }
-#episode-reveal-character, #episode-reveal-objective { color: #c9c9d3; margin: 4px 0; }
+.episode-reveal-segments { list-style: none; padding: 0; margin: 0; text-align: left; }
+.episode-reveal-segments li {
+  color: #fff8ea;
+  font-weight: 700;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.episode-reveal-segments li span { display: block; color: #8c8c99; font-size: 0.7rem; font-weight: 800; letter-spacing: 1px; }
+#episode-reveal-character { color: #c9c9d3; margin: 14px 0 0; }
 .episode-reveal-card .console-press-enter { position: static; margin-top: 20px; display: inline-block; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes revealCardIn {
@@ -540,6 +550,8 @@ canvas#boardCanvas {
   padding: 26px;
   text-align: center;
   max-width: 360px;
+  max-height: 88vh;
+  overflow-y: auto;
 }
 .modal-box button {
   display: block;
@@ -604,4 +616,98 @@ canvas#boardCanvas {
   max-width: 560px;
   margin: 20px auto;
   padding: 30px;
+}
+
+/* ---------------- Segment title card ---------------- */
+.segment-title-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 6, 10, 0.92);
+  animation: fadeIn 0.4s ease;
+}
+.segment-title-card { text-align: center; cursor: pointer; max-width: 480px; animation: revealCardIn 0.5s ease; padding: 20px; }
+.segment-title-eyebrow { color: #d0021b; font-weight: 800; letter-spacing: 3px; font-size: 1rem; }
+#segment-title-name {
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #fddb1a;
+  -webkit-text-stroke: 1.5px #170f00;
+  text-shadow: 3px 3px 0 #0e63a8;
+  font-size: clamp(1.5rem, 4.5vw, 2.4rem);
+  margin: 8px 0;
+}
+#segment-title-objective { color: #c9c9d3; margin: 8px 0 16px; }
+.segment-title-rules { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+.segment-title-rule-pip {
+  background: rgba(208, 2, 27, 0.25);
+  border: 1px solid #d0021b;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.segment-title-card .console-press-enter { position: static; margin-top: 16px; display: inline-block; }
+
+/* ---------------- Commercial break ---------------- */
+.commercial-break-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  text-align: center;
+  padding: 20px;
+}
+.tv-static {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(0deg, #222 0px, #444 1px, #111 2px, #333 3px);
+  opacity: 0.5;
+  animation: staticFlicker 0.15s steps(2) infinite;
+}
+@keyframes staticFlicker {
+  0% { opacity: 0.35; }
+  50% { opacity: 0.55; }
+  100% { opacity: 0.4; }
+}
+.commercial-break-intro { position: relative; z-index: 1; }
+.commercial-break-intro h1 {
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #fff;
+  font-size: clamp(1.6rem, 5vw, 2.6rem);
+  text-shadow: 3px 3px 0 #000;
+}
+.commercial-break-content { position: relative; z-index: 1; background: rgba(10, 10, 14, 0.85); border-radius: 16px; padding: 24px; max-width: 720px; }
+.commercial-break-content h2 { color: #f6d217; font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif; }
+
+/* ---------------- Cast strip / couch gag ---------------- */
+.cast-strip { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+.cast-strip img { height: 36px; width: auto; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5)); }
+
+.couch-gag-box {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px dashed #444;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 16px auto;
+  max-width: 420px;
+}
+.couch-gag-label { color: #f6d217; font-weight: 800; letter-spacing: 2px; font-size: 0.75rem; margin-bottom: 4px; }
+.couch-gag-text { color: #c9c9d3; font-style: italic; margin: 0; }
+
+/* ---------------- Visual Mayhem corruption ---------------- */
+.battle-screen.mayhem-mid { filter: saturate(0.85) contrast(1.05) sepia(0.12); }
+.battle-screen.mayhem-high { filter: saturate(0.7) contrast(1.15) hue-rotate(-6deg) brightness(0.92); }
+.battle-screen.mayhem-max { filter: saturate(1.3) contrast(1.3) hue-rotate(-12deg) brightness(0.85); animation: mayhemGlitch 2.4s steps(1) infinite; }
+@keyframes mayhemGlitch {
+  0%, 92%, 100% { transform: translate(0, 0); }
+  93% { transform: translate(-2px, 1px); }
+  95% { transform: translate(2px, -1px); }
+  97% { transform: translate(-1px, 0); }
 }

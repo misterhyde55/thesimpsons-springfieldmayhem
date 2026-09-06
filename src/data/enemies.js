@@ -90,4 +90,39 @@ export const ENEMIES = {
       { type: 'buff', value: 5, weight: 25, label: 'Neighborly Rage', icon: '💪' },
     ],
   },
+
+  // ---- Segment II: Alien Invasion. 'phase' grants the alien Dodge --
+  // beaming partway out of reality mid-fight.
+  alienProbe: {
+    id: 'alienProbe',
+    name: 'Alien Probe Drone',
+    emoji: '🛸',
+    hp: 20,
+    intents: [
+      { type: 'attack', value: 8, weight: 55, label: 'Zap', icon: '⚡' },
+      { type: 'phase', value: 1, weight: 45, label: 'Phase Out', icon: '👽' },
+    ],
+  },
+  abductedCitizen: {
+    id: 'abductedCitizen',
+    name: 'Abducted Citizen',
+    emoji: '👤',
+    hp: 24,
+    intents: [
+      { type: 'attack', value: 9, weight: 60, label: 'Attack', icon: '🩸' },
+      { type: 'defend', value: 8, weight: 40, label: 'Defend', icon: '🛡️' },
+    ],
+  },
+  alienEnforcer: {
+    id: 'alienEnforcer',
+    name: 'Alien Enforcer',
+    emoji: '👽',
+    hp: 58,
+    elite: true,
+    intents: [
+      { type: 'attack', value: 15, weight: 40, label: 'Ray Blast', icon: '⚡' },
+      { type: 'phase', value: 2, weight: 30, label: 'Phase Out', icon: '👽' },
+      { type: 'buff', value: 5, weight: 30, label: 'Overcharge', icon: '💪' },
+    ],
+  },
 };
