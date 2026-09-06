@@ -30,4 +30,6 @@ export const NPCS = {
   martin: { id: 'martin', name: 'Martin Prince', locationIds: ['springfieldElementary'] },
   otto: { id: 'otto', name: 'Otto Mann', locationIds: [] },
   sideshowBob: { id: 'sideshowBob', name: 'Sideshow Bob', locationIds: [] },
+  drHibbert: { id: 'drHibbert', name: 'Dr. Julius Hibbert', locationIds: ['springfieldHospital'] },
+  lovejoy: { id: 'lovejoy', name: 'Reverend Timothy Lovejoy', locationIds: ['springfieldChurch'] },
 };

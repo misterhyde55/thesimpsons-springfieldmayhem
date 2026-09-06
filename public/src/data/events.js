@@ -237,6 +237,217 @@ export const EVENTS = {
       },
     ],
   },
+  // ---- Map expansion events: each gives its location a reason to visit
+  // beyond "another fight" -- see data/journeys.js for which segments use
+  // which, and data/locations.js for the flavor these pair with.
+  policeEvidenceRoom: {
+    id: 'policeEvidenceRoom',
+    title: 'The Evidence Room',
+    emoji: '🚓',
+    npcId: 'chiefWiggum',
+    prompt: 'Chief Wiggum: "The evidence room\'s a disaster zone. I\'d ask Lou, but... Lou\'s not really Lou anymore. Give me a hand?"',
+    options: [
+      {
+        id: 'help',
+        label: 'Help him sort it out',
+        resultText: 'Buried under a decade of unfiled parking tickets, you find a stash of confiscated donut money.',
+        apply(runState) {
+          runState.donutsCurrency += 4;
+        },
+      },
+      {
+        id: 'pocket',
+        label: 'Pocket some evidence instead',
+        resultText: 'Wiggum doesn\'t notice. Wiggum rarely notices.',
+        apply(runState) {
+          runState.donutsCurrency += 2;
+        },
+      },
+      {
+        id: 'leave',
+        label: 'Not your problem',
+        resultText: 'You leave Wiggum to it. He salutes you for no reason.',
+        apply() {},
+      },
+    ],
+  },
+  krustyBurgerCombo: {
+    id: 'krustyBurgerCombo',
+    title: 'The Clown Combo',
+    emoji: '🍔',
+    npcId: 'krusty',
+    prompt: 'Krusty: "Kid, the grill\'s barely running, but I got SOMETHING back there. You want the special?"',
+    options: [
+      {
+        id: 'eatSpecial',
+        label: 'Eat the Special (free)',
+        apply(runState) {
+          const lucky = Math.random() < 0.6;
+          if (lucky) {
+            runState.hp = Math.min(runState.maxHp, runState.hp + 22);
+            return 'Surprisingly decent. (+22 HP)';
+          }
+          runState.hp = Math.max(1, runState.hp - 10);
+          runState.infection = (runState.infection || 0) + 1;
+          return "You immediately regret it. Krusty brand quality control was never great, even before the apocalypse. (-10 HP, +1 Infection)";
+        },
+      },
+      {
+        id: 'payForReal',
+        label: 'Pay for something that isn\'t expired (2 donuts)',
+        resultText: 'Krusty finds you an unopened box. It\'s fine. Genuinely fine.',
+        apply(runState) {
+          if (runState.donutsCurrency < 2) return;
+          runState.donutsCurrency -= 2;
+          runState.hp = Math.min(runState.maxHp, runState.hp + 25);
+        },
+      },
+      {
+        id: 'pass',
+        label: "I'll pass",
+        resultText: 'Wise. Krusty nods, mildly offended.',
+        apply() {},
+      },
+    ],
+  },
+  androidsDungeonGamble: {
+    id: 'androidsDungeonGamble',
+    title: 'The Mystery Longbox',
+    emoji: '💾',
+    npcId: 'comicBookGuy',
+    prompt: 'Comic Book Guy: "For 4 donuts, one mystery longbox. Contents unknown. Refunds: never."',
+    options: [
+      {
+        id: 'buy',
+        label: 'Buy the longbox (4 donuts)',
+        apply(runState) {
+          if (runState.donutsCurrency < 4) return "You don't have 4 donuts. Comic Book Guy is unmoved.";
+          runState.donutsCurrency -= 4;
+          const pool = getRelicShopPool().filter((r) => !runState.relics.includes(r.id));
+          if (!pool.length) return 'The box is empty. "Worst purchase ever," he agrees.';
+          const relic = pool[Math.floor(Math.random() * pool.length)];
+          runState.relics.push(relic.id);
+          return `Inside: ${relic.emoji} ${relic.name}. "Mint condition. Was."`;
+        },
+      },
+      {
+        id: 'browse',
+        label: 'Just browse',
+        resultText: 'You flip through decades of unsold inventory. None of it helps you right now.',
+        apply() {},
+      },
+    ],
+  },
+  bowlaramaFrame: {
+    id: 'bowlaramaFrame',
+    title: 'One Frame',
+    emoji: '🎳',
+    prompt: 'The lanes are dead quiet. One ball return still works. Might as well.',
+    options: [
+      {
+        id: 'bowl',
+        label: 'BOWL A FRAME',
+        apply(runState) {
+          const strike = Math.random() < 0.5;
+          if (strike) {
+            runState.maxHp += 8;
+            runState.hp += 8;
+            return 'STRIKE! Somewhere, deep down, this feels important. (+8 max HP)';
+          }
+          runState.hp = Math.max(1, runState.hp - 6);
+          return 'The ball bounces back out of the gutter and clips your shin on the return. (-6 HP)';
+        },
+      },
+      {
+        id: 'skip',
+        label: 'Not in the mood',
+        resultText: 'You leave the ball spinning in the gutter, forever.',
+        apply() {},
+      },
+    ],
+  },
+  grampasStory: {
+    id: 'grampasStory',
+    title: "Grampa's Story",
+    emoji: '🧓',
+    npcId: 'grampa',
+    prompt: 'Grampa: "Sit down, sit down. Didja ever hear about the time I fought a corpse in the war? All of the wars?"',
+    options: [
+      {
+        id: 'listen',
+        label: 'Listen to the whole thing',
+        resultText: 'It goes nowhere and takes forever, but somewhere in there is real, hard-won advice. You feel better. (+18 HP)',
+        apply(runState) {
+          runState.hp = Math.min(runState.maxHp, runState.hp + 18);
+        },
+      },
+      {
+        id: 'cutOff',
+        label: 'Politely cut him off',
+        resultText: 'Grampa looks wounded, then immediately forgets why.',
+        apply() {},
+      },
+    ],
+  },
+  hospitalTriage: {
+    id: 'hospitalTriage',
+    title: 'Triage',
+    emoji: '🏥',
+    npcId: 'drHibbert',
+    prompt: 'Dr. Hibbert: "I can patch you up properly, Homer, but the hospital isn\'t exactly running on donations right now."',
+    options: [
+      {
+        id: 'payFull',
+        label: 'Pay for real treatment (3 donuts)',
+        apply(runState) {
+          if (runState.donutsCurrency < 3) return "You don't have 3 donuts. Dr. Hibbert offers you a lollipop instead. It does not help.";
+          runState.donutsCurrency -= 3;
+          runState.hp = runState.maxHp;
+          runState.infection = Math.max(0, (runState.infection || 0) - 4);
+          return 'A real doctor, real bandages, real everything. Fully healed, Infection reduced. (Heh heh.)';
+        },
+      },
+      {
+        id: 'waitingRoom',
+        label: 'Wait in the waiting room (free)',
+        resultText: 'Three hours pass in a plastic chair. You feel slightly better and deeply bored. (+10 HP)',
+        apply(runState) {
+          runState.hp = Math.min(runState.maxHp, runState.hp + 10);
+        },
+      },
+    ],
+  },
+  churchConfession: {
+    id: 'churchConfession',
+    title: 'Confession',
+    emoji: '⛪',
+    npcId: 'lovejoy',
+    prompt: 'Reverend Lovejoy: "Homer. In all my years, I have never seen Springfield like this. Have you got something to confess?"',
+    options: [
+      {
+        id: 'confess',
+        label: 'Confess everything',
+        resultText: 'It doesn\'t fix anything. It just makes the next part slightly easier to carry. (Mayhem -5)',
+        apply(runState) {
+          runState.mayhem = Math.max(0, runState.mayhem - 5);
+        },
+      },
+      {
+        id: 'sitQuietly',
+        label: 'Just sit quietly for a while',
+        resultText: 'The pews are empty. The quiet helps more than you\'d expect. (+12 HP)',
+        apply(runState) {
+          runState.hp = Math.min(runState.maxHp, runState.hp + 12);
+        },
+      },
+      {
+        id: 'leaveChurch',
+        label: 'Leave. This isn\'t the time.',
+        resultText: 'Lovejoy watches you go, looking more worried than you\'ve ever seen him.',
+        apply() {},
+      },
+    ],
+  },
 };
 
 export function getEvent(eventId) {
