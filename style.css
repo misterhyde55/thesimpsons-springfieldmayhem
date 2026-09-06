@@ -294,32 +294,36 @@ canvas#boardCanvas {
 
 .hp-bar-outer {
   position: relative;
-  width: 130px;
-  height: 18px;
+  width: 100%;
+  max-width: 220px;
+  height: 20px;
   background: #400;
   border-radius: 9px;
   overflow: hidden;
   border: 2px solid #000;
   margin: 0 auto;
 }
-.hp-bar-inner { height: 100%; width: 100%; background: #3ec24c; transition: width 0.2s; }
+.hp-bar-inner { height: 100%; width: 100%; background: #3ec24c; transition: width 0.25s ease; }
 .hp-bar-label {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   font-weight: 800;
   color: #fff;
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.8);
 }
 
-/* ---------------- Battle screen ----------------
-   Full-bleed like the console menu/episode-reveal screens (position:fixed
-   takes it out of #app's max-width flow); the scene fills the viewport and
-   combatants stand directly on it rather than inside a boxed panel, closer
-   to a Slay the Spire-style battle layout than a bordered widget. */
+/* ================= BATTLE SCREEN =================
+   Full-bleed (position:fixed takes it out of #app's max-width flow) so the
+   location art fills the real viewport and Homer/the enemy stand directly
+   on it. Three responsive regions do the layout, not hardcoded pixels:
+   .battlefield-side-player (~35%) / .battlefield-center (~30%, deliberately
+   empty -- damage numbers and effects happen here) / .battlefield-side-
+   enemies (~35%). Nothing in here is emoji; every icon goes through
+   ui/icons.js (data/icons.js registry + a labeled CSS badge fallback). */
 .battle-screen {
   position: fixed;
   inset: 0;
@@ -329,10 +333,33 @@ canvas#boardCanvas {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-color: #1b1b1f;
+  background-color: #14141a;
   padding: 0;
 }
-.battle-topbar { display: flex; justify-content: flex-end; padding: 14px 20px 0; }
+/* Darkens/flattens whatever location photo is behind the fighters so their
+   art and HP bars stay readable without boxing them into UI panels. */
+.battle-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(10, 10, 14, 0.35) 0%, rgba(10, 10, 14, 0.15) 40%, rgba(10, 10, 14, 0.55) 78%, rgba(10, 10, 14, 0.85) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+.battle-topbar, .battle-stage, .battle-log, .battle-hand-bar { position: relative; z-index: 1; }
+
+.battle-topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px 0; }
+.battle-location-name {
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #fff8ea;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+.battle-topbar-right { display: flex; gap: 8px; align-items: center; }
 .mayhem-readout {
   color: #ff5a3c;
   font-weight: 800;
@@ -343,14 +370,15 @@ canvas#boardCanvas {
   border-radius: 8px;
 }
 
+/* ---- The battlefield: Homer left, enemy right, empty space between ---- */
 .battle-stage {
   position: relative;
   flex: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 0 6vw 20px;
+  display: grid;
+  grid-template-columns: 35% 30% 35%;
+  align-items: end;
+  padding: 0 3vw 18px;
+  min-height: 0;
 }
 .battle-stage.shake { animation: battleShake 0.35s; }
 @keyframes battleShake {
@@ -361,17 +389,37 @@ canvas#boardCanvas {
   80% { transform: translateX(4px); }
 }
 
-.battle-combatant { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
-.battle-combatant-player { flex: 0 0 200px; }
-.battle-enemies-row { flex: 1; display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; align-items: flex-end; }
+/* Content sits toward the inner edge of each side region (not centered in
+   the full 35% column) so Homer lands around 25-30% of screen width and
+   the enemy around 70-75%, per the design spec -- centering in the full
+   column would put them at ~17%/~83%, too close to the screen edges. */
+.battlefield-side { display: flex; height: 100%; align-items: flex-end; min-width: 0; }
+.battlefield-side-player { justify-content: flex-end; padding-right: clamp(0px, 4vw, 60px); }
+.battlefield-side-enemies { justify-content: flex-start; }
+.battlefield-center { position: relative; pointer-events: none; }
 
-.battle-portrait { height: min(30vh, 220px); width: auto; object-fit: contain; filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.55)); }
+.battle-combatant { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; }
+
+.battle-enemies-row { flex: 1; display: flex; flex-wrap: wrap; gap: 4vw; justify-content: center; align-items: flex-end; }
+
+/* Player and a single enemy both read as "the main character of their
+   side" -- large, proportionate art, never stretched. Multiple enemies
+   scale down together (see .count-2/.count-3) so no one shrinks to
+   microscopic; a boss (.battle-stage.is-boss) instead scales UP well past
+   a normal single enemy. */
+.battle-portrait { height: clamp(200px, 34vh, 380px); width: auto; max-width: 30vw; object-fit: contain; filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.6)); }
 .battle-portrait-fallback { font-size: 5rem; filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.55)); }
+.battle-enemies-row.count-2 .battle-portrait { height: clamp(160px, 26vh, 300px); }
+.battle-enemies-row.count-3 .battle-portrait,
+.battle-enemies-row.count-4 .battle-portrait { height: clamp(130px, 20vh, 230px); }
+.battle-stage.is-boss .battle-portrait.enemy-portrait,
+.battle-stage.is-boss .battle-portrait-fallback.enemy-portrait-fallback { height: clamp(280px, 48vh, 560px); }
 
-.combatant-footer { display: flex; flex-direction: column; align-items: center; gap: 3px; background: rgba(0, 0, 0, 0.4); border-radius: 8px; padding: 4px 10px; }
-.combatant-name { font-weight: 800; font-size: 0.8rem; text-shadow: 1px 1px 1px #000; }
+.combatant-footer { display: flex; flex-direction: column; align-items: center; gap: 3px; background: rgba(0, 0, 0, 0.45); border-radius: 8px; padding: 5px 12px; min-width: 140px; }
+.combatant-name { font-weight: 800; font-size: 0.82rem; letter-spacing: 0.5px; text-shadow: 1px 1px 1px #000; }
+.boss-phase-label { color: #ff5a3c; font-weight: 800; font-size: 0.68rem; letter-spacing: 1px; margin-top: -2px; }
 
-.enemy-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; border-radius: 10px; transition: transform 0.15s ease; }
+.enemy-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; border-radius: 10px; transition: transform 0.15s ease; }
 .enemy-slot.dead { opacity: 0.25; pointer-events: none; }
 .battle-enemies-row.targeting-mode .enemy-slot:not(.dead) { cursor: pointer; }
 .battle-enemies-row.targeting-mode .enemy-slot:not(.dead) .battle-portrait,
@@ -380,10 +428,46 @@ canvas#boardCanvas {
   outline-offset: 6px;
   border-radius: 12px;
 }
-.battle-enemies-row.targeting-mode .enemy-slot:not(.dead):hover { transform: scale(1.06); }
-.enemy-intent { font-weight: 800; font-size: 0.85rem; background: rgba(0, 0, 0, 0.6); border-radius: 8px; padding: 2px 8px; min-height: 1.4em; }
+.battle-enemies-row.targeting-mode .enemy-slot:not(.dead):hover { transform: scale(1.05); }
+
+/* ---- Enemy intent: the single most important read on the whole screen -- */
+.enemy-intent {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 3px 10px;
+  min-height: 1.6em;
+  cursor: help;
+}
+.enemy-intent .icon { width: 20px; height: 20px; }
+.enemy-intent-value { color: #fff8ea; }
+
 .status-row { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; font-size: 0.72rem; font-weight: 700; }
-.status-pip { background: rgba(0, 0, 0, 0.45); border-radius: 6px; padding: 1px 5px; }
+.status-pip { display: inline-flex; align-items: center; gap: 2px; background: rgba(0, 0, 0, 0.45); border-radius: 6px; padding: 1px 5px 1px 3px; cursor: help; }
+.status-pip .icon { width: 14px; height: 14px; }
+
+/* ---- Icon registry rendering: real art once uploaded, else a small
+   labeled badge -- never an emoji. ---- */
+.icon { display: inline-block; object-fit: contain; vertical-align: middle; }
+.icon-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #33333c;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  color: #fff8ea;
+  font-weight: 800;
+  font-size: 0.55em;
+  letter-spacing: 0.02em;
+}
+.icon-fallback::before { content: attr(data-icon-text); }
+.icon-status.icon-fallback, .icon-intent.icon-fallback { background: rgba(0, 0, 0, 0.55); }
 
 .battle-log {
   max-width: 480px;
@@ -399,8 +483,8 @@ canvas#boardCanvas {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 20px 20px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+  padding: 10px 20px 18px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
 }
 
 .energy-orb {
@@ -420,46 +504,83 @@ canvas#boardCanvas {
 }
 .energy-orb small { font-size: 0.7rem; font-weight: 700; margin-left: 1px; }
 
-.battle-abilities { flex: 1; display: flex; gap: 10px; justify-content: center; overflow-x: auto; padding: 10px 0; }
-.ability-btn {
+/* ================= ACTIONS (ability hand) =================
+   Called "Actions" in the UI, not cards -- Springfield Mayhem's own object,
+   not a Slay the Spire card frame. Each archetype gets a distinct visual
+   treatment (border/gradient/accent) so a build's identity is visible at a
+   glance; see the .archetype-* rules below. */
+.battle-abilities { flex: 1; display: flex; gap: 8px; justify-content: center; align-items: flex-end; overflow-x: auto; padding: 14px 4px; }
+.action-card {
+  --action-accent: #8c8c99;
+  --action-bg-a: #33333c;
+  --action-bg-b: #26262e;
   flex: 0 0 auto;
-  background: linear-gradient(to bottom, #33333c, #26262e);
-  border: 2px solid #555;
+  background: linear-gradient(160deg, var(--action-bg-a), var(--action-bg-b));
+  border: 2px solid var(--action-accent);
   border-radius: 14px 14px 8px 8px;
   padding: 10px 8px 8px;
-  width: 108px;
+  width: 116px;
   color: #fff8ea;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   position: relative;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.ability-btn:not(:last-child) { margin-right: -14px; }
-.ability-btn:hover:not(:disabled) { border-color: #f6d217; transform: translateY(-10px); z-index: 2; }
-.ability-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.ability-btn.targeting { border-color: #3ec24c; box-shadow: 0 0 0 2px rgba(62, 194, 76, 0.5); transform: translateY(-10px); }
-.ability-cost {
+.action-card:not(:last-child) { margin-right: -16px; }
+.action-card:hover:not(:disabled) { border-color: #f6d217; transform: translateY(-14px) scale(1.05); z-index: 3; box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5); }
+.action-card:disabled { opacity: 0.4; cursor: not-allowed; }
+.action-card.targeting { border-color: #3ec24c; box-shadow: 0 0 0 2px rgba(62, 194, 76, 0.5); transform: translateY(-14px); z-index: 3; }
+
+.action-cost {
   position: absolute;
-  top: -8px;
-  left: -8px;
-  width: 22px;
-  height: 22px;
+  top: -9px;
+  left: -9px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #0e63a8;
   border: 2px solid #38b6ff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: #fff;
   font-weight: 800;
+  z-index: 1;
 }
-.ability-emoji { font-size: 1.7rem; margin-top: 4px; }
-.ability-name { font-weight: 700; font-size: 0.78rem; text-align: center; }
-.ability-desc { font-size: 0.62rem; color: #c9c9d3; text-align: center; line-height: 1.25; }
+.action-icon-wrap {
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 3px;
+}
+.action-icon-wrap .icon { width: 100%; height: 100%; }
+.action-icon-wrap .icon-fallback { width: 100%; height: 100%; border-radius: 8px; font-size: 0.8rem; }
+.action-name { font-weight: 800; font-size: 0.72rem; text-align: center; letter-spacing: 0.2px; }
+.action-desc { font-size: 0.6rem; color: #c9c9d3; text-align: center; line-height: 1.25; min-height: 2.2em; }
+.action-type-badge {
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: var(--action-accent);
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-top: 1px;
+}
+
+/* Archetype identities -- a build's flavor should be visible at a glance. */
+.action-card.archetype-universal { --action-accent: #b7b7c0; }
+.action-card.archetype-food { --action-accent: #ff5a3c; --action-bg-a: #4a2a20; --action-bg-b: #2e1a16; }
+.action-card.archetype-duff { --action-accent: #f6d217; --action-bg-a: #4a3c14; --action-bg-b: #2e2610; }
+.action-card.archetype-nuclear { --action-accent: #7cff3a; --action-bg-a: #1f3018; --action-bg-b: #161d12; border-style: dashed; }
+.action-card.archetype-bowling { --action-accent: #38b6ff; --action-bg-a: #1a2c38; --action-bg-b: #141f28; }
+.action-card.archetype-rage { --action-accent: #d0021b; --action-bg-a: #3a1414; --action-bg-b: #240d0d; }
 
 .end-turn-btn {
   flex: 0 0 auto;
@@ -477,21 +598,47 @@ canvas#boardCanvas {
 .end-turn-btn:hover { background: #ffe14d; }
 .end-turn-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b89b0f; }
 
+/* ---- Damage feedback: fast (< 1s), readable, stylized -- no emoji ---- */
 .floating-number {
   position: absolute;
-  top: -10px;
+  top: 10%;
   left: 50%;
   transform: translateX(-50%);
   font-weight: 900;
-  font-size: 1.3rem;
+  font-size: 1.6rem;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.7);
   pointer-events: none;
-  animation: floatUp 0.9s ease forwards;
+  animation: floatUp 0.7s ease forwards;
+  z-index: 4;
 }
 .floating-damage { color: #ff4d4d; }
 .floating-heal { color: #3ec24c; }
+.floating-crit { color: #f6d217; font-size: 2rem; }
 @keyframes floatUp {
-  0% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, -40px); }
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.85); }
+  15% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  100% { opacity: 0; transform: translate(-50%, -34px) scale(1); }
+}
+
+/* Quick, readable combatant reactions until real hit/cast animation assets
+   exist -- kept under 0.5s so combat never feels like it's waiting on them. */
+.combatant-hit { animation: combatantHit 0.35s ease; }
+@keyframes combatantHit {
+  0% { transform: translateX(0) scale(1); filter: brightness(1); }
+  30% { transform: translateX(-3%) scale(0.96); filter: brightness(1.6) saturate(0.4); }
+  100% { transform: translateX(0) scale(1); filter: brightness(1); }
+}
+.combatant-heal { animation: combatantHeal 0.4s ease; }
+@keyframes combatantHeal {
+  0% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.05); filter: brightness(1.3) saturate(1.3); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.combatant-cast { animation: combatantCast 0.3s ease; }
+@keyframes combatantCast {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+  100% { transform: translateY(0); }
 }
 
 /* ---------------- Boss intro ---------------- */

@@ -100,6 +100,19 @@ export const TREEHOUSE_SCENES = {
     ],
     choices: null,
   },
+  kangKodosBossIntro: {
+    id: 'kangKodosBossIntro',
+    image: getAssetUrl('treehouse', 'kangKodosCockpit'),
+    title: 'GROUND ZERO',
+    trigger: 'bossIntro',
+    horrorRuleId: null,
+    locationId: null,
+    segmentIndex: 2,
+    mayhemRange: null,
+    rarity: 'common',
+    narration: ['Somewhere above Springfield, two very smug aliens are watching the whole thing unfold.'],
+    choices: null,
+  },
 };
 
 export function getTreehouseScene(id) {

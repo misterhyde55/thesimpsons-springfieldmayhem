@@ -38,6 +38,21 @@ export const ASSET_MANIFEST = {
     skinner: `${BASE}/characters/principalskinner.png`,
     ralph: `${BASE}/characters/ralph.png`,
     smithers: `${BASE}/characters/smithers.png`,
+    cletus: `${BASE}/characters/Cletus.webp`,
+    edna: `${BASE}/characters/Edna.webp`,
+    hugo: `${BASE}/characters/Hugo.webp`,
+    // Costume variant, not a separate resident -- no data/npcs.js entry.
+    bartman: `${BASE}/characters/bartman.png`,
+    // grampa.jpg/martin.png/otto.jpg as originally uploaded had a
+    // checkerboard pattern baked into opaque pixels (not real transparency,
+    // same issue fixed for the original 11 portraits earlier in the
+    // project) -- these .png siblings are the flood-fill-cleaned versions.
+    grampa: `${BASE}/characters/grampa.png`,
+    martin: `${BASE}/characters/martin.png`,
+    otto: `${BASE}/characters/otto.png`,
+    // Original upload was a .tiff, which no browser can render -- this is a
+    // converted .png sibling with the same real transparency already intact.
+    sideshowBob: `${BASE}/characters/sideshowbob.png`,
   },
   // Reserved for NPC art that isn't just a characters/ portrait (none yet --
   // every uploaded resident so far lives in the characters/ map above).
@@ -55,6 +70,9 @@ export const ASSET_MANIFEST = {
     zombieGroundskeeper: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
     zombieHorde: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
     patientZeroFlanders: `${BASE}/characters/Ned%20Flanders.png`,
+    // Not yet used by any enemy/event data -- registered so it's ready the
+    // moment a Devil Flanders encounter is written.
+    devilFlanders: `${BASE}/enemies/Devil_Flanders.png`,
   },
   // data/bosses.js entries, keyed by boss id. Chief Wiggum and Mr. Burns reuse
   // their characters/ portrait here for the in-arena boss sprite -- one image
@@ -66,6 +84,10 @@ export const ASSET_MANIFEST = {
     // portrait so the boss intro/battle screen isn't emoji-only; swap this
     // for zombie-specific art the moment it's uploaded, no code changes needed.
     zombieSkinner: `${BASE}/characters/principalskinner.png`,
+    kodos: `${BASE}/enemies/Kodos_Johnson.webp`,
+    // Original upload was a .tiff (no browser renders those) -- this is a
+    // converted .png sibling with the same real transparency already intact.
+    kangKodos: `${BASE}/enemies/Kang.png`,
   },
   // Battle/board location backgrounds, keyed by location id (data/locations.js).
   buildings: {
@@ -73,6 +95,9 @@ export const ASSET_MANIFEST = {
     homeFrontYard: `${BASE}/buildings/742_Evergreen_Terrace.webp`,
     moesTavern: `${BASE}/buildings/Moe%27s_Tavern.webp`,
     springfieldElementary: `${BASE}/buildings/Springfield_Elementary_School.webp`,
+    flandersHouse: `${BASE}/buildings/Flanders%20House.webp`,
+    nuclearPlant: `${BASE}/buildings/Springfield%20Nuclear%20Power%20Plant.png`,
+    springfieldCemetery: `${BASE}/buildings/Springfield_Cemetery.webp`,
   },
   // Full-scene backgrounds not tied to a specific location (menus, etc.)
   backgrounds: {
@@ -95,6 +120,7 @@ export const ASSET_MANIFEST = {
     alienInvasion: `${BASE}/treehouse/Treehouse%20of%20horror%202.jpg`,
     anthologyCoverBongo18: `${BASE}/treehouse/Treehouse%20of%20Horror%201.jpeg`,
     anthologyPosterFates: `${BASE}/treehouse/treehouse%20of%20horror%203.jpg`,
+    kangKodosCockpit: `${BASE}/treehouse/Kang%20and%20Kodos%20Scene.webp`,
   },
 };
 
