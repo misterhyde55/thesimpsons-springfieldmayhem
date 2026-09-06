@@ -31,7 +31,7 @@ import {
   syncRunStateFromBattle,
 } from './systems/battleEngine.js';
 import { rollAbilityChoices, learnAbility } from './systems/abilityDraft.js';
-import { getShopCatalog, purchaseEntry } from './systems/economy.js';
+import { getShopCatalog, purchaseEntry, canUseKwikEMartShop, apuBanMessage } from './systems/economy.js';
 import { moeSupportsInBossFight } from './systems/relationships.js';
 import { checkCallback } from './systems/callbackEngine.js';
 
@@ -59,6 +59,16 @@ const CORRUPTION_MAYHEM_THRESHOLD = 50;
 // How many actions (interactions) a location interior visit grants -- "the
 // player can't investigate everything" is the point, see data/interiors.js.
 const INTERIOR_STARTING_ACTIONS = 3;
+
+function shopFlavorForApu(runState) {
+  const level = runState.relationships.apu;
+  if (runState.mayhem >= 70 && level === 'enemy') return 'Apu: "...just take what you need. No charge tonight."';
+  if (level === 'bestFriend') return 'Apu: "For my best customer -- everything half off, my friend."';
+  if (level === 'friendly') return 'Apu: "A little discount for you, Homer."';
+  if (level === 'angry') return 'Apu: "Fine. Take it. But you\'re paying double."';
+  if (level === 'annoyed') return 'Apu: "Prices are a little higher for you today, Homer."';
+  return "Apu's got what you need. For a price.";
+}
 
 export class Game {
   constructor() {
@@ -439,9 +449,13 @@ export class Game {
   }
 
   refreshInteriorScreen() {
+    const visibleState = {
+      ...this.interiorState,
+      interactions: this.interiorState.interactions.filter((i) => !i.visible || i.visible(this.runState)),
+    };
     screens.populateLocationInterior(
       LOCATIONS[this.interiorLocationId].name,
-      this.interiorState,
+      visibleState,
       this.interiorActionsRemaining,
       (interaction) => this.onInteriorInteract(interaction),
       () => this.leaveInterior()
@@ -458,6 +472,11 @@ export class Game {
 
     if (interaction.special === 'shop') {
       this.interiorActionsRemaining -= 1;
+      if (!canUseKwikEMartShop(this.runState)) {
+        saveActiveRun(this.runState);
+        screens.showInteriorResult(apuBanMessage(this.runState), null, null, () => this.afterInteriorResult());
+        return;
+      }
       saveActiveRun(this.runState);
       this.openInteriorShop();
       return;
@@ -526,7 +545,7 @@ export class Game {
   openInteriorShop() {
     screens.showShopModal(
       getShopCatalog(this.runState),
-      "Apu's got what you need. For a price.",
+      shopFlavorForApu(this.runState),
       (entry) => {
         if (purchaseEntry(this.runState, entry)) this.onShopPurchase(entry);
         this.openInteriorShop();
