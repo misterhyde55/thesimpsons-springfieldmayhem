@@ -17,6 +17,8 @@
 import { shiftRelationship } from '../systems/relationships.js';
 import { getRelicShopPool } from './relics.js';
 import { getEvent } from './events.js';
+import { ITEMS } from './items.js';
+import { sellPriceFor } from '../systems/economy.js';
 
 function grantUndiscoveredRelic(runState) {
   const pool = getRelicShopPool().filter((r) => !runState.relics.includes(r.id));
@@ -24,6 +26,88 @@ function grantUndiscoveredRelic(runState) {
   const relic = pool[Math.floor(Math.random() * pool.length)];
   runState.relics.push(relic.id);
   return relic;
+}
+
+// Available in every interior/state (appended below, after INTERIORS is
+// defined) -- lets Homer use a rare Kwik-E-Mart find (data/items.js
+// `rare: true` entries, held in runState.consumables) wherever he happens
+// to be, not just back at the store.
+function useItemInteraction() {
+  return {
+    id: 'useItem',
+    label: 'USE AN ITEM',
+    cost: 1,
+    run(runState) {
+      const entries = Object.entries(runState.consumables || {}).filter(([, qty]) => qty > 0);
+      if (!entries.length) return { text: 'You check your bag. Nothing in there but lint and a coupon.' };
+      const followUps = entries.map(([itemId, qty]) => {
+        const item = ITEMS[itemId];
+        return {
+          id: `use_${itemId}`,
+          label: `${item.emoji} ${item.name} x${qty}`,
+          run(rs) {
+            rs.consumables[itemId] -= 1;
+            if (rs.consumables[itemId] <= 0) delete rs.consumables[itemId];
+            item.apply(rs);
+            return { text: `You use the ${item.name}. ${item.description}` };
+          },
+        };
+      });
+      return { text: 'What do you want to use?', followUps };
+    },
+  };
+}
+
+// Kwik-E-Mart only -- Apu is the one buying it back.
+function sellItemInteraction() {
+  return {
+    id: 'sellItem',
+    label: 'SELL AN ITEM',
+    cost: 1,
+    run(runState) {
+      const entries = Object.entries(runState.consumables || {}).filter(([, qty]) => qty > 0);
+      if (!entries.length) return { text: 'Apu: "You\'ve got nothing I\'ll buy off you."' };
+      const followUps = entries.map(([itemId, qty]) => {
+        const item = ITEMS[itemId];
+        const price = sellPriceFor(itemId);
+        return {
+          id: `sell_${itemId}`,
+          label: `${item.emoji} ${item.name} x${qty} — sell for ${price}`,
+          run(rs) {
+            rs.consumables[itemId] -= 1;
+            if (rs.consumables[itemId] <= 0) delete rs.consumables[itemId];
+            rs.donutsCurrency += price;
+            return { text: `Apu takes the ${item.name} off your hands without asking questions. (+${price} donuts)` };
+          },
+        };
+      });
+      return { text: 'Apu: "Whaddya got?"', followUps };
+    },
+  };
+}
+
+// Only shows up once Homer is carrying the Mysterious Key (a rare
+// Kwik-E-Mart find) -- see the `visible` check systems/locationInterior.js
+// (via game.js's refreshInteriorScreen) filters interactions through.
+function unlockStorageCageInteraction() {
+  return {
+    id: 'unlockStorageCage',
+    label: 'UNLOCK THE STORAGE CAGE',
+    cost: 1,
+    visible(runState) {
+      return !!runState.world.locationFlags.hasMysteriousKey;
+    },
+    run(runState) {
+      if (runState.world.secretsFoundIds.includes('kwikEMartStorageCage')) {
+        return { text: "The cage is already hanging open. Whatever was in here is already yours." };
+      }
+      runState.world.secretsFoundIds.push('kwikEMartStorageCage');
+      const relic = grantUndiscoveredRelic(runState);
+      runState.donutsCurrency += 8;
+      if (relic) return { text: `The key turns. Behind the cage: ${relic.emoji} ${relic.name}, and a fat roll of donut money. (+8 donuts)` };
+      return { text: 'The key turns. Just a fat roll of donut money behind the cage. (+8 donuts)' };
+    },
+  };
 }
 
 export const INTERIORS = {
@@ -443,6 +527,18 @@ export const INTERIORS = {
     },
   },
 };
+
+// Wire the shared bag interactions into every state after the fact, rather
+// than repeating them in each block above -- USE AN ITEM everywhere, SELL AN
+// ITEM only where Apu is standing behind the counter.
+for (const state of Object.values(INTERIORS.kwikEMart.states)) {
+  state.interactions.push(sellItemInteraction(), unlockStorageCageInteraction());
+}
+for (const interior of Object.values(INTERIORS)) {
+  for (const state of Object.values(interior.states)) {
+    state.interactions.push(useItemInteraction());
+  }
+}
 
 // Prefers the most-recently-activated Horror Rule that defines a state for
 // this location (so Segment II's rule wins over Segment I's once both are

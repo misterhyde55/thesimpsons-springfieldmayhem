@@ -112,6 +112,11 @@ export function createRunState(character) {
     mayhem: 0,
     infection: 0,
     donutsCurrency: 0,
+    // Held rare/bizarre items bought at the Kwik-E-Mart (or found), keyed by
+    // itemId -> count. Ordinary staples still apply the instant they're
+    // bought; only the rare finds (data/items.js's `rare: true` entries) are
+    // worth saving for later, so this bag only ever holds those.
+    consumables: {},
     stats: {
       enemiesDefeated: 0,
       elitesDefeated: 0,
@@ -168,6 +173,9 @@ export function deserializeRunState(obj) {
   return {
     ...obj,
     character: CHARACTERS[obj.characterId],
+    // Saves from before the Kwik-E-Mart held-item bag existed won't have
+    // this key -- default it so economy.js doesn't have to guard everywhere.
+    consumables: obj.consumables || {},
   };
 }
 

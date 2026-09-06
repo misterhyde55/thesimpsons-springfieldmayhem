@@ -620,10 +620,17 @@ export function showShopModal(catalog, shopFlavor, onBuy, onLeave) {
     const btn = document.createElement('button');
     btn.className = 'shop-item-btn';
     btn.disabled = !entry.affordable;
-    const tag = entry.kind === 'relic' ? ' (Relic)' : '';
-    btn.innerHTML = `<strong>${entry.item.emoji} ${entry.item.name}${tag} — ${entry.cost} \u{1F369}</strong><br><small>${entry.item.description}</small>`;
+    const tag = entry.kind === 'relic' ? ' (Relic)' : entry.item.rare ? ' (Rare Find)' : '';
+    const stockNote = entry.stock <= 1 ? ' <em>(last one!)</em>' : ` <em>(${entry.stock} left)</em>`;
+    btn.innerHTML = `<strong>${entry.item.emoji} ${entry.item.name}${tag} — ${entry.cost} \u{1F369}</strong>${stockNote}<br><small>${entry.item.description}</small>`;
     btn.addEventListener('click', () => onBuy(entry));
     list.appendChild(btn);
+  }
+  if (!catalog.length) {
+    const empty = document.createElement('p');
+    empty.className = 'shop-empty-note';
+    empty.textContent = "Shelves are picked clean. Come back another visit.";
+    list.appendChild(empty);
   }
   modal.classList.remove('hidden');
   freshButton('btn-shop-leave').addEventListener('click', () => {
