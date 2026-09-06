@@ -22,6 +22,7 @@ const SCREEN_IDS = [
   'screen-travel',
   'screen-location-interior',
   'screen-breaking-news',
+  'screen-story-scene',
   'screen-boss-intro',
   'screen-battle',
   'screen-ability-draft',
@@ -37,6 +38,7 @@ const FULL_BLEED_SCREEN_IDS = new Set([
   'screen-main-menu',
   'screen-episode-reveal',
   'screen-segment-title',
+  'screen-story-scene',
   'screen-battle',
   'screen-boss-intro',
   'screen-commercial-break',
@@ -268,6 +270,58 @@ export function populateBoardInfo(runState, segment, reachableCount) {
 
 export function populateBreakingNews(newsText) {
   $('news-text').textContent = newsText;
+}
+
+// ---------- STORY SCENE (cinematic Treehouse of Horror artwork moments) ----------
+// Narration reveals one line at a time on each Continue click; once it runs
+// out, either the scene's choices appear (onChoice) or Continue itself
+// resolves the scene (onContinue). A scene with no narration at all just
+// shows its choices/Continue immediately.
+export function populateStoryScene(scene, onChoice, onContinue) {
+  $('story-scene-art').style.backgroundImage = scene.image ? `url('${scene.image}')` : 'none';
+  $('story-scene-title').textContent = scene.title;
+  $('story-scene-narration').textContent = '';
+  const choicesEl = $('story-scene-choices');
+  choicesEl.innerHTML = '';
+  choicesEl.classList.add('hidden');
+
+  const queue = [...(scene.narration || [])];
+  const continueBtn = freshButton('btn-story-scene-continue');
+  continueBtn.textContent = 'CONTINUE';
+  continueBtn.classList.remove('hidden');
+
+  const advance = () => {
+    if (queue.length > 0) {
+      $('story-scene-narration').textContent = queue.shift();
+      return;
+    }
+    if (scene.choices && scene.choices.length) {
+      continueBtn.classList.add('hidden');
+      choicesEl.classList.remove('hidden');
+      for (const choice of scene.choices) {
+        const btn = document.createElement('button');
+        btn.className = 'big-button secondary-button story-scene-choice-btn';
+        btn.textContent = choice.label;
+        btn.addEventListener('click', () => onChoice(choice));
+        choicesEl.appendChild(btn);
+      }
+      return;
+    }
+    onContinue();
+  };
+  continueBtn.addEventListener('click', advance);
+  advance();
+}
+
+// Shows the one-line outcome of a picked choice, then hands off to
+// `onContinue` (game.js resolves the choice's `leadsTo` from there).
+export function showStorySceneOutcome(text, onContinue) {
+  $('story-scene-choices').classList.add('hidden');
+  $('story-scene-narration').textContent = text;
+  const continueBtn = freshButton('btn-story-scene-continue');
+  continueBtn.textContent = 'CONTINUE';
+  continueBtn.classList.remove('hidden');
+  continueBtn.addEventListener('click', onContinue);
 }
 
 // ---------- BOSS INTRO ----------

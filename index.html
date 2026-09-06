@@ -166,13 +166,28 @@
     <button id="btn-interior-leave" class="big-button secondary-button">LEAVE</button>
   </section>
 
-  <!-- ================= BREAKING NEWS (horror scenario reveal) ================= -->
+  <!-- ================= BREAKING NEWS (horror scenario reveal -- fallback for
+       a Horror Rule with no Treehouse Scene artwork registered yet) ================= -->
   <section id="screen-breaking-news" class="screen hidden">
     <div class="news-flash">
       <div class="news-banner">BREAKING NEWS</div>
       <p id="news-text">Something has gone horribly wrong.</p>
     </div>
     <button id="btn-news-continue" class="big-button">CONTINUE</button>
+  </section>
+
+  <!-- ================= STORY SCENE (cinematic Treehouse of Horror artwork moments) ================= -->
+  <section id="screen-story-scene" class="screen story-scene-screen">
+    <div id="story-scene-art" class="story-scene-art"></div>
+    <div id="story-scene-static" class="tv-static story-scene-static"></div>
+    <div class="story-scene-scrim"></div>
+    <div class="story-scene-content">
+      <div class="story-scene-eyebrow">TREEHOUSE OF HORROR</div>
+      <h1 id="story-scene-title">SCENE TITLE</h1>
+      <p id="story-scene-narration" class="story-scene-narration"></p>
+      <div id="story-scene-choices" class="story-scene-choices hidden"></div>
+      <button id="btn-story-scene-continue" class="big-button story-scene-continue">CONTINUE</button>
+    </div>
   </section>
 
   <!-- ================= BOSS INTRO ================= -->
