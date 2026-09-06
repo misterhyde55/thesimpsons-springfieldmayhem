@@ -20,4 +20,14 @@ export const NPCS = {
   // stats/attacks -- that entry owns combat behavior, this one owns identity.
   chiefWiggum: { id: 'chiefWiggum', name: 'Chief Wiggum', locationIds: ['policeStation'] },
   mrBurns: { id: 'mrBurns', name: 'Mr. Burns', locationIds: ['burnsManor'] },
+  cletus: { id: 'cletus', name: 'Cletus Spuckler', locationIds: [] },
+  edna: { id: 'edna', name: 'Edna Krabappel', locationIds: ['springfieldElementary'] },
+  // Bart's shackled attic-dwelling evil twin (Treehouse of Horror X) --
+  // registered here as a resident in his own right since his role in this
+  // game is a horror encounter, not a Bart costume.
+  hugo: { id: 'hugo', name: 'Hugo Simpson', locationIds: [] },
+  grampa: { id: 'grampa', name: 'Abraham Simpson', locationIds: ['retirementCastle'] },
+  martin: { id: 'martin', name: 'Martin Prince', locationIds: ['springfieldElementary'] },
+  otto: { id: 'otto', name: 'Otto Mann', locationIds: [] },
+  sideshowBob: { id: 'sideshowBob', name: 'Sideshow Bob', locationIds: [] },
 };

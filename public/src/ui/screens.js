@@ -1,4 +1,5 @@
 import { getAssetUrl } from '../data/assets.js';
+import { LOCATIONS } from '../data/locations.js';
 import { getPortraitUrl, getCharacterInfo } from '../data/characterRegistry.js';
 import { RARITY_COLOR, ABILITIES } from '../data/abilities.js';
 import { RELICS } from '../data/relics.js';
@@ -6,7 +7,9 @@ import { HORROR_RULES } from '../data/horrorRules.js';
 import { STATUS_INFO } from '../data/statusEffects.js';
 import { ITEMS } from '../data/items.js';
 import { getPlayableAbilities, canPlayAbility, abilityCost } from '../systems/battleEngine.js';
+import { intentIconId, describeIntent } from '../systems/enemyAI.js';
 import { MenuNav } from './menuNav.js';
+import { iconHtml } from './icons.js';
 
 const SCREEN_IDS = [
   'screen-main-menu',
@@ -342,6 +345,18 @@ export function populateBossIntro(boss, onStart) {
 }
 
 // ---------- BATTLE ----------
+// A registered asset path doesn't guarantee the file actually exists (see
+// ui/icons.js's identical concern) -- both portrait <img>s render
+// optimistically and fall back to the adjacent letter badge on load
+// failure, never an emoji.
+if (typeof window !== 'undefined') {
+  window.__battlePortraitError = function (img) {
+    img.classList.add('hidden');
+    const fallback = img.nextElementSibling;
+    if (fallback) fallback.classList.remove('hidden');
+  };
+}
+
 function resolveEnemyPortrait(templateId) {
   return getAssetUrl('bosses', templateId) || getAssetUrl('enemies', templateId) || getAssetUrl('characters', templateId) || null;
 }
@@ -351,38 +366,65 @@ function statusPipsHtml(statuses) {
     .filter(([, v]) => v > 0)
     .map(([id, v]) => {
       const info = STATUS_INFO[id];
-      return `<span class="status-pip" style="color:${info.color}" title="${info.name}: ${info.description}">${info.icon}${v}</span>`;
+      return `<span class="status-pip" title="${info.name}: ${info.description}">${iconHtml('status', info.iconId, info.name)}${v}</span>`;
     })
     .join('');
+}
+
+// The current boss phase, purely for the "BOSS -- PHASE N" readout (see
+// data/bosses.js `phases`, already used by systems/enemyAI.js to pick the
+// active intent pool) -- 1-indexed to match how the design is talked about.
+function bossPhaseNumber(enemy) {
+  const phases = enemy.template.phases;
+  if (!phases) return null;
+  const hpPct = enemy.hp / enemy.maxHp;
+  const idx = phases.findIndex((p) => hpPct > p.minHpPct);
+  return (idx === -1 ? phases.length - 1 : idx) + 1;
 }
 
 export function populateBattle(battle, runState, handlers) {
   const bg = getAssetUrl('buildings', battle.locationId);
   $('screen-battle').style.backgroundImage = bg ? `url('${bg}')` : 'none';
+  $('battle-location-name').textContent = (LOCATIONS[battle.locationId]?.name || 'Springfield').toUpperCase();
 
   const playerPortrait = getAssetUrl('characters', runState.character.id);
   const pImg = $('battle-player-portrait');
+  const pFallback = $('battle-player-portrait-fallback');
+  pFallback.textContent = runState.character.name[0];
   if (playerPortrait) {
     pImg.src = playerPortrait;
+    pImg.onerror = () => window.__battlePortraitError(pImg);
     pImg.classList.remove('hidden');
+    pFallback.classList.add('hidden');
   } else {
     pImg.classList.add('hidden');
+    pFallback.classList.remove('hidden');
   }
   $('battle-player-name').textContent = runState.character.name.toUpperCase();
 
+  document.querySelector('.battle-stage').classList.toggle('is-boss', !!battle.isBoss);
+
   const enemiesContainer = $('battle-enemies');
+  enemiesContainer.className = `battle-enemies-row count-${battle.enemies.length}`;
   enemiesContainer.innerHTML = '';
   for (const enemy of battle.enemies) {
     const slot = document.createElement('div');
     slot.className = 'enemy-slot';
     slot.dataset.enemyId = enemy.instanceId;
     const portraitUrl = resolveEnemyPortrait(enemy.templateId);
+    const phaseNumber = battle.isBoss ? bossPhaseNumber(enemy) : null;
     slot.innerHTML = `
       <div class="enemy-intent"></div>
       <div class="status-row"></div>
-      ${portraitUrl ? `<img class="battle-portrait enemy-portrait" src="${portraitUrl}" alt="" />` : `<div class="battle-portrait-fallback">${enemy.emoji}</div>`}
+      ${
+        portraitUrl
+          ? `<img class="battle-portrait enemy-portrait" src="${portraitUrl}" alt="" onerror="window.__battlePortraitError(this)" />`
+          : ''
+      }
+      <div class="battle-portrait-fallback enemy-portrait-fallback${portraitUrl ? ' hidden' : ''}">${enemy.name[0]}</div>
       <div class="combatant-footer">
         <div class="combatant-name">${enemy.name}</div>
+        ${phaseNumber ? `<div class="boss-phase-label">BOSS &mdash; PHASE ${phaseNumber}</div>` : ''}
         <div class="hp-bar-outer"><div class="hp-bar-inner"></div><span class="hp-bar-label"></span></div>
       </div>
     `;
@@ -394,13 +436,14 @@ export function populateBattle(battle, runState, handlers) {
   abilitiesContainer.innerHTML = '';
   for (const ability of getPlayableAbilities(runState)) {
     const btn = document.createElement('button');
-    btn.className = 'ability-btn';
+    btn.className = `action-card archetype-${ability.archetype}`;
     btn.dataset.abilityId = ability.id;
     btn.innerHTML = `
-      <span class="ability-cost"></span>
-      <span class="ability-emoji">${ability.emoji}</span>
-      <span class="ability-name">${ability.name}</span>
-      <span class="ability-desc">${ability.description}</span>
+      <span class="action-cost"></span>
+      <span class="action-icon-wrap">${iconHtml(ability.icon.category, ability.icon.id, ability.name)}</span>
+      <span class="action-name">${ability.name.toUpperCase()}</span>
+      <span class="action-desc">${ability.description}</span>
+      <span class="action-type-badge">${ability.archetype.toUpperCase()}</span>
     `;
     btn.addEventListener('click', () => handlers.onAbilityClick(ability.id));
     abilitiesContainer.appendChild(btn);
@@ -420,7 +463,7 @@ export function renderBattle(battle, runState) {
   $('battle-player-statuses').innerHTML = statusPipsHtml(p.statuses);
   $('battle-energy-value').textContent = p.energy;
   document.querySelector('#battle-energy-readout small').textContent = `/${p.maxEnergy}`;
-  $('battle-mayhem-readout').textContent = `☠️ MAYHEM: ${runState.mayhem}%`;
+  $('battle-mayhem-readout').textContent = `MAYHEM: ${runState.mayhem}%`;
   applyMayhemVisuals(runState.mayhem);
 
   for (const enemy of battle.enemies) {
@@ -432,14 +475,20 @@ export function renderBattle(battle, runState) {
     slot.querySelector('.hp-bar-label').textContent = `${Math.max(0, Math.round(enemy.hp))} / ${enemy.maxHp}`;
     slot.querySelector('.status-row').innerHTML = statusPipsHtml(enemy.statuses);
     const intentEl = slot.querySelector('.enemy-intent');
-    intentEl.textContent = !dead && enemy.intent ? `${enemy.intent.icon} ${enemy.intent.label}` : '';
+    if (!dead && enemy.intent) {
+      intentEl.innerHTML = `${iconHtml('intent', intentIconId(enemy.intent.type), enemy.intent.label)}<span class="enemy-intent-value">${enemy.intent.value ?? ''}</span>`;
+      intentEl.title = describeIntent(enemy.name, enemy.intent);
+    } else {
+      intentEl.innerHTML = '';
+      intentEl.title = '';
+    }
   }
 
   const abilitiesContainer = $('battle-abilities');
   const targetingAbilityId = abilitiesContainer.dataset.targetingAbilityId || '';
   [...abilitiesContainer.children].forEach((btn) => {
     const ability = ABILITIES[btn.dataset.abilityId];
-    btn.querySelector('.ability-cost').textContent = `⚡${abilityCost(battle, runState, ability)}`;
+    btn.querySelector('.action-cost').textContent = abilityCost(battle, runState, ability);
     btn.disabled = battle.outcome !== null || !canPlayAbility(battle, runState, ability.id);
     btn.classList.toggle('targeting', ability.id === targetingAbilityId);
   });
@@ -448,6 +497,19 @@ export function renderBattle(battle, runState) {
 
 export function setBattleTargetingAbility(abilityId) {
   $('battle-abilities').dataset.targetingAbilityId = abilityId || '';
+}
+
+// Quick (<0.5s) reactions on a combatant until real hit/cast animation
+// assets exist -- see style.css .combatant-hit/-heal/-cast. `enemyInstanceId`
+// null means the player's own side.
+export function playCombatantAnimation(enemyInstanceId, kind) {
+  const el = enemyInstanceId ? document.querySelector(`.enemy-slot[data-enemy-id="${enemyInstanceId}"]`) : $('battle-side-player');
+  if (!el) return;
+  const className = `combatant-${kind}`;
+  el.classList.remove(className);
+  void el.offsetWidth;
+  el.classList.add(className);
+  setTimeout(() => el.classList.remove(className), 500);
 }
 
 // Springfield visibly corrupts as Mayhem climbs -- filter-only, no new DOM,

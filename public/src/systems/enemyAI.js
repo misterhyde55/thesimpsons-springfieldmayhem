@@ -23,6 +23,46 @@ export function rollIntent(enemy) {
   enemy.intent = chosen;
 }
 
+// Maps an intent's `type` to an icons.js `intent` category id -- one small
+// vocabulary shared by every enemy/boss, so data/enemies.js and
+// data/bosses.js never need their own icon path per intent (see
+// ui/screens.js, which renders this through ui/icons.js).
+const INTENT_ICON_IDS = {
+  attack: 'attack',
+  attackTwice: 'attackTwice',
+  defend: 'defend',
+  buff: 'buff',
+  infect: 'infect',
+  phase: 'phase',
+};
+
+export function intentIconId(type) {
+  return INTENT_ICON_IDS[type] || 'unknown';
+}
+
+// The tooltip line shown on hover/click over an enemy's intent -- "what is
+// this actually going to do to me", spelled out in full since the icon +
+// number alone is meant to be scannable, not exhaustive.
+export function describeIntent(enemyName, intent) {
+  if (!intent) return '';
+  switch (intent.type) {
+    case 'attack':
+      return `${enemyName} will attack for ${intent.value} damage.`;
+    case 'attackTwice':
+      return `${enemyName} will hit twice for ${Math.round(intent.value / 2)} damage each.`;
+    case 'defend':
+      return `${enemyName} will gain ${intent.value} Armor.`;
+    case 'buff':
+      return `${enemyName} will gain ${intent.value} Strength.`;
+    case 'infect':
+      return `${enemyName} will apply ${intent.value} Infection to you.`;
+    case 'phase':
+      return `${enemyName} will phase partway out of reality, gaining Dodge.`;
+    default:
+      return `${enemyName}'s next move is unknown.`;
+  }
+}
+
 // Applies an enemy's already-rolled intent against the player, returning a
 // small summary the UI can turn into damage numbers / log lines.
 export function resolveEnemyIntent(battle, enemy) {

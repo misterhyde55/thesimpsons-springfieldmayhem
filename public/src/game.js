@@ -261,12 +261,12 @@ export class Game {
   }
 
   // ---------- STORY SCENE (cinematic Treehouse of Horror artwork moments) ----------
-  showStoryScene(scene) {
+  showStoryScene(scene, onContinue) {
     screens.showScreen('screen-story-scene');
     screens.populateStoryScene(
       scene,
       (choice) => this.onStorySceneChoice(choice),
-      () => this.enterBoardScreen()
+      onContinue || (() => this.enterBoardScreen())
     );
   }
 
@@ -541,17 +541,30 @@ export class Game {
   // ---------- BATTLE SETUP ----------
   enterBattleForLocationContent(locationId, content) {
     if (content.type === 'boss') {
-      const bossTemplate = BOSSES[content.bossId];
-      const callback = checkCallback(this.runState, 'bossIntro', { boss: bossTemplate });
-      screens.showScreen('screen-boss-intro');
-      screens.populateBossIntro(bossTemplate, () => this.startBattleForLocationContent(locationId, content, [bossTemplate], true));
-      if (callback) {
-        setTimeout(() => screens.showBanner(`${callback.title} ${callback.text}`, 2600), 500);
+      const scene = pickTreehouseScene('bossIntro', {
+        locationId,
+        segmentIndex: this.runState.segmentIndex,
+        mayhem: this.runState.mayhem,
+      });
+      if (scene) {
+        this.showStoryScene({ ...scene, choices: null }, () => this.showBossIntro(locationId, content));
+        return;
       }
+      this.showBossIntro(locationId, content);
       return;
     }
     const enemyTemplates = content.enemyIds.map((id) => ENEMIES[id]);
     this.startBattleForLocationContent(locationId, content, enemyTemplates, false);
+  }
+
+  showBossIntro(locationId, content) {
+    const bossTemplate = BOSSES[content.bossId];
+    const callback = checkCallback(this.runState, 'bossIntro', { boss: bossTemplate });
+    screens.showScreen('screen-boss-intro');
+    screens.populateBossIntro(bossTemplate, () => this.startBattleForLocationContent(locationId, content, [bossTemplate], true));
+    if (callback) {
+      setTimeout(() => screens.showBanner(`${callback.title} ${callback.text}`, 2600), 500);
+    }
   }
 
   startBattleForLocationContent(locationId, content, enemyTemplates, isBoss) {
@@ -625,6 +638,7 @@ export class Game {
     const result = playAbility(this.battle, this.runState, abilityId, targetInstanceId);
     if (!result.ok) return;
 
+    screens.playCombatantAnimation(null, 'cast');
     this.animateAbilityEvents(result.events);
     screens.appendBattleLog(`You used ${ABILITIES[abilityId].name}.`);
     screens.renderBattle(this.battle, this.runState);
@@ -645,10 +659,12 @@ export class Game {
         if (ev.dodged) screens.showFloatingNumber(ev.targetId, 'DODGE', 'heal');
         else if (ev.amount > 0) {
           screens.showFloatingNumber(ev.targetId, `-${ev.amount}`, 'damage');
+          screens.playCombatantAnimation(ev.targetId, 'hit');
           screens.shakeBattleStage();
         }
       } else if (ev.kind === 'heal' && ev.amount > 0) {
         screens.showFloatingNumber(null, `+${ev.amount}`, 'heal');
+        screens.playCombatantAnimation(null, 'heal');
       }
     }
   }
@@ -691,6 +707,7 @@ export class Game {
       if (r && (r.type === 'attack' || r.type === 'attackTwice')) {
         if (r.dealt > 0) {
           screens.showFloatingNumber(null, `-${r.dealt}`, 'damage');
+          screens.playCombatantAnimation(null, 'hit');
           screens.shakeBattleStage();
         } else if (r.dodged) {
           screens.showFloatingNumber(null, 'DODGE', 'heal');
