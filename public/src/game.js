@@ -701,6 +701,13 @@ export class Game {
       boss.hp = Math.max(1, Math.round(boss.hp * 0.75));
     }
 
+    // CALLBACK! e.g. data/callbacks.js snakeGrudge -- checked right as an
+    // elite fight begins, before the player has even acted.
+    let eliteCallback = null;
+    if (content.elite) {
+      eliteCallback = checkCallback(this.runState, 'eliteBattleStart', { battle: this.battle });
+    }
+
     screens.showScreen('screen-battle');
     screens.clearBattleLog();
     screens.populateBattle(this.battle, this.runState, {
@@ -711,6 +718,8 @@ export class Game {
 
     if (isBoss) {
       screens.showNpcBanner(content.bossId, BOSSES[content.bossId].intro, 2400);
+    } else if (eliteCallback) {
+      screens.showBanner(`${eliteCallback.title} ${eliteCallback.text}`, 2800);
     } else {
       const corrupted = this.runState.mayhem >= CORRUPTION_MAYHEM_THRESHOLD;
       const flavor = corrupted ? this.currentLocation.flavorCorrupted : this.currentLocation.flavorNormal;

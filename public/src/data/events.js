@@ -51,9 +51,12 @@ export const EVENTS = {
       {
         id: 'fight',
         label: 'Stand your ground',
-        resultText: 'Snake backs off, but not before clipping you with a tire iron.',
+        resultText: 'Snake backs off, but not before clipping you with a tire iron. He will remember this.',
         apply(runState) {
           runState.hp = Math.max(1, runState.hp - 15);
+          // CALLBACK! setup -- see data/callbacks.js snakeGrudge. Screwing
+          // him over here pays off (for him) during a later elite fight.
+          setCallbackFlag(runState, 'snakeGrudge');
         },
       },
     ],
