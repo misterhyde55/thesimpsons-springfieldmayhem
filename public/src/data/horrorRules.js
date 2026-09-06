@@ -27,8 +27,25 @@ export const HORROR_RULES = {
     newsText: 'THE DEAD HAVE RISEN AND THEY WANT BRAINS. OR AT LEAST DONUTS.',
     description: 'Defeated zombies sometimes claw back to life. Infection makes healing harder.',
     hooks: {
+      // Mutation tiers ("Zombie Lenny -> Infected Lenny -> Mutated Lenny ->
+      // Alien-Mutated Zombie Lenny"): every zombie-tagged enemy gets a
+      // heavier, renamed version of itself as the run's Infection/Mayhem
+      // climbs, on top of whatever Alien Invasion combo mutation applies
+      // below if that rule is also active. Generic by tag, not per-enemy,
+      // so every new zombie character added to data/enemies.js gets this
+      // for free.
       onEnemySpawn(runState, enemy) {
         enemy.tags.add('zombie');
+        if ((runState.infection || 0) >= 15) {
+          enemy.name = `Infected ${enemy.name}`;
+          enemy.maxHp = Math.round(enemy.maxHp * 1.15);
+          enemy.hp = enemy.maxHp;
+        }
+        if (runState.mayhem >= 50) {
+          enemy.name = `Mutated ${enemy.name}`;
+          enemy.maxHp = Math.round(enemy.maxHp * 1.25);
+          enemy.hp = enemy.maxHp;
+        }
       },
       onEnemyDefeated(runState, battle, enemy) {
         if (!enemy.tags.has('zombie') || enemy.hasResurrected) return;

@@ -471,6 +471,20 @@ export const INTERIORS = {
               return { text: "SECRET FOUND! It's not Barney anymore. It lunges before you slam the door shut. (-15 HP)" };
             },
           },
+          // Hands off to a real fight (see game.js onInteriorInteract's
+          // `special: 'combat'` case) instead of resolving inline -- the
+          // "Moe's" encounter combo: Lenny and Carl buff each other for
+          // fighting side by side, and Barney's just built like a tank.
+          {
+            id: 'regularsWrong',
+            label: 'THE REGULARS ARE MOVING WRONG',
+            cost: 1,
+            special: 'combat',
+            combatContent: { type: 'combat', enemyIds: ['zombieLenny', 'zombieCarl', 'zombieBarney'] },
+            visible(runState) {
+              return !runState.world.locationFlags.moesRegularsFought;
+            },
+          },
         ],
       },
       alienInvasion: {

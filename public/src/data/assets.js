@@ -73,6 +73,20 @@ export const ASSET_MANIFEST = {
     // Not yet used by any enemy/event data -- registered so it's ready the
     // moment a Devil Flanders encounter is written.
     devilFlanders: `${BASE}/enemies/Devil_Flanders.png`,
+    // Recognizable zombie characters (data/enemies.js) reuse each
+    // character's real portrait, same pattern as patientZeroFlanders above.
+    // No dedicated "zombified" art uploaded for these yet, so it's the
+    // normal portrait until/unless zombie-specific art shows up.
+    zombieBarney: `${BASE}/characters/barney.png`,
+    zombieWiggum: `${BASE}/characters/chiefwiggum.png`,
+    zombieRalph: `${BASE}/characters/ralph.png`,
+    zombieMilhouse: `${BASE}/characters/milhouse.png`,
+    zombieBart: `${BASE}/characters/bart.png`,
+    zombieSkinnerZombie: `${BASE}/characters/principalskinner.png`,
+    zombieComicBookGuy: `${BASE}/characters/comicbookguy.png`,
+    zombieKrusty: `${BASE}/characters/krusty.png`,
+    zombieKrustyDeluxe: `${BASE}/characters/krusty.png`,
+    zombieGrandpa: `${BASE}/characters/grampa.png`,
   },
   // data/bosses.js entries, keyed by boss id. Chief Wiggum and Mr. Burns reuse
   // their characters/ portrait here for the in-arena boss sprite -- one image

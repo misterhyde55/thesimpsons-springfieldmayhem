@@ -1,4 +1,5 @@
 import { ABILITIES } from '../data/abilities.js';
+import { ENEMIES } from '../data/enemies.js';
 import { STATUS } from '../data/statusEffects.js';
 import {
   getStatus,
@@ -44,11 +45,33 @@ function notePlayerDamage(battle, runState, amount) {
 function resolveDefeatOrResurrect(battle, runState, enemy) {
   if (enemy.hp > 0 || enemy.hasResurrected) return;
   fireHooks(runState, 'onEnemyDefeated', battle, enemy);
+  if (enemy.hp > 0 || enemy.hasResurrected) return; // a Horror Rule revived it -- no death reactions fire
+  if (enemy.template.onDefeated) enemy.template.onDefeated(battle, runState, enemy);
+  for (const ally of getAliveEnemies(battle)) {
+    if (ally.template.onAllyDefeated) ally.template.onAllyDefeated(battle, runState, enemy, ally);
+  }
 }
 
 function checkVictory(battle) {
   if (battle.outcome) return;
   if (getAliveEnemies(battle).length === 0) battle.outcome = 'victory';
+}
+
+function instantiateEnemy(template) {
+  return {
+    instanceId: `e${nextEnemyInstanceId++}`,
+    templateId: template.id,
+    template,
+    name: template.name,
+    emoji: template.emoji,
+    hp: template.hp,
+    maxHp: template.hp,
+    statuses: freshCombatantStatuses(),
+    tags: new Set(template.tags || []),
+    hasResurrected: false,
+    comboApplied: false,
+    intent: null,
+  };
 }
 
 export function createBattle(runState, enemyTemplates, locationId, isBoss) {
@@ -60,20 +83,7 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss) {
       maxEnergy: PLAYER_MAX_ENERGY,
       statuses: freshCombatantStatuses(),
     },
-    enemies: enemyTemplates.map((template) => ({
-      instanceId: `e${nextEnemyInstanceId++}`,
-      templateId: template.id,
-      template,
-      name: template.name,
-      emoji: template.emoji,
-      hp: template.hp,
-      maxHp: template.hp,
-      statuses: freshCombatantStatuses(),
-      tags: new Set(template.tags || []),
-      hasResurrected: false,
-      comboApplied: false,
-      intent: null,
-    })),
+    enemies: enemyTemplates.map(instantiateEnemy),
     turnNumber: 1,
     flags: {},
     log: [],
@@ -84,6 +94,13 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss) {
   for (const enemy of battle.enemies) {
     fireHooks(runState, 'onEnemySpawn', enemy);
     rollIntent(enemy);
+  }
+  // A per-template hook (not a run-wide Horror Rule/relic hook) for an
+  // enemy that reacts to who ELSE is in the fight at the start -- e.g.
+  // Zombie Lenny and Zombie Carl each getting a small bonus for showing up
+  // together (see data/enemies.js).
+  for (const enemy of battle.enemies) {
+    if (enemy.template.onBattleStart) enemy.template.onBattleStart(battle, runState, enemy);
   }
   fireHooks(runState, 'onBattleStart', battle);
   fireHooks(runState, 'onPlayerTurnStart', battle);
@@ -238,6 +255,33 @@ export function endPlayerTurn(battle, runState) {
       if (result.type === 'infect') {
         runState.infection = Math.min(INFECTION_MAX, (runState.infection || 0) + (result.value || 0));
       }
+      if (result.type === 'steal') {
+        const stolen = Math.min(runState.donutsCurrency, result.value || 0);
+        runState.donutsCurrency -= stolen;
+        enemy.stolenTotal = (enemy.stolenTotal || 0) + stolen;
+        result.stolenAmount = stolen;
+      }
+      if (result.type === 'summon' && !battle.flags[`summoned_${enemy.instanceId}`]) {
+        battle.flags[`summoned_${enemy.instanceId}`] = true;
+        const summonTemplate = ENEMIES[result.summonId];
+        if (summonTemplate) {
+          const summoned = instantiateEnemy(summonTemplate);
+          fireHooks(runState, 'onEnemySpawn', summoned);
+          if (summoned.template.onBattleStart) summoned.template.onBattleStart(battle, runState, summoned);
+          rollIntent(summoned);
+          battle.enemies.push(summoned);
+          result.summonedInstanceId = summoned.instanceId;
+          result.summonedName = summoned.name;
+        }
+      }
+      // Some of the reactive hooks above (heal/friendlyFire/buffAlly targets,
+      // or a friendly-fire kill) can resolve/kill an ally mid-intent -- run
+      // the same defeat check the player's own damage goes through.
+      if (result.targetId) {
+        const targetEnemy = battle.enemies.find((e) => e.instanceId === result.targetId);
+        if (targetEnemy) resolveDefeatOrResurrect(battle, runState, targetEnemy);
+      }
+      checkVictory(battle);
       enemyActions.push({ enemyId: enemy.instanceId, stunned: false, intent: enemy.intent, result });
     }
     tickTurnEnd(enemy);

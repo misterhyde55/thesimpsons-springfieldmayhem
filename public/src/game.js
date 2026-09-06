@@ -481,6 +481,19 @@ export class Game {
       this.openInteriorShop();
       return;
     }
+    if (interaction.special === 'combat') {
+      // Mirrors the 'abilityDraft' case below: this ends the visit here
+      // rather than through leaveInterior, since victory (or an ability
+      // draft after it) goes straight back to the map.
+      this.interiorActionsRemaining -= 1;
+      this.runState.world.locationFlags.moesRegularsFought = true;
+      markLocationVisited(this.runState, this.interiorLocationId);
+      this.currentLocationId = this.interiorLocationId;
+      this.currentLocation = LOCATIONS[this.interiorLocationId];
+      saveActiveRun(this.runState);
+      this.enterBattleForLocationContent(this.interiorLocationId, interaction.combatContent);
+      return;
+    }
     if (interaction.special === 'abilityDraft') {
       // Taking this ends the visit on the spot (same as the old rest-node
       // "LEARN ABILITY" option) -- mark the location visited now, since
