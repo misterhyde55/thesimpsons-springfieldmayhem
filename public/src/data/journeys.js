@@ -1,3 +1,5 @@
+import { wheresBarneyCemeteryContent, missingOfficersReportContent } from './quests.js';
+
 // A "journey" is a character's whole episode: three segments, each
 // activating its own Horror Rule (which then stays active -- see
 // systems/episodeManager.js / game.js activateCurrentSegmentRule). Unlike
@@ -37,7 +39,7 @@ export const JOURNEYS = {
           androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble'] },
           bowlarama: { type: 'event', eventPool: ['bowlaramaFrame'] },
           springfieldHospital: { type: 'event', eventPool: ['hospitalTriage'] },
-          burnsManor: { type: 'combat', enemyIds: ['zombieComicBookGuy', 'zombieRalph'] },
+          burnsManor: { type: 'combat', enemyIds: ['zombieComicBookGuy', 'zombieRalph'], questResolution: 'officersFound' },
           retirementCastle: { type: 'event', eventPool: ['grampasStory'] },
           springfieldChurch: { type: 'event', eventPool: ['churchConfession'] },
           springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieSnake', 'zombieGrandpa'] },
@@ -60,7 +62,7 @@ export const JOURNEYS = {
           androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble'] },
           bowlarama: { type: 'combat', enemyIds: ['zombieMilhouse'] },
           springfieldHospital: { type: 'event', eventPool: ['hospitalTriage'] },
-          burnsManor: { type: 'combat', enemyIds: ['zombieWiggum', 'abductedCitizen'] },
+          burnsManor: { type: 'combat', enemyIds: ['zombieWiggum', 'abductedCitizen'], questResolution: 'officersFound' },
           retirementCastle: { type: 'event', eventPool: ['grampasStory'] },
           springfieldChurch: { type: 'event', eventPool: ['churchConfession'] },
           springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieSnake', 'alienEnforcer'] },
@@ -91,7 +93,7 @@ export const JOURNEYS = {
           // The "Hospital" encounter combo: Hibbert keeps healing the
           // Nurses, changing who's worth focusing down first.
           springfieldHospital: { type: 'combat', enemyIds: ['zombieHibbert', 'zombieNurse', 'zombieNurse'] },
-          burnsManor: { type: 'combat', elite: true, enemyIds: ['zombieKrustyDeluxe'] },
+          burnsManor: { type: 'combat', elite: true, enemyIds: ['zombieKrustyDeluxe'], questResolution: 'officersFound' },
           retirementCastle: { type: 'event', eventPool: ['grampasStory'] },
           springfieldChurch: { type: 'event', eventPool: ['churchConfession'] },
           springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieSnake', 'zombieKrustyDeluxe'] },
@@ -122,5 +124,22 @@ export function getLocationContent(runState, locationId) {
     if (runState.world.locationFlags.devilNedDefeated) return null;
     return { type: 'boss', bossId: 'devilNed' };
   }
-  return getSegment(runState.character.id, runState.segmentIndex).content[locationId] || null;
+
+  const segment = getSegment(runState.character.id, runState.segmentIndex);
+
+  // Quest 1 (WHERE'S BARNEY?, started at Moe's Tavern): overrides Springfield
+  // Cemetery's normal content with the FIGHT/CURE/RUN encounter, as long as
+  // the Cemetery isn't this segment's own scripted boss fight (Segment III).
+  if (locationId === 'springfieldCemetery' && runState.quests.wheresBarney === 'active' && segment.bossLocationId !== 'springfieldCemetery') {
+    return wheresBarneyCemeteryContent();
+  }
+
+  // Quest 3 (THE MISSING OFFICERS, started at Police Station, resolved at
+  // Burns Manor): once resolved, the next visit to Police Station offers
+  // the report-back-and-collect-reward beat instead of its normal content.
+  if (locationId === 'policeStation' && runState.quests.missingOfficers === 'resolved') {
+    return missingOfficersReportContent();
+  }
+
+  return segment.content[locationId] || null;
 }

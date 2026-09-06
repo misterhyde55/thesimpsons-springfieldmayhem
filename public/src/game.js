@@ -19,6 +19,7 @@ import { pickTravelScene, pickSceneLine } from './data/scenes.js';
 import { rollTravelEvent } from './data/travelEvents.js';
 import { pickTreehouseScene } from './data/treehouseScenes.js';
 import { DEVIL_DEALS } from './data/devilDeals.js';
+import { applyQuestResolution } from './data/quests.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
 import { getCurrentSegment, isFinalSegment, isSegmentComplete, isBossLocationUnlocked, markLocationVisited } from './systems/board.js';
@@ -425,13 +426,19 @@ export class Game {
       return;
     }
 
-    // First Church of Springfield stays revisitable once corrupted (see
-    // data/journeys.js getLocationContent) even if it was already visited
-    // earlier this segment for its normal confession event -- it's now
-    // offering something new. getLocationContent itself returns null again
-    // once Devil Ned is actually defeated (locationFlags.devilNedDefeated).
-    const isCorruptedChurch = locationId === 'springfieldChurch' && this.runState.world.locationFlags.hasDevilPortal;
-    const alreadyVisited = !isCorruptedChurch && this.runState.world.segmentVisitedLocationIds.includes(locationId);
+    // A few locations stay revisitable this segment even after their normal
+    // content is used up, because a quest or callback has put something new
+    // there -- First Church of Springfield once Devil Ned corrupts it
+    // (data/journeys.js getLocationContent, until he's actually defeated),
+    // Springfield Cemetery while WHERE'S BARNEY? is active, and Police
+    // Station once THE MISSING OFFICERS is ready to be reported.
+    const hasPendingLocationOverride =
+      (locationId === 'springfieldChurch' && this.runState.world.locationFlags.hasDevilPortal && !this.runState.world.locationFlags.devilNedDefeated) ||
+      (locationId === 'springfieldCemetery' &&
+        this.runState.quests.wheresBarney === 'active' &&
+        getCurrentSegment(this.runState).bossLocationId !== 'springfieldCemetery') ||
+      (locationId === 'policeStation' && this.runState.quests.missingOfficers === 'resolved');
+    const alreadyVisited = !hasPendingLocationOverride && this.runState.world.segmentVisitedLocationIds.includes(locationId);
     const content = alreadyVisited ? null : getLocationContent(this.runState, locationId);
     if (!content) {
       markLocationVisited(this.runState, locationId);
@@ -446,9 +453,40 @@ export class Game {
 
     if (content.type === 'event') {
       this.showEventScreenForLocation(locationId, content);
+    } else if (content.type === 'questChoice') {
+      this.showQuestChoiceScreen(locationId, content);
     } else {
       this.enterBattleForLocationContent(locationId, content);
     }
+  }
+
+  // ---------- QUEST CHOICE (data/quests.js) ----------
+  // Reuses the ordinary event screen/UI (same {title, prompt, options}
+  // shape) since a quest beat is just an event whose options can also lead
+  // into a real fight instead of resolving inline -- see
+  // data/quests.js wheresBarneyCemeteryContent for why FIGHT needs this and
+  // an ordinary event option doesn't.
+  showQuestChoiceScreen(locationId, content) {
+    screens.showScreen('screen-event');
+    screens.populateEvent(content, (option) => {
+      this.pendingQuestChoice = option;
+      return option.apply ? option.apply(this.runState) : '';
+    });
+    screens.showEventContinue(() => {
+      const option = this.pendingQuestChoice;
+      this.pendingQuestChoice = null;
+      if (option && option.leadsTo === 'combat') {
+        this.currentLocationId = locationId;
+        this.currentLocation = LOCATIONS[locationId];
+        this.runState.world.currentLocationId = locationId;
+        this.enterBattleForLocationContent(locationId, option.combatContent);
+        return;
+      }
+      this.increaseMayhem(5);
+      markLocationVisited(this.runState, locationId);
+      saveActiveRun(this.runState);
+      this.showBoard();
+    });
   }
 
   // ---------- EVENT (non-enterable locations) ----------
@@ -841,6 +879,7 @@ export class Game {
     this.battle = null;
 
     markLocationVisited(this.runState, locationId);
+    if (content.questResolution) applyQuestResolution(this.runState, content.questResolution);
     saveActiveRun(this.runState);
 
     // Devil Ned (optional boss, never a segment's real bossLocationId) has
