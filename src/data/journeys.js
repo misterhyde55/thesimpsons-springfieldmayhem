@@ -1,20 +1,21 @@
-// A "journey" is a character's whole episode: an ordered list of SEGMENTS,
-// each its own branching Springfield map (like the old single-board model,
-// just one per segment). `horrorRuleId` is the rule that segment activates
-// on entry -- see systems/episodeManager.js `advanceSegment`, which adds it
-// to runState.activeHorrorRuleIds and (critically) never removes an earlier
-// one, so by the last segment multiple rules are stacked and interacting
-// (data/horrorRules.js). A segment with `horrorRuleId: null` doesn't add a
-// new rule -- Segment III doesn't need one, since the point is that the
-// earlier two are now colliding.
+// A "journey" is a character's whole episode: three segments, each
+// activating its own Horror Rule (which then stays active -- see
+// systems/episodeManager.js / game.js activateCurrentSegmentRule). Unlike
+// the old per-segment branching path, all three segments now play out on
+// the SAME persistent Springfield map (data/worldMap.js) -- what changes
+// between segments is what's waiting at each location, tracked here as a
+// `content` table keyed by location id instead of a fresh node graph.
 //
-// Node ids only need to be unique within their own segment's `nodes` map,
-// but are prefixed (s1_/s2_/s3_) anyway to keep completedNodeIds globally
-// unambiguous. Field meanings are unchanged from the single-board model:
-// `type`: 'combat' | 'event' | 'shop' | 'rest' | 'boss'. `elite` marks a
-// harder combat node. `enemyIds` (combat/elite) point at data/enemies.js.
-// `eventPool` (event) points at data/events.js. `milestoneAbilityId`
-// guarantees a specific ability instead of the usual 3-choice draft.
+// `content[locationId]`: `{type: 'combat'|'event'|'boss', enemyIds,
+// eventPool, bossId, elite, milestoneAbilityId}`. Two locations
+// (kwikEMart, moesTavern) never appear in this table -- they're always
+// enterable interiors resolved by data/interiors.js instead, since their
+// whole point is reacting to whichever Horror Rules are active rather than
+// being a single fixed encounter.
+//
+// `bossLocationId` is gated in game.js behind having explored enough of
+// the rest of the map first (see isBossLocationUnlocked), so a segment
+// can't be beelined in one hop.
 export const JOURNEYS = {
   homer: {
     characterId: 'homer',
@@ -24,97 +25,13 @@ export const JOURNEYS = {
         horrorRuleId: 'zombieOutbreak',
         segmentTitle: 'Night of the Living Flanders',
         objective: 'Survive the outbreak. Get to the bottom of it.',
-        startNodeId: 's1_simpsonHouse',
-        nodes: {
-          s1_simpsonHouse: {
-            id: 's1_simpsonHouse',
-            type: 'combat',
-            locationId: 'simpsonHouse',
-            enemyIds: ['zombieMobGuy'],
-            name: '742 Evergreen Terrace',
-            emoji: '🏠',
-            x: 0.5,
-            y: 0.94,
-            next: ['s1_kwikEMart', 's1_flandersHouseElite', 's1_cemetery'],
-          },
-          s1_kwikEMart: {
-            id: 's1_kwikEMart',
-            type: 'shop',
-            locationId: 'kwikEMart',
-            name: 'Kwik-E-Mart',
-            emoji: '🏪',
-            x: 0.2,
-            y: 0.78,
-            next: ['s1_moesTavern'],
-          },
-          s1_flandersHouseElite: {
-            id: 's1_flandersHouseElite',
-            type: 'combat',
-            elite: true,
-            locationId: 'flandersHouse',
-            enemyIds: ['patientZeroFlanders'],
-            name: "Flanders' House",
-            emoji: '🏡',
-            x: 0.5,
-            y: 0.78,
-            next: ['s1_moesTavern'],
-          },
-          s1_cemetery: {
-            id: 's1_cemetery',
-            type: 'combat',
-            locationId: 'springfieldCemetery',
-            enemyIds: ['shamblingIntern', 'rabidStrayDog'],
-            name: 'Springfield Cemetery',
-            emoji: '⚰️',
-            x: 0.8,
-            y: 0.78,
-            next: ['s1_moesTavern'],
-          },
-          s1_moesTavern: {
-            id: 's1_moesTavern',
-            type: 'rest',
-            locationId: 'moesTavern',
-            name: "Moe's Tavern",
-            emoji: '🍺',
-            x: 0.5,
-            y: 0.6,
-            next: ['s1_nuclearPlantElite', 's1_elementaryMystery'],
-          },
-          s1_nuclearPlantElite: {
-            id: 's1_nuclearPlantElite',
-            type: 'combat',
-            elite: true,
-            locationId: 'nuclearPlant',
-            enemyIds: ['zombieHorde'],
-            name: 'Springfield Nuclear Power Plant',
-            emoji: '☢️',
-            x: 0.25,
-            y: 0.4,
-            next: ['s1_boss'],
-            milestoneAbilityId: 'nuclearUppercut',
-          },
-          s1_elementaryMystery: {
-            id: 's1_elementaryMystery',
-            type: 'event',
-            locationId: 'springfieldElementary',
-            eventPool: ['mysteriousButton', 'glowingDonut', 'kwikEMartRobbery', 'flandersNeedsHelp', 'lardLadDare'],
-            name: 'Springfield Elementary: The Halls',
-            emoji: '❓',
-            x: 0.75,
-            y: 0.4,
-            next: ['s1_boss'],
-          },
-          s1_boss: {
-            id: 's1_boss',
-            type: 'boss',
-            locationId: 'springfieldElementary',
-            bossId: 'zombieSkinner',
-            name: 'Springfield Elementary: Detention',
-            emoji: '🧟‍♂️',
-            x: 0.5,
-            y: 0.18,
-            next: [],
-          },
+        bossLocationId: 'springfieldElementary',
+        content: {
+          simpsonHouse: { type: 'combat', enemyIds: ['zombieMobGuy'] },
+          flandersHouse: { type: 'combat', elite: true, enemyIds: ['patientZeroFlanders'] },
+          springfieldCemetery: { type: 'combat', enemyIds: ['shamblingIntern', 'rabidStrayDog'] },
+          nuclearPlant: { type: 'combat', elite: true, enemyIds: ['zombieHorde'], milestoneAbilityId: 'nuclearUppercut' },
+          springfieldElementary: { type: 'boss', bossId: 'zombieSkinner' },
         },
       },
       {
@@ -122,97 +39,13 @@ export const JOURNEYS = {
         horrorRuleId: 'alienInvasion',
         segmentTitle: 'Invasion of the Homer Snatchers',
         objective: "Something's in the sky. Figure out what before it figures out you.",
-        startNodeId: 's2_simpsonHouse',
-        nodes: {
-          s2_simpsonHouse: {
-            id: 's2_simpsonHouse',
-            type: 'event',
-            locationId: 'simpsonHouse',
-            eventPool: ['strangeLights'],
-            name: '742 Evergreen Terrace',
-            emoji: '🏠',
-            x: 0.5,
-            y: 0.94,
-            next: ['s2_kwikEMart', 's2_schoolMilhouse', 's2_moesTavern'],
-          },
-          s2_kwikEMart: {
-            id: 's2_kwikEMart',
-            type: 'combat',
-            locationId: 'kwikEMart',
-            enemyIds: ['alienProbe'],
-            name: 'Kwik-E-Mart',
-            emoji: '🏪',
-            x: 0.18,
-            y: 0.78,
-            next: ['s2_flandersHouseElite'],
-          },
-          s2_schoolMilhouse: {
-            id: 's2_schoolMilhouse',
-            type: 'event',
-            locationId: 'springfieldElementary',
-            eventPool: ['milhouseTrustTest'],
-            name: 'Springfield Elementary',
-            emoji: '🏫',
-            x: 0.5,
-            y: 0.78,
-            next: ['s2_flandersHouseElite'],
-          },
-          s2_moesTavern: {
-            id: 's2_moesTavern',
-            type: 'rest',
-            locationId: 'moesTavern',
-            name: "Moe's Tavern",
-            emoji: '🍺',
-            x: 0.82,
-            y: 0.78,
-            next: ['s2_flandersHouseElite'],
-          },
-          s2_flandersHouseElite: {
-            id: 's2_flandersHouseElite',
-            type: 'combat',
-            elite: true,
-            locationId: 'flandersHouse',
-            enemyIds: ['alienEnforcer'],
-            name: "Flanders' House",
-            emoji: '🏡',
-            x: 0.5,
-            y: 0.6,
-            next: ['s2_cemetery', 's2_nuclearMystery'],
-            milestoneAbilityId: 'meltdown',
-          },
-          s2_cemetery: {
-            id: 's2_cemetery',
-            type: 'combat',
-            locationId: 'springfieldCemetery',
-            enemyIds: ['abductedCitizen', 'abductedCitizen'],
-            name: 'Springfield Cemetery',
-            emoji: '⚰️',
-            x: 0.25,
-            y: 0.4,
-            next: ['s2_boss'],
-          },
-          s2_nuclearMystery: {
-            id: 's2_nuclearMystery',
-            type: 'event',
-            locationId: 'nuclearPlant',
-            eventPool: ['glowingDonut', 'snakesShakedown'],
-            name: 'Springfield Nuclear Power Plant',
-            emoji: '☢️',
-            x: 0.75,
-            y: 0.4,
-            next: ['s2_boss'],
-          },
-          s2_boss: {
-            id: 's2_boss',
-            type: 'boss',
-            locationId: 'nuclearPlant',
-            bossId: 'kodos',
-            name: 'Springfield Nuclear Power Plant: The Reactor Core',
-            emoji: '👽',
-            x: 0.5,
-            y: 0.18,
-            next: [],
-          },
+        bossLocationId: 'nuclearPlant',
+        content: {
+          simpsonHouse: { type: 'event', eventPool: ['strangeLights'] },
+          flandersHouse: { type: 'combat', elite: true, enemyIds: ['alienEnforcer'], milestoneAbilityId: 'meltdown' },
+          springfieldElementary: { type: 'event', eventPool: ['milhouseTrustTest'] },
+          springfieldCemetery: { type: 'combat', enemyIds: ['abductedCitizen', 'abductedCitizen'] },
+          nuclearPlant: { type: 'boss', bossId: 'kodos' },
         },
       },
       {
@@ -220,96 +53,13 @@ export const JOURNEYS = {
         horrorRuleId: null,
         segmentTitle: 'When Horrors Collide',
         objective: 'Springfield is unrecognizable. Finish this, however it ends.',
-        startNodeId: 's3_simpsonHouse',
-        nodes: {
-          s3_simpsonHouse: {
-            id: 's3_simpsonHouse',
-            type: 'combat',
-            locationId: 'simpsonHouse',
-            enemyIds: ['zombieMobGuy'],
-            name: '742 Evergreen Terrace',
-            emoji: '🏠',
-            x: 0.5,
-            y: 0.94,
-            next: ['s3_kwikEMart', 's3_cemeteryElite', 's3_flandersHouseElite'],
-          },
-          s3_kwikEMart: {
-            id: 's3_kwikEMart',
-            type: 'shop',
-            locationId: 'kwikEMart',
-            name: 'Kwik-E-Mart',
-            emoji: '🏪',
-            x: 0.2,
-            y: 0.78,
-            next: ['s3_moesTavern'],
-          },
-          s3_cemeteryElite: {
-            id: 's3_cemeteryElite',
-            type: 'combat',
-            elite: true,
-            locationId: 'springfieldCemetery',
-            enemyIds: ['zombieHorde'],
-            name: 'Springfield Cemetery',
-            emoji: '⚰️',
-            x: 0.5,
-            y: 0.78,
-            next: ['s3_moesTavern'],
-          },
-          s3_flandersHouseElite: {
-            id: 's3_flandersHouseElite',
-            type: 'combat',
-            elite: true,
-            locationId: 'flandersHouse',
-            enemyIds: ['alienEnforcer'],
-            name: "Flanders' House",
-            emoji: '🏡',
-            x: 0.8,
-            y: 0.78,
-            next: ['s3_moesTavern'],
-          },
-          s3_moesTavern: {
-            id: 's3_moesTavern',
-            type: 'rest',
-            locationId: 'moesTavern',
-            name: "Moe's Tavern",
-            emoji: '🍺',
-            x: 0.5,
-            y: 0.6,
-            next: ['s3_nuclearPlant', 's3_elementaryMystery'],
-          },
-          s3_nuclearPlant: {
-            id: 's3_nuclearPlant',
-            type: 'combat',
-            locationId: 'nuclearPlant',
-            enemyIds: ['abductedCitizen', 'shamblingIntern'],
-            name: 'Springfield Nuclear Power Plant',
-            emoji: '☢️',
-            x: 0.25,
-            y: 0.4,
-            next: ['s3_boss'],
-          },
-          s3_elementaryMystery: {
-            id: 's3_elementaryMystery',
-            type: 'event',
-            locationId: 'springfieldElementary',
-            eventPool: ['glowingDonut', 'kwikEMartRobbery'],
-            name: 'Springfield Elementary',
-            emoji: '❓',
-            x: 0.75,
-            y: 0.4,
-            next: ['s3_boss'],
-          },
-          s3_boss: {
-            id: 's3_boss',
-            type: 'boss',
-            locationId: 'springfieldCemetery',
-            bossId: 'kangKodos',
-            name: 'Springfield Cemetery: Ground Zero',
-            emoji: '👽',
-            x: 0.5,
-            y: 0.18,
-            next: [],
-          },
+        bossLocationId: 'springfieldCemetery',
+        content: {
+          simpsonHouse: { type: 'combat', enemyIds: ['zombieMobGuy'] },
+          flandersHouse: { type: 'combat', elite: true, enemyIds: ['alienEnforcer'] },
+          springfieldElementary: { type: 'event', eventPool: ['glowingDonut', 'kwikEMartRobbery'] },
+          nuclearPlant: { type: 'combat', enemyIds: ['abductedCitizen', 'shamblingIntern'] },
+          springfieldCemetery: { type: 'boss', bossId: 'kangKodos' },
         },
       },
     ],
@@ -326,4 +76,8 @@ export function getSegment(characterId, segmentIndex) {
 
 export function getSegmentCount(characterId) {
   return getJourney(characterId).segments.length;
+}
+
+export function getLocationContent(runState, locationId) {
+  return getSegment(runState.character.id, runState.segmentIndex).content[locationId] || null;
 }

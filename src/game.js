@@ -12,16 +12,14 @@ import { rollProductChoices } from './data/products.js';
 import { resolveEnding } from './data/endings.js';
 import { pickCouchGag } from './data/couchGags.js';
 import { getCharacterInfo } from './data/characterRegistry.js';
+import { getLocationContent } from './data/journeys.js';
+import { getReachableLocationIds } from './data/worldMap.js';
+import { INTERIORS, getInteriorState, checkRandomInterrupt } from './data/interiors.js';
+import { pickTravelScene, pickSceneLine } from './data/scenes.js';
+import { rollTravelEvent } from './data/travelEvents.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
-import {
-  getCurrentSegment,
-  isFinalSegment,
-  getNode,
-  getAvailableNodeIds,
-  markNodeCompleted,
-  isSegmentComplete,
-} from './systems/board.js';
+import { getCurrentSegment, isFinalSegment, isSegmentComplete, isBossLocationUnlocked, markLocationVisited } from './systems/board.js';
 import {
   createBattle,
   playAbility,
@@ -32,8 +30,8 @@ import {
   syncRunStateFromBattle,
 } from './systems/battleEngine.js';
 import { rollAbilityChoices, learnAbility } from './systems/abilityDraft.js';
-import { restHeal, getShopCatalog, purchaseEntry } from './systems/economy.js';
-import { shiftRelationship, moeSupportsInBossFight, moeGreeting } from './systems/relationships.js';
+import { getShopCatalog, purchaseEntry } from './systems/economy.js';
+import { moeSupportsInBossFight } from './systems/relationships.js';
 import { checkCallback } from './systems/callbackEngine.js';
 
 import {
@@ -50,26 +48,42 @@ import {
   clearActiveRun,
 } from './state/gameState.js';
 import * as screens from './ui/screens.js';
-import { renderBoard, animateMarkerMove, findNodeAtPoint } from './ui/boardView.js';
+import { renderWorldMap, animateTravelMarker, findLocationAtPoint } from './ui/worldMapView.js';
 
 // Once a run's Mayhem meter crosses this, locations show their
 // `flavorCorrupted` line instead of `flavorNormal` -- Springfield visibly
 // getting worse as the episode goes on rather than flipping all at once.
 const CORRUPTION_MAYHEM_THRESHOLD = 50;
 
+// How many actions (interactions) a location interior visit grants -- "the
+// player can't investigate everything" is the point, see data/interiors.js.
+const INTERIOR_STARTING_ACTIONS = 3;
+
 export class Game {
   constructor() {
     this.meta = loadMeta();
 
     this.runState = null;
-    this.currentNode = null;
-    this.currentLocation = null;
     this.battle = null;
     this.pendingAbilityId = null;
     this.pendingCharacterId = null;
     this.pendingEpisode = null;
     this.boardRunning = false;
     this.mainMenuNav = null;
+
+    // Set while resolving a map location's combat/event content (see
+    // arriveAt) -- currentLocation is also read by battle flavor lookups
+    // and the ability-draft/finalizeRun "where did this happen" text.
+    this.currentLocationId = null;
+    this.currentLocation = null;
+    this.pendingLocationContent = null;
+
+    // Set while a location interior scene (Kwik-E-Mart, Moe's Tavern) is
+    // open -- see enterInteriorScreen.
+    this.interiorLocationId = null;
+    this.interiorStateId = null;
+    this.interiorState = null;
+    this.interiorActionsRemaining = 0;
 
     document.getElementById('boardCanvas').addEventListener('click', (e) => this.handleBoardClick(e));
     document.getElementById('btn-news-continue').addEventListener('click', () => this.continueAfterNews());
@@ -236,19 +250,18 @@ export class Game {
     this.enterBoardScreen();
   }
 
-  // ---------- BOARD ----------
+  // ---------- SPRINGFIELD MAP ----------
   showBoard() {
-    this.currentNode = null;
+    this.currentLocationId = null;
     this.enterBoardScreen();
   }
 
   enterBoardScreen() {
-    this.currentNode = null;
     screens.showScreen('screen-board');
     const segment = getCurrentSegment(this.runState);
-    const availableIds = getAvailableNodeIds(this.runState);
-    const nextNode = availableIds.length === 1 ? getNode(this.runState, availableIds[0]) : null;
-    screens.populateBoardInfo(this.runState, segment, nextNode);
+    const reachableIds = getReachableLocationIds(this.runState);
+    screens.populateBoardInfo(this.runState, segment, reachableIds.length);
+    screens.applyMapMayhemVisuals(this.runState.mayhem);
     this.startBoardLoop();
   }
 
@@ -257,7 +270,7 @@ export class Game {
     const canvas = document.getElementById('boardCanvas');
     const step = () => {
       if (!this.boardRunning) return;
-      renderBoard(canvas, this.runState);
+      renderWorldMap(canvas, this.runState);
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -265,6 +278,13 @@ export class Game {
 
   stopBoardLoop() {
     this.boardRunning = false;
+  }
+
+  isLocationClickable(locationId) {
+    if (!getReachableLocationIds(this.runState).includes(locationId)) return false;
+    const segment = getCurrentSegment(this.runState);
+    if (locationId === segment.bossLocationId && !isBossLocationUnlocked(this.runState)) return false;
+    return true;
   }
 
   handleBoardClick(e) {
@@ -275,13 +295,12 @@ export class Game {
     const scaleY = canvas.height / rect.height;
     const px = (e.clientX - rect.left) * scaleX;
     const py = (e.clientY - rect.top) * scaleY;
-    const node = findNodeAtPoint(canvas, this.runState, px, py);
-    if (!node) return;
-    if (!getAvailableNodeIds(this.runState).includes(node.id)) return;
+    const locationId = findLocationAtPoint(canvas, px, py);
+    if (!locationId || !this.isLocationClickable(locationId)) return;
 
     this.stopBoardLoop();
-    const fromId = this.runState.boardPosition;
-    animateMarkerMove(canvas, this.runState, fromId, node.id, 500, () => this.enterNode(node));
+    const fromId = this.runState.world.currentLocationId;
+    animateTravelMarker(canvas, this.runState, fromId, locationId, 500, () => this.travelTo(locationId));
   }
 
   increaseMayhem(amount) {
@@ -289,43 +308,170 @@ export class Game {
     this.runState.stats.peakMayhem = Math.max(this.runState.stats.peakMayhem, this.runState.mayhem);
   }
 
-  // ---------- NODE ENTRY ----------
-  enterNode(node) {
-    this.currentNode = node;
-    this.currentLocation = LOCATIONS[node.locationId];
-    if (node.type === 'shop') {
-      this.openShopAtNode(node);
-      return;
-    }
-    if (node.type === 'event') {
-      this.showEventScreen(node);
-      return;
-    }
-    if (node.type === 'rest') {
-      this.showRestScreen(node);
-      return;
-    }
-    this.enterBattleForNode(node);
+  // ---------- TRAVEL (atmospheric scene between locations) ----------
+  travelTo(locationId) {
+    const fromId = this.runState.world.currentLocationId;
+    const scene = pickTravelScene(this.runState);
+    const sceneLine = pickSceneLine(scene);
+    const travelEvent = rollTravelEvent(this.runState, fromId, locationId);
+    const outcome = travelEvent.apply(this.runState, fromId, locationId);
+    saveActiveRun(this.runState);
+
+    screens.showScreen('screen-travel');
+    screens.populateTravelScreen(scene, sceneLine, LOCATIONS[locationId].name, outcome, () => this.arriveAt(locationId));
   }
 
-  // ---------- SHOP ----------
-  openShopAtNode(node) {
-    const catalog = getShopCatalog(this.runState);
+  arriveAt(locationId) {
+    this.runState.world.currentLocationId = locationId;
+    saveActiveRun(this.runState);
+
+    if (INTERIORS[locationId]) {
+      this.enterInteriorScreen(locationId);
+      return;
+    }
+
+    const alreadyVisited = this.runState.world.segmentVisitedLocationIds.includes(locationId);
+    const content = alreadyVisited ? null : getLocationContent(this.runState, locationId);
+    if (!content) {
+      markLocationVisited(this.runState, locationId);
+      saveActiveRun(this.runState);
+      screens.showBanner('Nothing left here for now.', 1600);
+      this.showBoard();
+      return;
+    }
+
+    this.currentLocationId = locationId;
+    this.currentLocation = LOCATIONS[locationId];
+
+    if (content.type === 'event') {
+      this.showEventScreenForLocation(locationId, content);
+    } else {
+      this.enterBattleForLocationContent(locationId, content);
+    }
+  }
+
+  // ---------- EVENT (non-enterable locations) ----------
+  showEventScreenForLocation(locationId, content) {
+    const eventId = content.eventId || pickRandom(content.eventPool);
+    const event = getEvent(eventId);
+    screens.showScreen('screen-event');
+    screens.populateEvent(event, (option) => option.apply(this.runState));
+    screens.showEventContinue(() => {
+      this.increaseMayhem(5);
+      markLocationVisited(this.runState, locationId);
+      saveActiveRun(this.runState);
+      this.showBoard();
+    });
+  }
+
+  // ---------- LOCATION INTERIOR (enterable Springfield buildings) ----------
+  enterInteriorScreen(locationId) {
+    this.interiorLocationId = locationId;
+    const { stateId, state } = getInteriorState(locationId, this.runState);
+    this.interiorStateId = stateId;
+    this.interiorState = state;
+    this.interiorActionsRemaining = INTERIOR_STARTING_ACTIONS;
+    screens.showScreen('screen-location-interior');
+    this.refreshInteriorScreen();
+  }
+
+  refreshInteriorScreen() {
+    screens.populateLocationInterior(
+      LOCATIONS[this.interiorLocationId].name,
+      this.interiorState,
+      this.interiorActionsRemaining,
+      (interaction) => this.onInteriorInteract(interaction),
+      () => this.leaveInterior()
+    );
+    if (this.interiorActionsRemaining === 1) {
+      screens.showBanner('☠ SOMETHING IS APPROACHING. Make this one count.', 2000);
+    } else if (this.interiorActionsRemaining <= 0) {
+      screens.showBanner("You're out of time here.", 1600);
+    }
+  }
+
+  onInteriorInteract(interaction) {
+    if (this.interiorActionsRemaining <= 0) return;
+
+    if (interaction.special === 'shop') {
+      this.interiorActionsRemaining -= 1;
+      saveActiveRun(this.runState);
+      this.openInteriorShop();
+      return;
+    }
+    if (interaction.special === 'abilityDraft') {
+      // Taking this ends the visit on the spot (same as the old rest-node
+      // "LEARN ABILITY" option) -- mark the location visited now, since
+      // showAbilityDraftScreen's own callback goes straight back to the map
+      // rather than through leaveInterior.
+      markLocationVisited(this.runState, this.interiorLocationId);
+      this.increaseMayhem(5);
+      saveActiveRun(this.runState);
+      const choices = rollAbilityChoices(this.runState, 3);
+      this.showAbilityDraftScreen(this.interiorLocationId, choices, false);
+      return;
+    }
+
+    this.interiorActionsRemaining -= 1;
+    const result = interaction.run(this.runState);
+    saveActiveRun(this.runState);
+    screens.showInteriorResult(
+      result.text,
+      result.followUps,
+      (followUp) => this.onInteriorFollowUp(followUp),
+      () => this.afterInteriorResult()
+    );
+  }
+
+  onInteriorFollowUp(followUp) {
+    const result = followUp.run(this.runState);
+    saveActiveRun(this.runState);
+    screens.showInteriorResult(result.text, null, null, () => this.afterInteriorResult());
+  }
+
+  afterInteriorResult() {
+    const interrupt = checkRandomInterrupt(this.interiorLocationId, this.interiorStateId, this.runState);
+    if (interrupt) {
+      this.showInteriorRandomEvent(interrupt);
+      return;
+    }
+    this.refreshInteriorScreen();
+  }
+
+  // A location's own random event (e.g. Snake robbing the Kwik-E-Mart mid-
+  // visit) -- reuses data/events.js's {prompt, options[{label, apply,
+  // resultText}]} shape, rendered through the same result/follow-up panel
+  // as an ordinary conversation.
+  showInteriorRandomEvent(event) {
+    const followUps = event.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      run: (runState) => ({ text: option.apply(runState) || option.resultText || '' }),
+    }));
+    screens.showInteriorResult(
+      event.prompt,
+      followUps,
+      (followUp) => {
+        const result = followUp.run(this.runState);
+        saveActiveRun(this.runState);
+        screens.showInteriorResult(result.text, null, null, () => this.refreshInteriorScreen());
+      },
+      () => this.refreshInteriorScreen()
+    );
+  }
+
+  openInteriorShop() {
     screens.showShopModal(
-      catalog,
+      getShopCatalog(this.runState),
       "Apu's got what you need. For a price.",
       (entry) => {
-        if (purchaseEntry(this.runState, entry)) {
-          this.onShopPurchase(entry);
-          this.openShopAtNode(node);
-        }
+        if (purchaseEntry(this.runState, entry)) this.onShopPurchase(entry);
+        this.openInteriorShop();
       },
       () => {
         screens.hideShopModal();
-        this.increaseMayhem(5);
-        markNodeCompleted(this.runState, node.id);
         saveActiveRun(this.runState);
-        this.showBoard();
+        this.refreshInteriorScreen();
       }
     );
   }
@@ -337,89 +483,40 @@ export class Game {
     screens.showBanner(`${entry.item.emoji} ${entry.item.name}: ${entry.item.description}`, 1800);
   }
 
-  // ---------- EVENT ----------
-  showEventScreen(node) {
-    const eventId = node.eventId || pickRandom(node.eventPool);
-    const event = getEvent(eventId);
-    screens.showScreen('screen-event');
-    screens.populateEvent(event, (option) => option.apply(this.runState));
-    screens.showEventContinue(() => {
-      this.increaseMayhem(5);
-      markNodeCompleted(this.runState, node.id);
-      saveActiveRun(this.runState);
-      this.showBoard();
-    });
-  }
-
-  // ---------- REST ----------
-  showRestScreen(node) {
-    screens.showScreen('screen-rest');
-    screens.setRestFlavor('Catch your breath.');
-    if (this.currentLocation.hasMoeRelationship) {
-      screens.showNpcBanner('moe', moeGreeting(this.runState), 2200);
-    }
-    screens.populateRest(
-      node,
-      () => {
-        restHeal(this.runState);
-        screens.setRestFlavor('You feel fully refreshed.');
-        this.finishRestNode(node);
-      },
-      () => this.showRestAbilityLearn(node),
-      () => {
-        if (this.currentLocation.hasMoeRelationship) {
-          shiftRelationship(this.runState, 'moe', 1);
-          if (!this.runState.cast.includes('moe')) {
-            this.runState.cast.push('moe');
-            screens.setRestFlavor('Moe: "Eh, you\'re alright, Homer. Wanna tag along?" MOE HAS JOINED THE EPISODE.');
-          } else {
-            screens.setRestFlavor('Moe: "Eh, you\'re alright, Homer." (+Relationship)');
-          }
-        } else {
-          this.runState.donutsCurrency += 1;
-          screens.setRestFlavor('A local shares gossip (and a donut). +1 donut currency.');
-        }
-        this.finishRestNode(node);
-      }
-    );
-  }
-
-  finishRestNode(node) {
-    setTimeout(() => {
-      this.increaseMayhem(5);
-      markNodeCompleted(this.runState, node.id);
-      saveActiveRun(this.runState);
-      this.showBoard();
-    }, 1200);
-  }
-
-  showRestAbilityLearn(node) {
-    const choices = rollAbilityChoices(this.runState, 3);
-    this.showAbilityDraftScreen(node, choices, false);
+  leaveInterior() {
+    const locationId = this.interiorLocationId;
+    markLocationVisited(this.runState, locationId);
+    this.increaseMayhem(5);
+    this.interiorLocationId = null;
+    this.interiorStateId = null;
+    this.interiorState = null;
+    saveActiveRun(this.runState);
+    this.showBoard();
   }
 
   // ---------- BATTLE SETUP ----------
-  enterBattleForNode(node) {
-    if (node.type === 'boss') {
-      const bossTemplate = BOSSES[node.bossId];
+  enterBattleForLocationContent(locationId, content) {
+    if (content.type === 'boss') {
+      const bossTemplate = BOSSES[content.bossId];
       const callback = checkCallback(this.runState, 'bossIntro', { boss: bossTemplate });
       screens.showScreen('screen-boss-intro');
-      screens.populateBossIntro(bossTemplate, () => this.startBattleForNode(node, [bossTemplate], true));
+      screens.populateBossIntro(bossTemplate, () => this.startBattleForLocationContent(locationId, content, [bossTemplate], true));
       if (callback) {
         setTimeout(() => screens.showBanner(`${callback.title} ${callback.text}`, 2600), 500);
       }
       return;
     }
-    const enemyTemplates = node.enemyIds.map((id) => ENEMIES[id]);
-    this.startBattleForNode(node, enemyTemplates, false);
+    const enemyTemplates = content.enemyIds.map((id) => ENEMIES[id]);
+    this.startBattleForLocationContent(locationId, content, enemyTemplates, false);
   }
 
-  startBattleForNode(node, enemyTemplates, isBoss) {
+  startBattleForLocationContent(locationId, content, enemyTemplates, isBoss) {
     if (isBoss && moeSupportsInBossFight(this.runState)) {
       this.runState.hp = Math.min(this.runState.maxHp, this.runState.hp + 30);
     }
 
-    this.battle = createBattle(this.runState, enemyTemplates, node.locationId, isBoss);
+    this.battle = createBattle(this.runState, enemyTemplates, locationId, isBoss);
+    this.pendingLocationContent = content;
 
     // CALLBACK! An earlier choice (see data/callbacks.js buttonActivates)
     // left a breadcrumb rather than acting immediately, since the boss
@@ -439,7 +536,7 @@ export class Game {
     });
 
     if (isBoss) {
-      screens.showNpcBanner(node.bossId, BOSSES[node.bossId].intro, 2400);
+      screens.showNpcBanner(content.bossId, BOSSES[content.bossId].intro, 2400);
     } else {
       const corrupted = this.runState.mayhem >= CORRUPTION_MAYHEM_THRESHOLD;
       const flavor = corrupted ? this.currentLocation.flavorCorrupted : this.currentLocation.flavorNormal;
@@ -566,13 +663,14 @@ export class Game {
 
   // ---------- BATTLE END ----------
   onBattleVictory() {
-    const node = this.currentNode;
+    const locationId = this.currentLocationId;
+    const content = this.pendingLocationContent;
     this.runState.stats.enemiesDefeated += this.battle.enemies.length;
-    if (node.elite) this.runState.stats.elitesDefeated += 1;
-    this.increaseMayhem(node.type === 'boss' ? 0 : node.elite ? 15 : 8);
+    if (content.elite) this.runState.stats.elitesDefeated += 1;
+    this.increaseMayhem(content.type === 'boss' ? 0 : content.elite ? 15 : 8);
     this.battle = null;
 
-    markNodeCompleted(this.runState, node.id);
+    markLocationVisited(this.runState, locationId);
     saveActiveRun(this.runState);
 
     if (isSegmentComplete(this.runState)) {
@@ -580,10 +678,10 @@ export class Game {
       return;
     }
 
-    const milestoneId = node.milestoneAbilityId;
+    const milestoneId = content.milestoneAbilityId;
     const milestoneAbility = milestoneId && !this.runState.abilityDeck.includes(milestoneId) ? ABILITIES[milestoneId] : null;
     const choices = milestoneAbility ? [milestoneAbility] : rollAbilityChoices(this.runState, 3);
-    this.showAbilityDraftScreen(node, choices, !!milestoneAbility);
+    this.showAbilityDraftScreen(locationId, choices, !!milestoneAbility);
   }
 
   onSegmentBossVictory() {
@@ -599,11 +697,11 @@ export class Game {
     this.finalizeRun(false);
   }
 
-  showAbilityDraftScreen(node, choices, milestone) {
+  showAbilityDraftScreen(locationId, choices, milestone) {
     screens.showScreen('screen-ability-draft');
     screens.populateAbilityDraft(
       {
-        locationName: this.currentLocation ? this.currentLocation.name : node.name,
+        locationName: this.currentLocation ? this.currentLocation.name : LOCATIONS[locationId]?.name || 'Springfield',
         hpRemaining: this.runState.hp,
         maxHp: this.runState.maxHp,
         mayhem: this.runState.mayhem,
@@ -641,7 +739,8 @@ export class Game {
 
   advanceToNextSegment() {
     this.runState.segmentIndex += 1;
-    this.runState.boardPosition = null;
+    this.runState.world.currentLocationId = null;
+    this.runState.world.segmentVisitedLocationIds = [];
     this.activateCurrentSegmentRule();
     saveActiveRun(this.runState);
     this.showSegmentTitleCard();
@@ -650,7 +749,7 @@ export class Game {
   // ---------- END OF RUN ----------
   finalizeRun(victory) {
     const stats = this.runState.stats;
-    const nodesCleared = this.runState.completedNodeIds.size;
+    const nodesCleared = this.runState.world.visitedLocationIds.length;
 
     const ending = resolveEnding(this.runState, { victory, stats });
     const couchGag = pickCouchGag(ending.id);

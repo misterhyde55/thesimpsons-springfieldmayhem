@@ -19,13 +19,14 @@ const SCREEN_IDS = [
   'screen-settings',
   'screen-simpson-house',
   'screen-board',
+  'screen-travel',
+  'screen-location-interior',
   'screen-breaking-news',
   'screen-boss-intro',
   'screen-battle',
   'screen-ability-draft',
   'screen-commercial-break',
   'screen-event',
-  'screen-rest',
   'screen-run-complete',
   'screen-run-failure',
 ];
@@ -39,6 +40,8 @@ const FULL_BLEED_SCREEN_IDS = new Set([
   'screen-battle',
   'screen-boss-intro',
   'screen-commercial-break',
+  'screen-travel',
+  'screen-location-interior',
 ]);
 
 const $ = (id) => document.getElementById(id);
@@ -240,14 +243,16 @@ export function bindSettings(onReset, onBack) {
 }
 
 // ---------- BOARD ----------
-export function populateBoardInfo(runState, segment, node) {
+export function populateBoardInfo(runState, segment, reachableCount) {
   $('board-episode-title').textContent = `"${runState.episode.title}"`;
   const activeRules = runState.activeHorrorRuleIds.map((id) => HORROR_RULES[id]).filter(Boolean);
   $('board-episode-modifier').textContent = activeRules.length
     ? activeRules.map((r) => `${r.icon} ${r.name}`).join(' + ')
     : segment.segmentTitle;
   $('board-mayhem-readout').textContent = `☠️ MAYHEM: ${runState.mayhem}%`;
-  $('board-node-hint').textContent = node ? `Next up: ${node.name} (${node.type})` : 'Choose your next destination.';
+  $('board-node-hint').textContent = reachableCount
+    ? 'Tap a lit-up location to travel there.'
+    : 'No roads open from here. Something has gone very wrong.';
 
   const strip = $('board-cast-strip');
   strip.innerHTML = runState.cast
@@ -392,15 +397,24 @@ export function setBattleTargetingAbility(abilityId) {
 }
 
 // Springfield visibly corrupts as Mayhem climbs -- filter-only, no new DOM,
-// so it never gets in the way of reading the battle. Thresholds loosely
-// track data/episodes.js MAYHEM_BANDS (see style.css .battle-screen.mayhem-*).
+// so it never gets in the way of reading the battle (or the map). Thresholds
+// loosely track data/episodes.js MAYHEM_BANDS (see style.css .mayhem-*).
 const MAYHEM_VISUAL_CLASSES = ['mayhem-mid', 'mayhem-high', 'mayhem-max'];
-export function applyMayhemVisuals(mayhem) {
-  const el = $('screen-battle');
+function applyMayhemVisualsToElement(el, mayhem) {
   el.classList.remove(...MAYHEM_VISUAL_CLASSES);
   if (mayhem >= 100) el.classList.add('mayhem-max');
   else if (mayhem >= 70) el.classList.add('mayhem-high');
   else if (mayhem >= 40) el.classList.add('mayhem-mid');
+}
+
+export function applyMayhemVisuals(mayhem) {
+  applyMayhemVisualsToElement($('screen-battle'), mayhem);
+}
+
+// The Springfield map itself visibly corrupts too -- fog/hue-shift on the
+// canvas as Mayhem climbs, same tiers as the battle screen.
+export function applyMapMayhemVisuals(mayhem) {
+  applyMayhemVisualsToElement($('boardCanvas'), mayhem);
 }
 
 export function showFloatingNumber(enemyInstanceId, text, kind) {
@@ -596,16 +610,67 @@ export function showEventContinue(onContinue) {
   freshButton('btn-event-continue').addEventListener('click', onContinue);
 }
 
-// ---------- REST NODE ----------
-export function populateRest(node, onHeal, onLearnAbility, onTalk) {
-  $('rest-location').textContent = node.name;
-  freshButton('btn-rest-heal').addEventListener('click', onHeal);
-  freshButton('btn-rest-upgrade').addEventListener('click', onLearnAbility);
-  freshButton('btn-rest-talk').addEventListener('click', onTalk);
+// ---------- TRAVEL (atmospheric scene between locations) ----------
+export function populateTravelScreen(scene, sceneLine, destinationName, travelOutcome, onContinue) {
+  $('travel-scene-emoji').textContent = scene.emoji;
+  $('travel-scene-heading').textContent = `SPRINGFIELD -- EN ROUTE TO ${destinationName.toUpperCase()}`;
+  $('travel-scene-line').textContent = `"${sceneLine}"`;
+  const outcomeEl = $('travel-event-text');
+  if (travelOutcome && travelOutcome.text) {
+    outcomeEl.textContent = travelOutcome.text;
+    outcomeEl.classList.remove('hidden');
+  } else {
+    outcomeEl.classList.add('hidden');
+  }
+  freshButton('btn-travel-continue').addEventListener('click', onContinue);
 }
 
-export function setRestFlavor(text) {
-  $('rest-flavor').textContent = text;
+// ---------- LOCATION INTERIOR (enterable Springfield buildings) ----------
+export function populateLocationInterior(locationName, state, actionsRemaining, onInteract, onLeave) {
+  $('interior-location-name').textContent = locationName.toUpperCase();
+  $('interior-actions-readout').textContent = `ACTIONS REMAINING: ${actionsRemaining}`;
+  $('interior-background-emoji').textContent = state.background;
+  $('interior-intro-text').textContent = state.intro;
+  $('interior-result-panel').classList.add('hidden');
+
+  const container = $('interior-interactions');
+  container.innerHTML = '';
+  container.classList.remove('hidden');
+  for (const interaction of state.interactions) {
+    const btn = document.createElement('button');
+    btn.className = 'big-button interior-interaction-btn';
+    btn.disabled = actionsRemaining <= 0;
+    btn.innerHTML = `${interaction.label} <small>-${interaction.cost} action${interaction.cost === 1 ? '' : 's'}</small>`;
+    btn.addEventListener('click', () => onInteract(interaction));
+    container.appendChild(btn);
+  }
+  freshButton('btn-interior-leave').addEventListener('click', onLeave);
+}
+
+// Shows the outcome of one interaction (and, if it opened a conversation,
+// its free follow-up replies) in the result panel, hiding the interaction
+// list underneath until the player hits Continue.
+export function showInteriorResult(text, followUps, onPickFollowUp, onContinue) {
+  $('interior-interactions').classList.add('hidden');
+  const panel = $('interior-result-panel');
+  panel.classList.remove('hidden');
+  $('interior-result-text').textContent = text;
+
+  const followUpContainer = $('interior-followups');
+  followUpContainer.innerHTML = '';
+  if (followUps && followUps.length) {
+    for (const followUp of followUps) {
+      const btn = document.createElement('button');
+      btn.className = 'big-button secondary-button interior-followup-btn';
+      btn.textContent = followUp.label;
+      btn.addEventListener('click', () => onPickFollowUp(followUp));
+      followUpContainer.appendChild(btn);
+    }
+  }
+
+  const continueBtn = freshButton('btn-interior-result-continue');
+  continueBtn.classList.toggle('hidden', !!(followUps && followUps.length));
+  continueBtn.addEventListener('click', onContinue);
 }
 
 // ---------- RUN END ----------
