@@ -132,8 +132,23 @@ export function createRunState(character) {
     firedCallbackIds: [],
     pendingCallbackEffects: {},
     episode: null,
-    boardPosition: null,
-    completedNodeIds: new Set(),
+    // Springfield: a single persistent map shared across all three segments
+    // (data/worldMap.js). `currentLocationId` is where the player is
+    // standing right now (null = still at home, the segment's start point).
+    // `segmentVisitedLocationIds` resets every segment (systems/board.js
+    // isBossLocationUnlocked reads it); everything else about the town is
+    // permanent run memory, per the "locations remember what happened"
+    // design -- a blocked road or a discovered secret stays that way even
+    // after Springfield changes Horror Rules.
+    world: {
+      currentLocationId: null,
+      segmentVisitedLocationIds: [],
+      visitedLocationIds: [],
+      blockedRoads: [],
+      locationFlags: {},
+      locationStates: {},
+      secretsFoundIds: [],
+    },
   };
 }
 
@@ -142,7 +157,6 @@ export function serializeRunState(runState) {
     ...runState,
     character: undefined,
     characterId: runState.character.id,
-    completedNodeIds: Array.from(runState.completedNodeIds),
   };
 }
 
@@ -150,7 +164,6 @@ export function deserializeRunState(obj) {
   return {
     ...obj,
     character: CHARACTERS[obj.characterId],
-    completedNodeIds: new Set(obj.completedNodeIds),
   };
 }
 

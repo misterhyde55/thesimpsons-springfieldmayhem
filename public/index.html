@@ -136,6 +136,36 @@
     <p id="board-node-hint" class="hint">Choose your next destination.</p>
   </section>
 
+  <!-- ================= TRAVEL (atmospheric scene between locations) ================= -->
+  <section id="screen-travel" class="screen travel-screen">
+    <div class="travel-scene">
+      <div id="travel-scene-emoji" class="travel-scene-emoji">🌃</div>
+      <div id="travel-scene-heading" class="travel-scene-heading">SPRINGFIELD -- 11:47 PM</div>
+      <p id="travel-scene-line" class="travel-scene-line">"The streets are unusually quiet..."</p>
+      <p id="travel-event-text" class="travel-event-text hidden"></p>
+      <button id="btn-travel-continue" class="big-button">CONTINUE</button>
+    </div>
+  </section>
+
+  <!-- ================= LOCATION INTERIOR (enterable Springfield buildings) ================= -->
+  <section id="screen-location-interior" class="screen location-interior-screen">
+    <div class="interior-header">
+      <div id="interior-location-name" class="interior-location-name">Moe's Tavern</div>
+      <div id="interior-actions-readout" class="interior-actions-readout">ACTIONS REMAINING: 3</div>
+    </div>
+    <div id="interior-stage" class="interior-stage">
+      <div id="interior-background-emoji" class="interior-background-emoji">🍺</div>
+    </div>
+    <p id="interior-intro-text" class="interior-intro-text"></p>
+    <div id="interior-result-panel" class="interior-result-panel hidden">
+      <p id="interior-result-text"></p>
+      <div id="interior-followups" class="interior-followups"></div>
+      <button id="btn-interior-result-continue" class="menu-link-button">CONTINUE</button>
+    </div>
+    <div id="interior-interactions" class="interior-interactions"></div>
+    <button id="btn-interior-leave" class="big-button secondary-button">LEAVE</button>
+  </section>
+
   <!-- ================= BREAKING NEWS (horror scenario reveal) ================= -->
   <section id="screen-breaking-news" class="screen hidden">
     <div class="news-flash">
@@ -226,16 +256,6 @@
     </div>
   </section>
 
-  <!-- ================= REST NODE ================= -->
-  <section id="screen-rest" class="screen">
-    <div class="episode-card">
-      <h2 id="rest-location">Rest Stop</h2>
-      <p id="rest-flavor" class="flavor">Catch your breath.</p>
-      <button id="btn-rest-heal" class="big-button">HEAL</button>
-      <button id="btn-rest-upgrade" class="big-button secondary-button">LEARN ABILITY</button>
-      <button id="btn-rest-talk" class="big-button secondary-button">TALK TO NPC</button>
-    </div>
-  </section>
 
   <!-- ================= RUN COMPLETE ================= -->
   <section id="screen-run-complete" class="screen">
