@@ -82,6 +82,20 @@ export const ASSET_MANIFEST = {
   },
   // HUD/menu art not tied to a specific game entity.
   ui: {},
+  // Full-screen cinematic "story panel" artwork for major story beats (see
+  // data/treehouseScenes.js) -- illustrated Treehouse of Horror scenes, not
+  // to be confused with buildings/backgrounds above. Keyed by scene id, not
+  // by the raw filename, so a scene's art can be swapped later without
+  // touching data/treehouseScenes.js. Two uploaded images (the Bongo comic
+  // cover and the "everyone's fate" poster) aren't tied to a specific
+  // Horror Rule yet, so they're registered here for future use but have no
+  // TREEHOUSE_SCENES entry pointing at them yet.
+  treehouse: {
+    zombieOutbreak: `${BASE}/treehouse/Zombie%20Scene.jpg`,
+    alienInvasion: `${BASE}/treehouse/Treehouse%20of%20horror%202.jpg`,
+    anthologyCoverBongo18: `${BASE}/treehouse/Treehouse%20of%20Horror%201.jpeg`,
+    anthologyPosterFates: `${BASE}/treehouse/treehouse%20of%20horror%203.jpg`,
+  },
 };
 
 export function getAssetUrl(category, id) {

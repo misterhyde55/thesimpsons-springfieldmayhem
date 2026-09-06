@@ -17,6 +17,7 @@ import { getReachableLocationIds } from './data/worldMap.js';
 import { INTERIORS, getInteriorState, checkRandomInterrupt } from './data/interiors.js';
 import { pickTravelScene, pickSceneLine } from './data/scenes.js';
 import { rollTravelEvent } from './data/travelEvents.js';
+import { pickTreehouseScene } from './data/treehouseScenes.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
 import { getCurrentSegment, isFinalSegment, isSegmentComplete, isBossLocationUnlocked, markLocationVisited } from './systems/board.js';
@@ -242,12 +243,55 @@ export class Game {
       this.enterBoardScreen();
       return;
     }
+    const scene = pickTreehouseScene('horrorRuleActivated', {
+      horrorRuleId: segment.horrorRuleId,
+      segmentIndex: this.runState.segmentIndex,
+      mayhem: this.runState.mayhem,
+    });
+    if (scene) {
+      this.showStoryScene(scene);
+      return;
+    }
     screens.showScreen('screen-breaking-news');
     screens.populateBreakingNews(HORROR_RULES[segment.horrorRuleId].newsText);
   }
 
   continueAfterNews() {
     this.enterBoardScreen();
+  }
+
+  // ---------- STORY SCENE (cinematic Treehouse of Horror artwork moments) ----------
+  showStoryScene(scene) {
+    screens.showScreen('screen-story-scene');
+    screens.populateStoryScene(
+      scene,
+      (choice) => this.onStorySceneChoice(choice),
+      () => this.enterBoardScreen()
+    );
+  }
+
+  onStorySceneChoice(choice) {
+    const outcomeText = choice.apply(this.runState);
+    saveActiveRun(this.runState);
+    screens.showStorySceneOutcome(outcomeText, () => this.resolveStorySceneChoice(choice));
+  }
+
+  // The opening zombie scene's decision doubles as the first location
+  // encounter: FIGHT THROUGH THEM resolves 742 Evergreen Terrace's own
+  // combat content right here rather than making the player walk there on
+  // the map immediately after; every other choice just returns to the map
+  // with Evergreen Terrace still unresolved and waiting.
+  resolveStorySceneChoice(choice) {
+    if (choice.leadsTo !== 'combat') {
+      this.enterBoardScreen();
+      return;
+    }
+    const locationId = 'simpsonHouse';
+    const content = getLocationContent(this.runState, locationId);
+    this.currentLocationId = locationId;
+    this.currentLocation = LOCATIONS[locationId];
+    this.runState.world.currentLocationId = locationId;
+    this.enterBattleForLocationContent(locationId, content);
   }
 
   // ---------- SPRINGFIELD MAP ----------
