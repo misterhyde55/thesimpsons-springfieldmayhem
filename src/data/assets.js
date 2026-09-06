@@ -82,11 +82,11 @@ export const ASSET_MANIFEST = {
     zombieRalph: `${BASE}/characters/ralph.png`,
     zombieMilhouse: `${BASE}/characters/milhouse.png`,
     zombieBart: `${BASE}/characters/bart.png`,
-    zombieSkinnerZombie: `${BASE}/characters/principalskinner.png`,
     zombieComicBookGuy: `${BASE}/characters/comicbookguy.png`,
     zombieKrusty: `${BASE}/characters/krusty.png`,
     zombieKrustyDeluxe: `${BASE}/characters/krusty.png`,
     zombieGrandpa: `${BASE}/characters/grampa.png`,
+    zombieSkinnerZombie: `${BASE}/enemies/Principal%20Skinner%20Zombie.png`,
   },
   // data/bosses.js entries, keyed by boss id. Chief Wiggum and Mr. Burns reuse
   // their characters/ portrait here for the in-arena boss sprite -- one image
@@ -123,7 +123,9 @@ export const ASSET_MANIFEST = {
     mainMenu: `${BASE}/backgrounds/Homescreen.jfif`,
   },
   // HUD/menu art not tied to a specific game entity.
-  ui: {},
+  ui: {
+    springfieldMap: `${BASE}/ui/Springfieldmap2.png`,
+  },
   // Full-screen cinematic "story panel" artwork for major story beats (see
   // data/treehouseScenes.js) -- illustrated Treehouse of Horror scenes, not
   // to be confused with buildings/backgrounds above. Keyed by scene id, not
