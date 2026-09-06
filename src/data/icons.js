@@ -66,6 +66,7 @@ export const ICON_MANIFEST = {
     infect: `${BASE}/intent/infect.png`,
     buff: `${BASE}/intent/buff.png`,
     debuff: `${BASE}/intent/debuff.png`,
+    heal: `${BASE}/intent/heal.png`,
     summon: `${BASE}/intent/summon.png`,
     transform: `${BASE}/intent/transform.png`,
     phase: `${BASE}/intent/phase.png`,

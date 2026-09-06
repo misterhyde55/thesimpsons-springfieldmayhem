@@ -37,10 +37,10 @@ export const JOURNEYS = {
           androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble'] },
           bowlarama: { type: 'event', eventPool: ['bowlaramaFrame'] },
           springfieldHospital: { type: 'event', eventPool: ['hospitalTriage'] },
-          burnsManor: { type: 'combat', enemyIds: ['zombieGroundskeeper', 'undeadCafeteriaLady'] },
+          burnsManor: { type: 'combat', enemyIds: ['zombieComicBookGuy', 'zombieRalph'] },
           retirementCastle: { type: 'event', eventPool: ['grampasStory'] },
           springfieldChurch: { type: 'event', eventPool: ['churchConfession'] },
-          springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieHorde'] },
+          springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieSnake', 'zombieGrandpa'] },
         },
       },
       {
@@ -58,12 +58,12 @@ export const JOURNEYS = {
           policeStation: { type: 'event', eventPool: ['policeEvidenceRoom'] },
           krustyBurger: { type: 'event', eventPool: ['krustyBurgerCombo'] },
           androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble'] },
-          bowlarama: { type: 'event', eventPool: ['bowlaramaFrame'] },
+          bowlarama: { type: 'combat', enemyIds: ['zombieMilhouse'] },
           springfieldHospital: { type: 'event', eventPool: ['hospitalTriage'] },
-          burnsManor: { type: 'combat', enemyIds: ['abductedCitizen', 'abductedCitizen'] },
+          burnsManor: { type: 'combat', enemyIds: ['zombieWiggum', 'abductedCitizen'] },
           retirementCastle: { type: 'event', eventPool: ['grampasStory'] },
           springfieldChurch: { type: 'event', eventPool: ['churchConfession'] },
-          springfieldSewer: { type: 'combat', elite: true, enemyIds: ['alienEnforcer'] },
+          springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieSnake', 'alienEnforcer'] },
         },
       },
       {
@@ -75,18 +75,26 @@ export const JOURNEYS = {
         content: {
           simpsonHouse: { type: 'combat', enemyIds: ['zombieMobGuy'] },
           flandersHouse: { type: 'combat', elite: true, enemyIds: ['alienEnforcer'] },
-          springfieldElementary: { type: 'event', eventPool: ['glowingDonut', 'kwikEMartRobbery'] },
+          // The "School" encounter combo: Chalmers buffs the group and
+          // enrages if the Skinner-tagged unit falls first (see
+          // data/enemies.js zombieChalmers.onAllyDefeated).
+          springfieldElementary: { type: 'combat', enemyIds: ['zombieChalmers', 'zombieStudent', 'zombieSkinnerZombie'] },
           nuclearPlant: { type: 'combat', enemyIds: ['abductedCitizen', 'shamblingIntern'] },
           springfieldCemetery: { type: 'boss', bossId: 'kangKodos' },
-          policeStation: { type: 'event', eventPool: ['policeEvidenceRoom'] },
-          krustyBurger: { type: 'event', eventPool: ['krustyBurgerCombo'] },
-          androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble'] },
+          // By the finale even Wiggum and Krusty have turned.
+          policeStation: { type: 'combat', enemyIds: ['zombieWiggum'] },
+          krustyBurger: { type: 'combat', enemyIds: ['zombieKrusty'] },
+          // glowingDonut/kwikEMartRobbery moved here from springfieldElementary
+          // now that it's the School combo fight above.
+          androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble', 'glowingDonut', 'kwikEMartRobbery'] },
           bowlarama: { type: 'event', eventPool: ['bowlaramaFrame'] },
-          springfieldHospital: { type: 'event', eventPool: ['hospitalTriage'] },
-          burnsManor: { type: 'combat', elite: true, enemyIds: ['zombieHorde'] },
+          // The "Hospital" encounter combo: Hibbert keeps healing the
+          // Nurses, changing who's worth focusing down first.
+          springfieldHospital: { type: 'combat', enemyIds: ['zombieHibbert', 'zombieNurse', 'zombieNurse'] },
+          burnsManor: { type: 'combat', elite: true, enemyIds: ['zombieKrustyDeluxe'] },
           retirementCastle: { type: 'event', eventPool: ['grampasStory'] },
           springfieldChurch: { type: 'event', eventPool: ['churchConfession'] },
-          springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieHorde'] },
+          springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieSnake', 'zombieKrustyDeluxe'] },
         },
       },
     ],

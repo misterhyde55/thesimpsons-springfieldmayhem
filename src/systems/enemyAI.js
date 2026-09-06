@@ -1,6 +1,6 @@
 import { pickWeighted } from '../engine/collision.js';
 import { STATUS } from '../data/statusEffects.js';
-import { addStatus, computeOutgoingDamage, applyIncomingDamage } from './statusEngine.js';
+import { addStatus, computeOutgoingDamage, applyIncomingDamage, heal as healCombatant } from './statusEngine.js';
 
 // Enemies (and boss phases) declare a weighted `intents` list; this module
 // just picks one and later resolves it. Intent types: 'attack' (hits the
@@ -8,6 +8,18 @@ import { addStatus, computeOutgoingDamage, applyIncomingDamage } from './statusE
 // (Armor on self), 'buff' (Strength on self), 'infect' (Poison on player,
 // and -- via battleEngine.js -- raises the run's Infection meter), 'phase'
 // (Dodge on self; alien enemies "beaming" partway out of reality).
+//
+// Zombie-character mechanics (Priority 3, "at least 8 recognizable zombie
+// enemies... give each unique mechanics") added a few more: 'heal' (targets
+// the lowest-HP living ally, e.g. Zombie Dr. Hibbert), 'friendlyFire'
+// (damages a random OTHER living enemy, e.g. Zombie Wiggum's badly-handled
+// gear), 'buffAlly' (Strength on a random other living ally, e.g. Zombie
+// Chalmers rallying Skinner), 'weaken'/'confuse' (Weak/Vulnerable on the
+// player -- two flavors of debuff-talk, e.g. Comic Book Guy's condescension
+// vs. Grandpa's rambling stories), and 'steal'/'summon', which only tag
+// themselves here -- the actual currency/roster mutation needs runState or
+// the enemy-instance factory, so battleEngine.js's endPlayerTurn special-
+// cases those two the same way it already does 'infect'.
 function intentsForEnemy(enemy) {
   if (enemy.template.phases) {
     const hpPct = enemy.hp / enemy.maxHp;
@@ -34,6 +46,13 @@ const INTENT_ICON_IDS = {
   buff: 'buff',
   infect: 'infect',
   phase: 'phase',
+  heal: 'heal',
+  friendlyFire: 'attack',
+  buffAlly: 'buff',
+  weaken: 'debuff',
+  confuse: 'debuff',
+  steal: 'debuff',
+  summon: 'summon',
 };
 
 export function intentIconId(type) {
@@ -58,9 +77,29 @@ export function describeIntent(enemyName, intent) {
       return `${enemyName} will apply ${intent.value} Infection to you.`;
     case 'phase':
       return `${enemyName} will phase partway out of reality, gaining Dodge.`;
+    case 'heal':
+      return `${enemyName} will heal a wounded ally for ${intent.value}.`;
+    case 'friendlyFire':
+      return `${enemyName} will accidentally hit an ally for ${intent.value}.`;
+    case 'buffAlly':
+      return `${enemyName} will give an ally ${intent.value} Strength.`;
+    case 'weaken':
+      return `${enemyName} will apply ${intent.value} Weak to you.`;
+    case 'confuse':
+      return `${enemyName} will apply ${intent.value} Vulnerable to you.`;
+    case 'steal':
+      return `${enemyName} will try to steal up to ${intent.value} donuts.`;
+    case 'summon':
+      return `${enemyName} will call for backup.`;
     default:
       return `${enemyName}'s next move is unknown.`;
   }
+}
+
+// Living enemies other than `self` -- shared by the new ally-targeting
+// intents ('heal', 'friendlyFire', 'buffAlly') below.
+function aliveAllies(battle, self) {
+  return battle.enemies.filter((e) => e.hp > 0 && e.instanceId !== self.instanceId);
 }
 
 // Applies an enemy's already-rolled intent against the player, returning a
@@ -97,6 +136,42 @@ export function resolveEnemyIntent(battle, enemy) {
   if (intent.type === 'phase') {
     addStatus(enemy, STATUS.DODGE, intent.value);
     return { type: 'phase', value: intent.value };
+  }
+  if (intent.type === 'heal') {
+    const allies = aliveAllies(battle, enemy).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
+    const target = allies[0];
+    if (!target) return { type: 'none' };
+    const healed = healCombatant(target, intent.value);
+    return { type: 'heal', targetId: target.instanceId, value: healed };
+  }
+  if (intent.type === 'friendlyFire') {
+    const allies = aliveAllies(battle, enemy);
+    const target = allies[Math.floor(Math.random() * allies.length)];
+    if (!target) return { type: 'none' };
+    const { dealt } = applyIncomingDamage(target, intent.value);
+    return { type: 'friendlyFire', targetId: target.instanceId, value: dealt };
+  }
+  if (intent.type === 'buffAlly') {
+    const allies = aliveAllies(battle, enemy);
+    const target = allies[Math.floor(Math.random() * allies.length)] || enemy;
+    addStatus(target, STATUS.STRENGTH, intent.value);
+    return { type: 'buffAlly', targetId: target.instanceId, value: intent.value };
+  }
+  if (intent.type === 'weaken') {
+    addStatus(battle.player, STATUS.WEAK, intent.value);
+    return { type: 'weaken', value: intent.value };
+  }
+  if (intent.type === 'confuse') {
+    addStatus(battle.player, STATUS.VULNERABLE, intent.value);
+    return { type: 'confuse', value: intent.value };
+  }
+  // 'steal' and 'summon' just tag themselves -- battleEngine.js's
+  // endPlayerTurn does the actual currency/roster mutation, since that
+  // needs runState (for the former) or the enemy-instance factory and
+  // Horror Rule spawn hooks (for the latter), neither of which this module
+  // has without importing back into battleEngine.js and creating a cycle.
+  if (intent.type === 'steal' || intent.type === 'summon') {
+    return { type: intent.type, value: intent.value, summonId: intent.summonId };
   }
   return { type: 'none' };
 }

@@ -32,4 +32,8 @@ export const NPCS = {
   sideshowBob: { id: 'sideshowBob', name: 'Sideshow Bob', locationIds: [] },
   drHibbert: { id: 'drHibbert', name: 'Dr. Julius Hibbert', locationIds: ['springfieldHospital'] },
   lovejoy: { id: 'lovejoy', name: 'Reverend Timothy Lovejoy', locationIds: ['springfieldChurch'] },
+  lenny: { id: 'lenny', name: 'Lenny Leonard', locationIds: ['moesTavern', 'nuclearPlant'] },
+  carl: { id: 'carl', name: 'Carl Carlson', locationIds: ['moesTavern', 'nuclearPlant'] },
+  chalmers: { id: 'chalmers', name: 'Superintendent Chalmers', locationIds: ['springfieldElementary'] },
+  snake: { id: 'snake', name: 'Snake Jailbird', locationIds: [] },
 };
