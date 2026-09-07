@@ -1,7 +1,9 @@
 import { ABILITIES } from '../data/abilities.js';
 import { ENEMIES } from '../data/enemies.js';
+import { ITEMS } from '../data/items.js';
 import { STATUS } from '../data/statusEffects.js';
 import { getBattleEnvironment } from '../data/battleEnvironments.js';
+import { getLocationBattleEvent } from '../data/locationBattleEvents.js';
 import {
   getStatus,
   addStatus,
@@ -88,11 +90,24 @@ function notePlayerDamage(battle, runState, amount) {
 // Fired the instant any enemy's HP hits 0, before the victory check -- a
 // Horror Rule (e.g. Zombie Outbreak) can revive it here by setting enemy.hp
 // back above 0 and enemy.hasResurrected = true, which keeps it out of this
-// check for the rest of the battle.
-function resolveDefeatOrResurrect(battle, runState, enemy) {
+// check for the rest of the battle. A location battlefield event (e.g.
+// Cemetery's THE DEAD DON'T STAY DEAD, data/locationBattleEvents.js) gets
+// the next shot at reviving it, then the normal defeat reactions run.
+// `events` is optional -- only the two damage-dealing call sites below have
+// a live event log to push a 'locationRevive' notice into; the enemy-turn
+// friendly-fire call site has none, so its revival simply isn't announced.
+function resolveDefeatOrResurrect(battle, runState, enemy, events) {
   if (enemy.hp > 0 || enemy.hasResurrected) return;
   fireHooks(runState, 'onEnemyDefeated', battle, enemy);
   if (enemy.hp > 0 || enemy.hasResurrected) return; // a Horror Rule revived it -- no death reactions fire
+  const locEvent = getLocationBattleEvent(battle.locationId);
+  if (locEvent && locEvent.onEnemyDefeated) {
+    const revived = locEvent.onEnemyDefeated(battle, runState, enemy);
+    if (revived) {
+      if (events) events.push({ kind: 'locationRevive', targetId: enemy.instanceId, label: locEvent.label });
+      return;
+    }
+  }
   if (enemy.template.onDefeated) enemy.template.onDefeated(battle, runState, enemy);
   for (const ally of getAliveEnemies(battle)) {
     if (ally.template.onAllyDefeated) ally.template.onAllyDefeated(battle, runState, enemy, ally);
@@ -295,7 +310,7 @@ function buildBattleApi(battle, runState, targetEnemy, events) {
       const { dealt, dodged } = applyIncomingDamage(targetEnemy, outgoing);
       targetEnemy.damageTakenThisTurn += dealt;
       events.push({ kind: 'damage', targetId: targetEnemy.instanceId, amount: dealt, dodged });
-      resolveDefeatOrResurrect(battle, runState, targetEnemy);
+      resolveDefeatOrResurrect(battle, runState, targetEnemy, events);
       checkPhaseTransition(battle, runState, targetEnemy, events);
       checkVictory(battle);
       return dealt;
@@ -315,7 +330,7 @@ function buildBattleApi(battle, runState, targetEnemy, events) {
         const { dealt, dodged } = applyIncomingDamage(enemy, outgoing);
         enemy.damageTakenThisTurn += dealt;
         events.push({ kind: 'damage', targetId: enemy.instanceId, amount: dealt, dodged });
-        resolveDefeatOrResurrect(battle, runState, enemy);
+        resolveDefeatOrResurrect(battle, runState, enemy, events);
         checkPhaseTransition(battle, runState, enemy, events);
       }
       checkVictory(battle);
@@ -374,6 +389,15 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
 
   ability.effect(api);
   fireHooks(runState, 'onAbilityPlayed', battle, ability, targetEnemy);
+  // A location battlefield event reacting to HOW Homer just fought (e.g.
+  // Moe's BROKEN BOTTLES applying Bleeding to whatever a card hit) --
+  // separate from the run-wide hook above, keyed by battle.locationId
+  // instead of an equipped relic/rule (see data/locationBattleEvents.js).
+  const locEvent = getLocationBattleEvent(battle.locationId);
+  if (locEvent && locEvent.onAbilityPlayed) {
+    const message = locEvent.onAbilityPlayed(battle, runState, ability, targetEnemy, api);
+    if (message) events.push({ kind: 'locationEvent', message });
+  }
   // A per-enemy reaction to HOW Homer just fought (not a run-wide hook) --
   // e.g. Zombie Ned's Forgiveness counting attacks against him specifically.
   // Fires for every alive enemy, not just the one targeted, so an enemy can
@@ -505,9 +529,67 @@ export function endPlayerTurn(battle, runState) {
   drawCards(battle, HAND_SIZE);
   fireHooks(runState, 'onPlayerTurnStart', battle);
 
-  return { enemyActions, playerStunned: stunned };
+  // A location battlefield event's periodic tick (Nuclear Plant's radiation
+  // leak, Kwik-E-Mart's Squishee malfunction -- see
+  // data/locationBattleEvents.js). Most locations define no onTurnStart at
+  // all, and most turns even those two are a no-op (they gate on
+  // turnNumber), so this returns null far more often than not.
+  let locationEvent = null;
+  const locEvent = getLocationBattleEvent(battle.locationId);
+  if (locEvent && locEvent.onTurnStart && !battle.outcome) {
+    const events = [];
+    const api = buildBattleApi(battle, runState, null, events);
+    const message = locEvent.onTurnStart(battle, runState, api);
+    if (message) locationEvent = { message, events, label: locEvent.label };
+    if (battle.player.hp <= 0) battle.outcome = 'defeat';
+  }
+
+  return { enemyActions, playerStunned: stunned, locationEvent };
 }
 
 export function syncRunStateFromBattle(runState, battle) {
   runState.hp = battle.player.hp;
+}
+
+// Using a held consumable (data/items.js, runState.consumables) mid-fight
+// (REDESIGN COMBAT GAMEPLAY: "player can use consumables during battle...
+// should NOT count as normal cards") -- doesn't cost Energy or a card play,
+// doesn't end the turn. Every item's `apply(runState)` reads/writes
+// runState.hp/maxHp/infection/etc directly, which is fine outside combat
+// but WRONG mid-battle (runState.hp is stale -- battle.player.hp is the
+// live value, only synced back via syncRunStateFromBattle at battle end).
+// This proxy redirects hp/maxHp onto the live battle.player instead, so
+// e.g. drinking a Duff Beer mid-fight heals off current HP, not whatever
+// runState.hp happened to be when the fight started.
+export function useConsumableInBattle(battle, runState, itemId) {
+  if (battle.outcome) return { ok: false };
+  const item = ITEMS[itemId];
+  if (!item || !runState.consumables[itemId]) return { ok: false };
+  const hpBefore = battle.player.hp;
+  const proxy = {
+    get hp() {
+      return battle.player.hp;
+    },
+    set hp(value) {
+      battle.player.hp = Math.max(0, Math.min(battle.player.maxHp, value));
+    },
+    get maxHp() {
+      return battle.player.maxHp;
+    },
+    set maxHp(value) {
+      battle.player.maxHp = value;
+    },
+    get infection() {
+      return runState.infection;
+    },
+    set infection(value) {
+      runState.infection = value;
+    },
+    world: runState.world,
+  };
+  item.apply(proxy);
+  runState.consumables[itemId] -= 1;
+  if (runState.consumables[itemId] <= 0) delete runState.consumables[itemId];
+  const healed = battle.player.hp - hpBefore;
+  return { ok: true, item, healed };
 }
