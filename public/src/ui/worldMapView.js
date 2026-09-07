@@ -220,6 +220,7 @@ export function hotspotInfo(locationId, runState) {
   const flag = runState.world.locationFlags[locationId];
   const invasion = runState.world.locationInvasions?.[locationId];
   const bits = [];
+  if (runState.world.devilNedPosition === locationId) bits.push('😈 DEVIL NED IS HERE');
   if (invasion) bits.push(`⚠ UNDER ATTACK — ${invasion.turnsLeft} MOVE${invasion.turnsLeft === 1 ? '' : 'S'} LEFT`);
   bits.push(visited ? 'VISITED' : 'NOT VISITED YET');
   if (isBoss) bits.push('☠ BOSS LOCATION');
@@ -269,7 +270,8 @@ export function renderMap(runState) {
   for (const [id, els] of Object.entries(hotspotEls)) {
     const state = nodeStateClass(id, runState, reachableIds, segment, bossUnlocked);
     const invaded = !!runState.world.locationInvasions?.[id];
-    els.root.className = `map-hotspot ${state}${id === segment.bossLocationId ? ' is-boss' : ''}${invaded ? ' is-invaded' : ''}`;
+    const devilHere = runState.world.devilNedPosition === id;
+    els.root.className = `map-hotspot ${state}${id === segment.bossLocationId ? ' is-boss' : ''}${invaded ? ' is-invaded' : ''}${devilHere ? ' is-devil-hunting' : ''}`;
   }
   renderRoads(runState);
 

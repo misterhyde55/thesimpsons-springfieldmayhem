@@ -37,6 +37,7 @@ import { getShopCatalog, purchaseEntry, canUseKwikEMartShop, apuBanMessage } fro
 import { moeSupportsInBossFight, shiftRelationship } from './systems/relationships.js';
 import { checkCallback } from './systems/callbackEngine.js';
 import { maybeTriggerLocationInvasion, tickLocationInvasions, overrunAnnouncement, INVASION_CONFIG } from './systems/locationInvasions.js';
+import { advanceDevilNed, isDevilNedAdjacentTo } from './systems/devilNedHunt.js';
 
 import {
   loadMeta,
@@ -457,6 +458,23 @@ export class Game {
         this.showStoryScene(scene);
         return;
       }
+    }
+
+    // Priority 9's HUNTING ENEMY -- once revealed, Devil Ned has a real map
+    // position and closes one road-hop toward wherever Homer just went on
+    // every arrival (systems/devilNedHunt.js). Catching up drops straight
+    // into his boss fight wherever that happens to be, overriding whatever
+    // this location would normally show.
+    if (advanceDevilNed(this.runState, locationId)) {
+      this.currentLocationId = locationId;
+      this.currentLocation = LOCATIONS[locationId];
+      saveActiveRun(this.runState);
+      screens.showBanner('😈 Devil Ned catches up to you. "Going somewhere, Homer?"', 2800);
+      this.enterBattleForLocationContent(locationId, { type: 'boss', bossId: 'devilNed' });
+      return;
+    }
+    if (isDevilNedAdjacentTo(this.runState, locationId)) {
+      screens.showBanner('You smell sulfur nearby. He\'s close.', 2200);
     }
 
     if (INTERIORS[locationId]) {

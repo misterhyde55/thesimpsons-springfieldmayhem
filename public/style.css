@@ -382,6 +382,13 @@ body.full-bleed-active #top-bar { display: none; }
   animation: hotspotInvadedPulse 0.9s ease-in-out infinite;
 }
 .map-hotspot.is-invaded .map-hotspot-label { background: rgba(120, 0, 0, 0.85); color: #ffd6d6; }
+.map-hotspot.is-devil-hunting .map-hotspot-pin {
+  border-color: #b34bf0;
+  border-width: 3px;
+  box-shadow: 0 0 0 0 rgba(179, 75, 240, 0.8);
+  animation: hotspotDevilPulse 1.3s ease-in-out infinite;
+}
+.map-hotspot.is-devil-hunting .map-hotspot-label { background: rgba(60, 8, 90, 0.9); color: #e9c8ff; }
 .map-hotspot:hover .map-hotspot-pin { transform: scale(1.12); }
 @keyframes hotspotPulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(246, 210, 23, 0.5); }
@@ -390,6 +397,10 @@ body.full-bleed-active #top-bar { display: none; }
 @keyframes hotspotInvadedPulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 34, 34, 0.7); }
   50% { box-shadow: 0 0 0 9px rgba(255, 34, 34, 0); }
+}
+@keyframes hotspotDevilPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(179, 75, 240, 0.8); }
+  50% { box-shadow: 0 0 0 10px rgba(179, 75, 240, 0); }
 }
 
 .map-homer-marker {
