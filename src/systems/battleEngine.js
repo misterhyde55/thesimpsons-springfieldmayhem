@@ -19,7 +19,42 @@ import { fireHooks } from './passiveHooks.js';
 
 const PLAYER_MAX_ENERGY = 3;
 const INFECTION_MAX = 100;
+// A real roguelike hand: runState.abilityDeck (every ability Homer knows --
+// learnAbility already refuses duplicates, so ids are unique and safe to use
+// directly as draw/hand/discard entries with no separate card-instance
+// model) gets shuffled into a draw pile at battle start; each player turn
+// discards whatever's left in hand and draws a fresh HAND_SIZE, reshuffling
+// the discard pile back in once the draw pile runs dry.
+const HAND_SIZE = 5;
 let nextEnemyInstanceId = 1;
+
+function shuffledArray(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Draws up to `count` cards into battle.hand, reshuffling the discard pile
+// into the draw pile once it empties. Stops early (a smaller-than-HAND_SIZE
+// hand) only once both piles are genuinely empty -- i.e. every card Homer
+// owns is already in his hand.
+export function drawCards(battle, count) {
+  for (let i = 0; i < count; i += 1) {
+    if (battle.drawPile.length === 0) {
+      if (battle.discardPile.length === 0) return;
+      battle.drawPile = shuffledArray(battle.discardPile);
+      battle.discardPile = [];
+    }
+    battle.hand.push(battle.drawPile.pop());
+  }
+}
+
+export function getHandAbilities(battle) {
+  return battle.hand.map((id) => ABILITIES[id]).filter(Boolean);
+}
 
 function freshCombatantStatuses() {
   return {
@@ -152,7 +187,15 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss, envir
     // A single ability id disabled for the current player turn (Zombie
     // Ned's Ski Nightmare/'distract' intent) -- cleared every new round.
     distractedAbilityId: null,
+    // The real deck: drawPile starts as every ability Homer owns, shuffled;
+    // hand is what's playable RIGHT NOW (see drawCards/getHandAbilities
+    // above); discardPile is everything played or discarded at turn end,
+    // reshuffled back into drawPile once drawPile runs dry.
+    drawPile: shuffledArray(runState.abilityDeck),
+    hand: [],
+    discardPile: [],
   };
+  drawCards(battle, HAND_SIZE);
   for (const enemy of battle.enemies) {
     fireHooks(runState, 'onEnemySpawn', enemy);
     rollIntent(enemy);
@@ -191,6 +234,7 @@ export function abilityCost(battle, runState, ability) {
 
 export function canPlayAbility(battle, runState, abilityId) {
   if (battle.outcome) return false;
+  if (!battle.hand.includes(abilityId)) return false;
   if (battle.distractedAbilityId === abilityId) return false;
   const ability = ABILITIES[abilityId];
   if (!ability) return false;
@@ -316,6 +360,14 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
 
   const targetEnemy = ability.target === 'enemy' ? battle.enemies.find((e) => e.instanceId === targetInstanceId && e.hp > 0) : null;
   if (ability.target === 'enemy' && !targetEnemy) return { ok: false };
+
+  // Playing a card moves it from hand to the discard pile -- see
+  // drawCards/getHandAbilities above.
+  const handIdx = battle.hand.indexOf(abilityId);
+  if (handIdx !== -1) {
+    battle.hand.splice(handIdx, 1);
+    battle.discardPile.push(abilityId);
+  }
 
   const events = [];
   const api = buildBattleApi(battle, runState, targetEnemy, events);
@@ -447,6 +499,10 @@ export function endPlayerTurn(battle, runState) {
   battle.turnNumber += 1;
   const { stunned } = tickTurnStart(battle.player);
   battle.player.energy = effectiveMaxEnergy(battle.player, battle.player.maxEnergy);
+  // New player turn: discard whatever's left in hand and draw a fresh one.
+  battle.discardPile.push(...battle.hand);
+  battle.hand = [];
+  drawCards(battle, HAND_SIZE);
   fireHooks(runState, 'onPlayerTurnStart', battle);
 
   return { enemyActions, playerStunned: stunned };

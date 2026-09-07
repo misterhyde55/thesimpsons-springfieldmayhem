@@ -1,6 +1,7 @@
 import {
   playMenuMove,
   playMenuSelect,
+  playMenuBack,
   playEpisodeStart,
   playMusic,
   playMusicForScene,
@@ -21,7 +22,7 @@ import { ENEMIES } from './data/enemies.js';
 import { BOSSES, ZOMBIE_NED_REWARD } from './data/bosses.js';
 import { LOCATIONS } from './data/locations.js';
 import { getEvent } from './data/events.js';
-import { ABILITIES, STARTER_ABILITY_IDS } from './data/abilities.js';
+import { ABILITIES, STARTER_ABILITY_IDS, RARITY } from './data/abilities.js';
 import { ITEMS } from './data/items.js';
 import { HORROR_RULES } from './data/horrorRules.js';
 import { rollProductChoices } from './data/products.js';
@@ -969,6 +970,7 @@ export class Game {
       onTargetEnemy: (enemyInstanceId) => this.onTargetEnemy(enemyInstanceId),
       onEnvironmentClick: (actionId) => this.onEnvironmentClick(actionId),
       onEndTurn: () => this.endTurn(),
+      onInspectPile: (which) => this.onInspectPile(which),
     });
 
     if (isBoss) {
@@ -1025,8 +1027,22 @@ export class Game {
     }
   }
 
+  // Rare/Epic abilities get a brief large-card moment before they resolve
+  // (REDESIGN COMBAT GAMEPLAY: "reserve dramatic presentation for rare
+  // cards... not every basic attack") -- everything Common/Uncommon plays
+  // immediately, so pacing stays fast.
   resolveAbilityPlay(abilityId, targetInstanceId) {
     playMenuSelect();
+    const ability = ABILITIES[abilityId];
+    const isSignature = ability.rarity === RARITY.RARE || ability.rarity === RARITY.EPIC;
+    if (isSignature) {
+      screens.showLargeCardPreview(ability, () => this.executeAbilityPlay(abilityId, targetInstanceId));
+      return;
+    }
+    this.executeAbilityPlay(abilityId, targetInstanceId);
+  }
+
+  executeAbilityPlay(abilityId, targetInstanceId) {
     const result = playAbility(this.battle, this.runState, abilityId, targetInstanceId);
     if (!result.ok) return;
 
@@ -1037,6 +1053,17 @@ export class Game {
     syncRunStateFromBattle(this.runState, this.battle);
 
     this.afterPlayerAction();
+  }
+
+  onInspectPile(which) {
+    if (!this.battle) return;
+    playMenuSelect();
+    const abilityIds = which === 'draw' ? this.battle.drawPile : this.battle.discardPile;
+    screens.showPileInspect(which === 'draw' ? 'DRAW PILE' : 'DISCARD PILE', abilityIds);
+    screens.freshButton('btn-pile-inspect-close').addEventListener('click', () => {
+      playMenuBack();
+      screens.hidePileInspect();
+    });
   }
 
   // ---------- BATTLE: ENVIRONMENT ACTIONS (data/battleEnvironments.js) ----------

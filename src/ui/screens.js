@@ -6,7 +6,7 @@ import { RELICS } from '../data/relics.js';
 import { HORROR_RULES } from '../data/horrorRules.js';
 import { STATUS_INFO } from '../data/statusEffects.js';
 import { ITEMS } from '../data/items.js';
-import { getPlayableAbilities, canPlayAbility, abilityCost } from '../systems/battleEngine.js';
+import { getHandAbilities, canPlayAbility, abilityCost } from '../systems/battleEngine.js';
 import { intentIconId, describeIntent } from '../systems/enemyAI.js';
 import { MenuNav } from './menuNav.js';
 import { iconHtml } from './icons.js';
@@ -558,6 +558,37 @@ function bossPhaseLabelText(enemy) {
   return `BOSS &mdash; PHASE ${info.number}${info.name ? ` &mdash; ${info.name}` : ''}`;
 }
 
+// Rebuilds the hand from battle.hand every call (see systems/battleEngine.js
+// drawCards) -- cheap at hand-size <=5, and the only way the DOM stays in
+// sync with what's actually playable after a card is played or a new turn
+// draws a fresh hand. Click handling is delegated (see populateBattle), so
+// rebuilding here never needs to re-bind listeners.
+function renderHandCards(battle, runState) {
+  const container = $('battle-abilities');
+  const targetingAbilityId = container.dataset.targetingAbilityId || '';
+  container.innerHTML = getHandAbilities(battle)
+    .map(
+      (ability) => `
+      <button class="action-card archetype-${ability.archetype}" data-ability-id="${ability.id}">
+        <span class="action-cost">${abilityCost(battle, runState, ability)}</span>
+        <span class="action-rarity" style="background:${RARITY_COLOR[ability.rarity] || RARITY_COLOR.common}"></span>
+        <span class="action-icon-wrap">${iconHtml(ability.icon.category, ability.icon.id, ability.name)}</span>
+        <span class="action-name">${ability.name.toUpperCase()}</span>
+        <span class="action-desc">${ability.description}</span>
+        <span class="action-type-badge">${ability.archetype.toUpperCase()}</span>
+      </button>
+    `
+    )
+    .join('');
+  for (const btn of container.children) {
+    const ability = ABILITIES[btn.dataset.abilityId];
+    btn.disabled = battle.outcome !== null || !canPlayAbility(battle, runState, ability.id);
+    btn.classList.toggle('targeting', ability.id === targetingAbilityId);
+  }
+  $('battle-draw-count').textContent = battle.drawPile.length;
+  $('battle-discard-count').textContent = battle.discardPile.length;
+}
+
 export function populateBattle(battle, runState, handlers) {
   const bg = getAssetUrl('buildings', battle.locationId);
   $('screen-battle').style.backgroundImage = bg ? `url('${bg}')` : 'none';
@@ -612,23 +643,18 @@ export function populateBattle(battle, runState, handlers) {
     enemiesContainer.appendChild(slot);
   }
 
-  const abilitiesContainer = $('battle-abilities');
-  abilitiesContainer.innerHTML = '';
-  for (const ability of getPlayableAbilities(runState)) {
-    const btn = document.createElement('button');
-    btn.className = `action-card archetype-${ability.archetype}`;
-    btn.dataset.abilityId = ability.id;
-    btn.innerHTML = `
-      <span class="action-cost"></span>
-      <span class="action-icon-wrap">${iconHtml(ability.icon.category, ability.icon.id, ability.name)}</span>
-      <span class="action-name">${ability.name.toUpperCase()}</span>
-      <span class="action-desc">${ability.description}</span>
-      <span class="action-type-badge">${ability.archetype.toUpperCase()}</span>
-    `;
-    btn.addEventListener('click', () => handlers.onAbilityClick(ability.id));
-    abilitiesContainer.appendChild(btn);
-  }
+  // The hand is redrawn every render (it changes every play and every new
+  // turn -- see systems/battleEngine.js drawCards), so clicks are handled
+  // via one delegated listener on the container instead of per-card
+  // listeners that would need re-binding on every rebuild.
+  $('battle-abilities').onclick = (e) => {
+    const card = e.target.closest('.action-card');
+    if (card && !card.disabled) handlers.onAbilityClick(card.dataset.abilityId);
+  };
+  renderHandCards(battle, runState);
   freshButton('btn-battle-end-turn').addEventListener('click', () => handlers.onEndTurn());
+  freshButton('btn-battle-draw-pile').addEventListener('click', () => handlers.onInspectPile('draw'));
+  freshButton('btn-battle-discard-pile').addEventListener('click', () => handlers.onInspectPile('discard'));
 
   // Battlefield objects (data/battleEnvironments.js) -- free, limited-use
   // actions separate from Homer's own ability deck. Only some encounters
@@ -692,14 +718,8 @@ export function renderBattle(battle, runState) {
     }
   }
 
-  const abilitiesContainer = $('battle-abilities');
-  const targetingAbilityId = abilitiesContainer.dataset.targetingAbilityId || '';
-  [...abilitiesContainer.children].forEach((btn) => {
-    const ability = ABILITIES[btn.dataset.abilityId];
-    btn.querySelector('.action-cost').textContent = abilityCost(battle, runState, ability);
-    btn.disabled = battle.outcome !== null || !canPlayAbility(battle, runState, ability.id);
-    btn.classList.toggle('targeting', ability.id === targetingAbilityId);
-  });
+  const targetingAbilityId = $('battle-abilities').dataset.targetingAbilityId || '';
+  renderHandCards(battle, runState);
   $('battle-enemies').classList.toggle('targeting-mode', !!targetingAbilityId);
 
   const envContainer = $('battle-environment');
@@ -714,6 +734,64 @@ export function renderBattle(battle, runState) {
 
 export function setBattleTargetingAbility(abilityId) {
   $('battle-abilities').dataset.targetingAbilityId = abilityId || '';
+}
+
+// Draw/discard pile inspect (REDESIGN COMBAT GAMEPLAY: "small clickable
+// indicators for DRAW/DISCARD... clicking one allows the player to inspect
+// those cards"). `abilityIds` is battle.drawPile or battle.discardPile
+// as-is -- unordered for the draw pile is intentional, it's a real
+// shuffled pile, not a preview of what's coming next.
+export function showPileInspect(title, abilityIds) {
+  $('pile-inspect-title').textContent = `${title} (${abilityIds.length})`;
+  const list = $('pile-inspect-list');
+  if (!abilityIds.length) {
+    list.innerHTML = '<p class="pile-inspect-empty">Empty.</p>';
+  } else {
+    list.innerHTML = abilityIds
+      .map((id) => ABILITIES[id])
+      .filter(Boolean)
+      .map(
+        (ability) => `
+        <div class="pile-inspect-row">
+          <span class="action-icon-wrap">${iconHtml(ability.icon.category, ability.icon.id, ability.name)}</span>
+          <span class="pile-inspect-name">${ability.name.toUpperCase()}</span>
+          <span class="pile-inspect-cost">${ability.cost}</span>
+        </div>
+      `
+      )
+      .join('');
+  }
+  $('pile-inspect-modal').classList.remove('hidden');
+}
+
+export function hidePileInspect() {
+  $('pile-inspect-modal').classList.add('hidden');
+}
+
+// Rare/Epic abilities get a brief large-card moment before resolving (see
+// game.js resolveAbilityPlay) -- Common/Uncommon abilities never call this,
+// so pacing stays fast for ordinary attacks/skills.
+export function showLargeCardPreview(ability, onDone) {
+  const cardEl = $('large-card-preview-card');
+  cardEl.className = `large-card-preview-card archetype-${ability.archetype}`;
+  cardEl.innerHTML = `
+    <span class="action-cost large">${ability.cost}</span>
+    <span class="action-rarity" style="background:${RARITY_COLOR[ability.rarity] || RARITY_COLOR.common}"></span>
+    <span class="action-icon-wrap large">${iconHtml(ability.icon.category, ability.icon.id, ability.name)}</span>
+    <span class="action-name large">${ability.name.toUpperCase()}</span>
+    <span class="action-desc large">${ability.description}</span>
+    <span class="action-type-badge">${ability.archetype.toUpperCase()}</span>
+  `;
+  const overlay = $('large-card-preview');
+  overlay.classList.remove('hidden');
+  requestAnimationFrame(() => overlay.classList.add('showing'));
+  setTimeout(() => {
+    overlay.classList.remove('showing');
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      onDone();
+    }, 200);
+  }, 850);
 }
 
 // Quick (<0.5s) reactions on a combatant until real hit/cast animation
