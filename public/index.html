@@ -11,8 +11,29 @@
 <div id="app">
 
   <header id="top-bar">
-    <span class="logo">📺 SPRINGFIELD MAYHEM</span>
-    <span id="meta-readout">Season 1 · Episode 1</span>
+    <div class="broadcast-left">
+      <svg class="broadcast-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <line x1="10" y1="7" x2="6" y2="2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <line x1="22" y1="7" x2="26" y2="2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <rect x="4" y="7" width="24" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+        <line x1="4" y1="12" x2="28" y2="12" stroke="currentColor" stroke-width="1" opacity="0.5" />
+        <line x1="8" y1="16" x2="20" y2="16" stroke="currentColor" stroke-width="1.3" opacity="0.85" />
+        <line x1="8" y1="19.5" x2="24" y2="19.5" stroke="currentColor" stroke-width="1.3" opacity="0.6" />
+        <circle class="broadcast-dot" cx="24" cy="16" r="1.6" fill="#c0392b" />
+      </svg>
+      <span class="broadcast-title-block">
+        <span class="broadcast-title">SPRINGFIELD MAYHEM</span>
+        <span class="broadcast-subtitle">ON AIR</span>
+      </span>
+    </div>
+    <div class="broadcast-center">
+      <span id="header-episode-title">CURRENT EPISODE</span>
+    </div>
+    <div class="broadcast-right">
+      <span id="header-segment-readout" class="broadcast-segment"></span>
+      <button id="header-mayhem-readout" type="button" class="broadcast-mayhem-btn" title="Mayhem">MAYHEM 0%</button>
+      <button id="header-season-episode" type="button" class="broadcast-meta-btn" title="Episode Guide">Season 1 · Episode 1</button>
+    </div>
   </header>
 
   <!-- ================= MAIN MENU / HOMEPAGE ================= -->

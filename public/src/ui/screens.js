@@ -10,6 +10,7 @@ import { getPlayableAbilities, canPlayAbility, abilityCost } from '../systems/ba
 import { intentIconId, describeIntent } from '../systems/enemyAI.js';
 import { MenuNav } from './menuNav.js';
 import { iconHtml } from './icons.js';
+import { MAYHEM_BANDS, mayhemLabel } from '../data/episodes.js';
 
 const SCREEN_IDS = [
   'screen-main-menu',
@@ -50,6 +51,21 @@ const FULL_BLEED_SCREEN_IDS = new Set([
   'screen-board',
 ]);
 
+// Screens that hide the Treehouse Broadcast HUD (#top-bar) entirely --
+// cinematic/story beats only. Map/Combat/Location/Shop screens are also
+// full-bleed (above) but now keep the header on screen (see the
+// body.header-hidden vs. .map-screen/.battle-screen/.location-interior-
+// screen "top: var(--header-h)" rules in style.css).
+const HEADER_HIDDEN_SCREEN_IDS = new Set([
+  'screen-main-menu',
+  'screen-episode-reveal',
+  'screen-segment-title',
+  'screen-story-scene',
+  'screen-boss-intro',
+  'screen-commercial-break',
+  'screen-travel',
+]);
+
 const $ = (id) => document.getElementById(id);
 
 export function freshButton(id) {
@@ -64,10 +80,41 @@ export function showScreen(id) {
     $(screenId).classList.toggle('hidden', screenId !== id);
   }
   document.body.classList.toggle('full-bleed-active', FULL_BLEED_SCREEN_IDS.has(id));
+  document.body.classList.toggle('header-hidden', HEADER_HIDDEN_SCREEN_IDS.has(id));
 }
 
 export function updateMetaReadout(meta) {
-  $('meta-readout').textContent = `Season ${meta.season} · Episode ${meta.episodeInSeason + 1}`;
+  $('header-season-episode').textContent = `Season ${meta.season} · Episode ${meta.episodeInSeason + 1}`;
+}
+
+// ---------- HEADER (Treehouse Broadcast HUD run info) ----------
+// Center episode title + right-side segment/Mayhem readouts. Called
+// wherever the board/battle/interior screens already refresh their own
+// run info, so the header never falls out of sync with the screen under it.
+function mayhemTooltip(mayhem) {
+  const label = mayhemLabel(mayhem);
+  const bandIndex = MAYHEM_BANDS.findIndex((b) => mayhem <= b.max);
+  const next = MAYHEM_BANDS[bandIndex + 1];
+  return next
+    ? `${label}. At ${MAYHEM_BANDS[bandIndex].max + 1}%+: ${next.label}.`
+    : `${label}. Mayhem is maxed out.`;
+}
+
+export function updateHeaderRunInfo(runState) {
+  const titleEl = $('header-episode-title');
+  const segmentEl = $('header-segment-readout');
+  const mayhemBtn = $('header-mayhem-readout');
+  if (!runState) {
+    titleEl.textContent = 'CURRENT EPISODE';
+    segmentEl.textContent = '';
+    mayhemBtn.textContent = 'MAYHEM 0%';
+    mayhemBtn.title = mayhemTooltip(0);
+    return;
+  }
+  titleEl.textContent = runState.episode?.title ? `"${runState.episode.title}"` : 'ZOMBIE OUTBREAK';
+  segmentEl.textContent = SEGMENT_ORDINALS[runState.segmentIndex] || `SEGMENT ${runState.segmentIndex + 1}`;
+  mayhemBtn.textContent = `MAYHEM ${runState.mayhem}%`;
+  mayhemBtn.title = mayhemTooltip(runState.mayhem);
 }
 
 // ---------- MAIN MENU ----------
@@ -282,6 +329,7 @@ export function populateSettings(meta, handlers) {
 
 // ---------- BOARD ----------
 export function populateBoardInfo(runState, segment, reachableCount) {
+  updateHeaderRunInfo(runState);
   $('board-episode-title').textContent = `"${runState.episode.title}"`;
   const activeRules = runState.activeHorrorRuleIds.map((id) => HORROR_RULES[id]).filter(Boolean);
   $('board-episode-modifier').textContent = activeRules.length
@@ -617,6 +665,7 @@ export function renderBattle(battle, runState) {
   document.querySelector('#battle-energy-readout small').textContent = `/${p.maxEnergy}`;
   $('battle-mayhem-readout').textContent = `MAYHEM: ${runState.mayhem}%`;
   applyMayhemVisuals(runState.mayhem);
+  updateHeaderRunInfo(runState);
 
   for (const enemy of battle.enemies) {
     const slot = document.querySelector(`.enemy-slot[data-enemy-id="${enemy.instanceId}"]`);
