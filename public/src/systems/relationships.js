@@ -15,6 +15,17 @@ export function moeSupportsInBossFight(runState) {
   return level === 'friendly' || level === 'bestFriend';
 }
 
+// Duff gets cheaper and heals more as Moe warms up to Homer -- "dialogue
+// actually leads to something" instead of relationship level being a flavor
+// number nobody ever feels. baseCost/baseHeal are the 'neutral' numbers a
+// given Moe's interaction already used before relationship tiers existed.
+export function moeDuffTerms(runState, baseCost, baseHeal) {
+  const level = runState.relationships.moe || 'neutral';
+  if (level === 'bestFriend') return { cost: 0, heal: baseHeal + 7 };
+  if (level === 'friendly') return { cost: Math.max(0, baseCost - 1), heal: baseHeal + 3 };
+  return { cost: baseCost, heal: baseHeal };
+}
+
 export function moeGreeting(runState) {
   const level = runState.relationships.moe || 'neutral';
   if (level === 'angry' || level === 'enemy') {

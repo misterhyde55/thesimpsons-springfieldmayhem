@@ -274,6 +274,7 @@ export function populateBoardInfo(runState, segment, reachableCount) {
     ? activeRules.map((r) => `${r.icon} ${r.name}`).join(' + ')
     : segment.segmentTitle;
   $('board-mayhem-readout').textContent = `☠️ MAYHEM: ${runState.mayhem}%`;
+  $('board-cash-readout').textContent = `🍩 ${runState.donutsCurrency}`;
   $('board-node-hint').textContent = reachableCount
     ? 'Tap a lit-up location to travel there.'
     : 'No roads open from here. Something has gone very wrong.';
@@ -618,6 +619,27 @@ export function showNpcBanner(characterId, text, ms = 2200) {
   el.classList.remove('hidden');
   clearTimeout(bannerTimer);
   bannerTimer = setTimeout(() => el.classList.add('hidden'), ms);
+}
+
+// Distinct from showBanner (narrative NPC/story lines): a stack of short-
+// lived gold chips for mechanical gains/losses ("+$14 CASH", "MOE
+// RELATIONSHIP +10", "NEW RUMOR") so the player never has to infer a
+// consequence from dialogue text alone. Pass an array of either strings or
+// {text, negative} objects; each chip removes itself after its animation.
+export function showRewardToasts(entries) {
+  const stack = $('reward-toast-stack');
+  const list = Array.isArray(entries) ? entries : [entries];
+  list.forEach((entry, i) => {
+    const { text, negative } = typeof entry === 'string' ? { text: entry, negative: false } : entry;
+    if (!text) return;
+    setTimeout(() => {
+      const chip = document.createElement('div');
+      chip.className = 'reward-toast-chip' + (negative ? ' negative' : '');
+      chip.textContent = text;
+      stack.appendChild(chip);
+      setTimeout(() => chip.remove(), 2700);
+    }, i * 220);
+  });
 }
 
 // ---------- SHOP ----------

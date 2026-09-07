@@ -34,8 +34,9 @@ import {
 } from './systems/battleEngine.js';
 import { rollAbilityChoices, learnAbility } from './systems/abilityDraft.js';
 import { getShopCatalog, purchaseEntry, canUseKwikEMartShop, apuBanMessage } from './systems/economy.js';
-import { moeSupportsInBossFight } from './systems/relationships.js';
+import { moeSupportsInBossFight, shiftRelationship } from './systems/relationships.js';
 import { checkCallback } from './systems/callbackEngine.js';
+import { maybeTriggerLocationInvasion, tickLocationInvasions, overrunAnnouncement, INVASION_CONFIG } from './systems/locationInvasions.js';
 
 import {
   loadMeta,
@@ -406,6 +407,17 @@ export class Game {
 
   arriveAt(locationId) {
     this.runState.world.currentLocationId = locationId;
+
+    // Location invasions ("MOE'S TAVERN UNDER ATTACK") tick down (and can
+    // permanently overrun) on every arrival that isn't the invaded location
+    // itself, then get a small chance to flare up somewhere new -- see
+    // systems/locationInvasions.js.
+    const overrunIds = tickLocationInvasions(this.runState, locationId);
+    for (const id of overrunIds) screens.showBanner(overrunAnnouncement(id), 3200);
+    const newInvasionId = maybeTriggerLocationInvasion(this.runState);
+    if (newInvasionId && newInvasionId !== locationId) {
+      screens.showBanner(`⚠ WARNING: ${LOCATIONS[newInvasionId].name.toUpperCase()} UNDER ATTACK! Get there soon.`, 3400);
+    }
     saveActiveRun(this.runState);
 
     // Priority 4's CALLBACK! -- can interrupt arriving ANYWHERE, not just a
@@ -552,7 +564,7 @@ export class Game {
       // rather than through leaveInterior, since victory (or an ability
       // draft after it) goes straight back to the map.
       this.interiorActionsRemaining -= 1;
-      this.runState.world.locationFlags.moesRegularsFought = true;
+      if (interaction.flagId) this.runState.world.locationFlags[interaction.flagId] = true;
       markLocationVisited(this.runState, this.interiorLocationId);
       this.currentLocationId = this.interiorLocationId;
       this.currentLocation = LOCATIONS[this.interiorLocationId];
@@ -885,10 +897,12 @@ export class Game {
     this.runState.stats.enemiesDefeated += this.battle.enemies.length;
     if (content.elite) this.runState.stats.elitesDefeated += 1;
     this.increaseMayhem(content.type === 'boss' ? 0 : content.elite ? 15 : 8);
+    if (!gaveUpMoeWin) this.grantVictoryCash(content);
     this.battle = null;
 
     markLocationVisited(this.runState, locationId);
     if (content.questResolution) applyQuestResolution(this.runState, content.questResolution);
+    if (content.resolvesInvasionId) this.resolveLocationInvasionVictory(content.resolvesInvasionId);
     saveActiveRun(this.runState);
 
     // Devil Ned (optional boss, never a segment's real bossLocationId) has
@@ -925,6 +939,35 @@ export class Game {
     const milestoneAbility = milestoneId && !this.runState.abilityDeck.includes(milestoneId) ? ABILITIES[milestoneId] : null;
     const choices = milestoneAbility ? [milestoneAbility] : rollAbilityChoices(this.runState, 3);
     this.showAbilityDraftScreen(locationId, choices, !!milestoneAbility);
+  }
+
+  // Standard/elite/boss fights all pay out donuts on top of whatever the
+  // ability draft grants -- the ability draft rewards the build, this
+  // rewards the fight itself, and enemies.length lets a multi-enemy horde
+  // pay out more than a lone standard zombie without a separate 'horde' flag.
+  grantVictoryCash(content) {
+    const enemyCount = this.battle.enemies.length;
+    let amount;
+    if (content.type === 'boss') amount = 25 + Math.floor(Math.random() * 16);
+    else if (content.elite) amount = 12 + Math.floor(Math.random() * 9);
+    else amount = 3 + Math.floor(Math.random() * 5) + (enemyCount - 1) * 3;
+    this.runState.donutsCurrency += amount;
+    screens.showRewardToasts(`+${amount} 🍩 SPRINGFIELD CASH`);
+  }
+
+  // Winning a "DEFEND THE BAR"/"HELP APU" fight clears the crisis for good
+  // (rather than letting it silently time out later), and pays off with the
+  // relationship bump the location's own NPC config promises.
+  resolveLocationInvasionVictory(locationId) {
+    delete this.runState.world.locationInvasions[locationId];
+    delete this.runState.world.locationStates[locationId];
+    const npc = INVASION_CONFIG[locationId]?.npc;
+    const toasts = [`${LOCATIONS[locationId].name.toUpperCase()} SAVED`];
+    if (npc) {
+      shiftRelationship(this.runState, npc, 2);
+      toasts.push(`${npc.toUpperCase()} RELATIONSHIP UP`);
+    }
+    screens.showRewardToasts(toasts);
   }
 
   onSegmentBossVictory() {
