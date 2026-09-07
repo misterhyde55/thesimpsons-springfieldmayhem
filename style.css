@@ -706,6 +706,66 @@ body:not(.header-hidden) .location-interior-screen {
   border-radius: 8px;
 }
 
+/* ---- Map Edit Mode (dev-only, Ctrl+Shift+M) -- a real calibration tool
+   instead of guessing hitbox/waypoint coordinates by eye. Deliberately
+   plain/utilitarian styling since no player is ever meant to see this. ---- */
+.map-edit-panel {
+  position: fixed;
+  top: 70px;
+  right: 12px;
+  z-index: 30;
+  width: 260px;
+  background: rgba(10, 10, 14, 0.94);
+  border: 2px solid #38b6ff;
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+  color: #fff8ea;
+  font-size: 0.78rem;
+  font-family: 'Consolas', 'Menlo', monospace;
+}
+.map-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 800;
+  color: #38b6ff;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.map-edit-header button {
+  background: none;
+  border: none;
+  color: #fff8ea;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.map-edit-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.map-edit-label { color: #8fd0ff; font-weight: 700; }
+.map-edit-hint { color: #9c9ca6; font-style: italic; font-size: 0.7rem; }
+.map-edit-coords span { color: #ffe14d; }
+.map-edit-section { border-top: 1px solid rgba(255, 255, 255, 0.15); padding-top: 8px; margin-top: 4px; }
+.map-edit-section select { background: #1b1b22; color: #fff8ea; border: 1px solid #444; border-radius: 4px; padding: 2px 4px; font-size: 0.72rem; max-width: 100px; }
+.map-edit-section input[type='number'] { width: 62px; background: #1b1b22; color: #fff8ea; border: 1px solid #444; border-radius: 4px; padding: 2px 4px; font-family: inherit; }
+.map-edit-section button,
+.map-edit-export-btn {
+  background: #0e63a8;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.map-edit-section button:hover,
+.map-edit-export-btn:hover { background: #1b7ecf; }
+.map-edit-export-btn { width: 100%; margin-top: 10px; }
+.map-edit-export-output { width: 100%; height: 140px; margin-top: 8px; background: #0c0c10; color: #7ed957; border: 1px solid #444; border-radius: 6px; font-family: inherit; font-size: 0.68rem; padding: 6px; resize: vertical; }
+.map-hotspot.map-edit-draggable { cursor: grab; }
+.map-hotspot.map-edit-draggable.is-dragging { cursor: grabbing; }
+.map-hotspot.map-edit-selected .map-hotspot-pin { outline: 2px solid #38b6ff; outline-offset: 2px; }
+
 .news-flash {
   background: #d0021b;
   color: white;

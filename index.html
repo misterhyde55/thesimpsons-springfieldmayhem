@@ -233,6 +233,44 @@
       <button id="btn-board-pause" type="button" title="Pause">☰</button>
     </div>
     <p id="board-node-hint" class="hint map-hint">Choose your next destination.</p>
+
+    <!-- Dev-only Map Edit Mode (Ctrl+Shift+M to toggle) -- "DO NOT GUESS
+         BUILDING POSITIONS FOREVER" -- calibrates hitbox coordinates and
+         road waypoints against the real art instead. Never shown unless
+         explicitly toggled; a normal player never sees this. -->
+    <div id="map-edit-panel" class="map-edit-panel hidden">
+      <div class="map-edit-header">
+        <span>MAP EDIT MODE</span>
+        <button id="btn-map-edit-close" type="button" title="Close (Ctrl+Shift+M)">&times;</button>
+      </div>
+      <div class="map-edit-row">
+        <span class="map-edit-label">Pointer</span>
+        <span class="map-edit-coords">x: <span id="map-edit-x">-</span> &nbsp; y: <span id="map-edit-y">-</span></span>
+      </div>
+      <div class="map-edit-row map-edit-hint">Click+drag a pin to move it. Click a pin to select it and fine-tune below.</div>
+      <div id="map-edit-selected" class="map-edit-section hidden">
+        <div class="map-edit-row"><strong id="map-edit-selected-name">-</strong></div>
+        <div class="map-edit-row">
+          <label>x <input id="map-edit-selected-x" type="number" step="0.001" min="0" max="1" /></label>
+          <label>y <input id="map-edit-selected-y" type="number" step="0.001" min="0" max="1" /></label>
+        </div>
+      </div>
+      <div class="map-edit-section">
+        <div class="map-edit-row map-edit-label">Route waypoints</div>
+        <div class="map-edit-row">
+          <select id="map-edit-route-from"></select>
+          <span>&rarr;</span>
+          <select id="map-edit-route-to"></select>
+        </div>
+        <div class="map-edit-row">
+          <button id="btn-map-edit-route-record" type="button">Record</button>
+          <button id="btn-map-edit-route-clear" type="button">Clear</button>
+        </div>
+        <div id="map-edit-route-status" class="map-edit-row map-edit-hint">Not recording.</div>
+      </div>
+      <button id="btn-map-edit-export" type="button" class="map-edit-export-btn">Export Config</button>
+      <textarea id="map-edit-export-output" class="map-edit-export-output hidden" readonly></textarea>
+    </div>
   </section>
 
   <!-- ================= TRAVEL (atmospheric scene between locations) ================= -->
