@@ -389,7 +389,21 @@ body.full-bleed-active #top-bar { display: none; }
   animation: hotspotDevilPulse 1.3s ease-in-out infinite;
 }
 .map-hotspot.is-devil-hunting .map-hotspot-label { background: rgba(60, 8, 90, 0.9); color: #e9c8ff; }
+/* Sidebar filter results (ui/worldMapView.js applyFilterHighlights) --
+   dim everything not matching the active filter set(s) rather than
+   hiding it outright, so the map still reads as one continuous place. */
+.map-hotspot.filter-dim { opacity: 0.25; filter: grayscale(0.5); }
+.map-hotspot.filter-match .map-hotspot-pin {
+  box-shadow: 0 0 0 4px rgba(246, 210, 23, 0.6);
+  transform: scale(1.18);
+}
+.map-hotspot.filter-match.filter-urgent .map-hotspot-pin { box-shadow: 0 0 0 4px rgba(255, 90, 60, 0.7); }
 .map-hotspot:hover .map-hotspot-pin { transform: scale(1.12); }
+.map-hotspot.you-are-here-pulse .map-hotspot-pin { animation: youAreHerePulse 0.6s ease-out 2; }
+@keyframes youAreHerePulse {
+  0% { box-shadow: 0 0 0 0 rgba(62, 194, 255, 0.9); }
+  100% { box-shadow: 0 0 0 22px rgba(62, 194, 255, 0); }
+}
 @keyframes hotspotPulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(246, 210, 23, 0.5); }
   50% { box-shadow: 0 0 0 6px rgba(246, 210, 23, 0); }
@@ -428,6 +442,116 @@ body.full-bleed-active #top-bar { display: none; }
 }
 .map-hover-panel-name { font-weight: 800; color: #f6d217; }
 .map-hover-panel-status { font-size: 0.8rem; color: #c9c9d3; margin-top: 2px; }
+
+/* Real, live-filtering sidebar -- covers the art's own baked-in legend
+   column with an actually-interactive one. Outside .map-world on purpose
+   (a sibling of .map-viewport) so it never pans/zooms with the map. */
+.map-sidebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 220px;
+  z-index: 7;
+  background: rgba(8, 8, 12, 0.97);
+  border-right: 2px solid rgba(246, 210, 23, 0.25);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  transition: width 0.2s ease;
+}
+.map-sidebar.collapsed { width: 52px; padding: 12px 6px; }
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sidebar-title { color: #f6d217; font-weight: 800; font-size: 0.72rem; letter-spacing: 1px; }
+.map-sidebar.collapsed .sidebar-title { display: none; }
+.sidebar-collapse-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: #3a3a44;
+  color: #f6d217;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+.sidebar-collapse-btn:hover { background: #4a4a56; }
+.map-sidebar.collapsed .sidebar-collapse-btn { transform: rotate(180deg); }
+.sidebar-you-are-here-btn {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(62, 194, 255, 0.5);
+  background: rgba(62, 194, 255, 0.12);
+  color: #dff2ff;
+  font-weight: 800;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-you-are-here-btn:hover { background: rgba(62, 194, 255, 0.22); }
+.sidebar-filter-list { display: flex; flex-direction: column; gap: 4px; }
+.sidebar-filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: #d6d6de;
+  font-weight: 700;
+  font-size: 0.74rem;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-filter-btn:hover { background: rgba(255, 255, 255, 0.1); }
+.sidebar-filter-btn.active {
+  border-color: #f6d217;
+  background: rgba(246, 210, 23, 0.16);
+  color: #fff8ea;
+  box-shadow: 0 0 10px rgba(246, 210, 23, 0.25);
+}
+.sidebar-filter-label { display: flex; align-items: center; gap: 7px; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-filter-count { color: #9c9ca6; font-size: 0.7rem; font-weight: 800; }
+.sidebar-filter-btn.active .sidebar-filter-count { color: #f6d217; }
+.map-sidebar.collapsed .sidebar-filter-count,
+.map-sidebar.collapsed .sidebar-clear-btn,
+.map-sidebar.collapsed .sidebar-info-panel,
+.map-sidebar.collapsed .sidebar-filter-label span:last-child { display: none; }
+.sidebar-clear-btn {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid #ff5a3c;
+  background: rgba(255, 90, 60, 0.12);
+  color: #ff8a70;
+  font-weight: 800;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.sidebar-clear-btn:hover { background: rgba(255, 90, 60, 0.22); }
+.sidebar-info-panel {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sidebar-info-card { background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 7px 9px; cursor: pointer; }
+.sidebar-info-card:hover { background: rgba(255, 255, 255, 0.1); }
+.sidebar-info-card-name { color: #f6d217; font-weight: 800; font-size: 0.75rem; }
+.sidebar-info-card-line { color: #c9c9d3; font-size: 0.7rem; margin-top: 2px; }
+.sidebar-info-card.urgent { border: 1px solid #ff5a3c; }
+.sidebar-info-card.urgent .sidebar-info-card-line { color: #ff8a70; }
 
 /* Both HUD groups anchor to the right, stacked -- the art's own baked-in
    title banner and legend live along the whole left edge, so the real,

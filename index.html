@@ -154,6 +154,22 @@
 
     <div id="map-hover-panel" class="map-hover-panel hidden"></div>
 
+    <!-- Real interactive sidebar -- the art's own baked-in legend (down the
+         left edge of Springfieldmap2.png) is now purely decorative behind
+         this; every category here is a live filter driven by src/systems/
+         mapIntel.js, not a static list. See ui/worldMapView.js for the
+         click/highlight wiring. -->
+    <div id="map-sidebar-left" class="map-sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">SPRINGFIELD INTEL</span>
+        <button id="btn-sidebar-collapse" type="button" class="sidebar-collapse-btn" title="Collapse">&#9664;</button>
+      </div>
+      <button id="btn-filter-you-are-here" type="button" class="sidebar-you-are-here-btn">🏠 YOU ARE HERE</button>
+      <div id="sidebar-filter-list" class="sidebar-filter-list"></div>
+      <button id="btn-sidebar-clear" type="button" class="sidebar-clear-btn hidden">CLEAR FILTERS</button>
+      <div id="sidebar-info-panel" class="sidebar-info-panel hidden"></div>
+    </div>
+
     <div class="map-hud-top-left">
       <div id="board-episode-title">"Episode Title"</div>
       <div id="board-episode-modifier">Normal Springfield</div>

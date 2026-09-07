@@ -12,6 +12,9 @@ import { WORLD_LOCATIONS, getAllRoads, isRoadBlocked, getReachableLocationIds, S
 import { getCurrentSegment, isBossLocationUnlocked } from '../systems/board.js';
 import { LOCATIONS } from '../data/locations.js';
 import { getAssetUrl } from '../data/assets.js';
+import { FILTER_DEFS, youAreHereInfo } from '../systems/mapIntel.js';
+
+const SIDEBAR_COLLAPSE_KEY = 'springfieldMayhem.mapSidebarCollapsed';
 
 const MAP_WIDTH = 1594;
 const MAP_HEIGHT = 986;
@@ -26,6 +29,10 @@ let hotspotEls = {}; // locationId -> {root, pin, label}
 let clickHandler = null;
 let cameraSettledHandler = null;
 let cameraSaveTimer = null;
+
+// ---- Sidebar filter state (systems/mapIntel.js) ----
+let activeFilterIds = new Set();
+let lastRunState = null; // so toggling a filter can re-render without game.js re-driving it
 
 // Debounced so a wheel-zoom flurry or an active drag doesn't spam
 // saveActiveRun -- fires ~400ms after the camera stops moving.
@@ -258,6 +265,140 @@ export function hotspotInfo(locationId, runState) {
   return { name: loc.name, status: bits.join(' • ') };
 }
 
+// ==================== SIDEBAR (systems/mapIntel.js) ====================
+// Combines every active filter's matches into one map so a location that
+// matches two filters at once (e.g. SHOP + QUEST) still only renders one
+// highlighted pin and one info card, per "do not let the map become
+// unreadable" -- lines from every matching filter are concatenated.
+function combinedFilterMatches(runState) {
+  const combined = new Map();
+  for (const filterId of activeFilterIds) {
+    const def = FILTER_DEFS.find((f) => f.id === filterId);
+    if (!def) continue;
+    for (const [locationId, entry] of def.getEntries(runState)) {
+      const existing = combined.get(locationId);
+      if (existing) {
+        existing.lines.push(...entry.lines);
+        existing.urgent = existing.urgent || !!entry.urgent;
+      } else {
+        combined.set(locationId, { lines: [...entry.lines], urgent: !!entry.urgent });
+      }
+    }
+  }
+  return combined;
+}
+
+// Dims every hotspot that doesn't match at least one active filter, and
+// gives the matches a gold (or red, if urgent) ring -- called on every
+// renderMap and every filter toggle so it never goes stale.
+function applyFilterHighlights(runState) {
+  const matches = activeFilterIds.size ? combinedFilterMatches(runState) : null;
+  for (const [id, els] of Object.entries(hotspotEls)) {
+    els.root.classList.remove('filter-match', 'filter-dim', 'filter-urgent');
+    if (!matches) continue;
+    const entry = matches.get(id);
+    if (entry) {
+      els.root.classList.add('filter-match');
+      if (entry.urgent) els.root.classList.add('filter-urgent');
+    } else {
+      els.root.classList.add('filter-dim');
+    }
+  }
+}
+
+function renderSidebarInfoPanel(runState) {
+  const panel = document.getElementById('sidebar-info-panel');
+  if (!activeFilterIds.size) {
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+    return;
+  }
+  const matches = combinedFilterMatches(runState);
+  panel.classList.remove('hidden');
+  if (!matches.size) {
+    panel.innerHTML = '<div class="sidebar-info-card-line">Nothing currently matches.</div>';
+    return;
+  }
+  panel.innerHTML = '';
+  for (const [locationId, entry] of matches) {
+    const card = document.createElement('div');
+    card.className = 'sidebar-info-card' + (entry.urgent ? ' urgent' : '');
+    card.innerHTML = `<div class="sidebar-info-card-name">${LOCATIONS[locationId]?.name || locationId}</div>${entry.lines
+      .map((l) => `<div class="sidebar-info-card-line">${l}</div>`)
+      .join('')}`;
+    card.addEventListener('click', () => centerCameraOn(locationId, camera.zoom));
+    panel.appendChild(card);
+  }
+}
+
+function renderSidebarFilterList(runState) {
+  const list = document.getElementById('sidebar-filter-list');
+  list.innerHTML = '';
+  for (const def of FILTER_DEFS) {
+    const count = def.getEntries(runState).size;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sidebar-filter-btn' + (activeFilterIds.has(def.id) ? ' active' : '');
+    btn.title = def.description;
+    btn.innerHTML = `<span class="sidebar-filter-label"><span>${def.icon}</span><span>${def.label}</span></span><span class="sidebar-filter-count">${count}</span>`;
+    btn.addEventListener('click', () => toggleFilter(def.id));
+    list.appendChild(btn);
+  }
+  document.getElementById('btn-sidebar-clear').classList.toggle('hidden', activeFilterIds.size === 0);
+}
+
+function toggleFilter(filterId) {
+  if (activeFilterIds.has(filterId)) activeFilterIds.delete(filterId);
+  else activeFilterIds.add(filterId);
+  refreshSidebar();
+}
+
+function clearFilters() {
+  activeFilterIds.clear();
+  refreshSidebar();
+}
+
+function refreshSidebar() {
+  if (!lastRunState) return;
+  renderSidebarFilterList(lastRunState);
+  applyFilterHighlights(lastRunState);
+  renderSidebarInfoPanel(lastRunState);
+}
+
+function setSidebarCollapsed(collapsed) {
+  document.getElementById('map-sidebar-left').classList.toggle('collapsed', collapsed);
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSE_KEY, collapsed ? '1' : '0');
+  } catch {
+    // Private browsing / storage disabled -- collapse state just won't persist.
+  }
+}
+
+// "YOU ARE HERE" -- a one-off action, not a toggle: recenters the camera,
+// pulses the current-location pin, and shows the same info-card panel the
+// filters use (reachable count, HP) rather than a highlight set.
+function showYouAreHere(runState) {
+  const info = youAreHereInfo(runState);
+  activeFilterIds.clear();
+  renderSidebarFilterList(runState);
+  for (const [id, els] of Object.entries(hotspotEls)) els.root.classList.remove('filter-match', 'filter-dim', 'filter-urgent');
+  centerCameraOn(info.locationId, camera.zoom);
+  const pin = hotspotEls[info.locationId]?.root;
+  if (pin) {
+    pin.classList.add('you-are-here-pulse');
+    setTimeout(() => pin.classList.remove('you-are-here-pulse'), 1300);
+  }
+  const panel = document.getElementById('sidebar-info-panel');
+  panel.classList.remove('hidden');
+  panel.innerHTML = `
+    <div class="sidebar-info-card">
+      <div class="sidebar-info-card-name">${info.name}</div>
+      <div class="sidebar-info-card-line">Reachable: ${info.reachableCount} location${info.reachableCount === 1 ? '' : 's'}</div>
+      <div class="sidebar-info-card-line">HP: ${Math.round(info.hp)} / ${info.maxHp}</div>
+    </div>
+  `;
+}
+
 // Mounted once (from game.js's constructor) -- rebuilding the hotspot/road
 // DOM every board visit would be wasteful since neither the art nor the
 // location registry changes mid-session, only their *state* does (see
@@ -286,6 +427,18 @@ export function mountMapView(handlers) {
   document.getElementById('btn-map-zoom-in').addEventListener('click', () => zoomIn());
   document.getElementById('btn-map-zoom-out').addEventListener('click', () => zoomOut());
   document.getElementById('btn-map-zoom-reset').addEventListener('click', () => handlers.onZoomReset());
+  document.getElementById('btn-filter-you-are-here').addEventListener('click', () => showYouAreHere(lastRunState));
+  document.getElementById('btn-sidebar-clear').addEventListener('click', () => clearFilters());
+  let collapsed = false;
+  try {
+    collapsed = localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === '1';
+  } catch {
+    // Private browsing / storage disabled -- default to expanded.
+  }
+  setSidebarCollapsed(collapsed);
+  document.getElementById('btn-sidebar-collapse').addEventListener('click', () => {
+    setSidebarCollapsed(!document.getElementById('map-sidebar-left').classList.contains('collapsed'));
+  });
   // A resize can shrink minZoomForViewport's "cover" floor out from under
   // an already-set camera (e.g. rotating a tablet, or the browser window
   // itself resizing) -- re-clamp against the new viewport rather than
@@ -298,6 +451,7 @@ export function mountMapView(handlers) {
 // board screen is (re)entered and there is nothing already animating
 // (travelHomerMarker below handles the one time there is: mid-travel).
 export function renderMap(runState) {
+  lastRunState = runState;
   const segment = getCurrentSegment(runState);
   const reachableIds = getReachableLocationIds(runState);
   const bossUnlocked = isBossLocationUnlocked(runState);
@@ -309,6 +463,9 @@ export function renderMap(runState) {
     els.root.className = `map-hotspot ${state}${id === segment.bossLocationId ? ' is-boss' : ''}${invaded ? ' is-invaded' : ''}${devilHere ? ' is-devil-hunting' : ''}`;
   }
   renderRoads(runState);
+  renderSidebarFilterList(runState);
+  applyFilterHighlights(runState);
+  renderSidebarInfoPanel(runState);
 
   const homerPortraitUrl = getAssetUrl('characters', runState.character.id);
   if (homerPortraitUrl) dom.homerPortrait.src = homerPortraitUrl;
