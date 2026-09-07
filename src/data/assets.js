@@ -103,6 +103,11 @@ export const ASSET_MANIFEST = {
     chiefWiggum: `${BASE}/characters/chiefwiggum.png`,
     mrBurns: `${BASE}/characters/mrburns.png`,
     zombieSkinner: `${BASE}/enemies/Principal%20Skinner%20Zombie.png`,
+    // Zombie Ned (combat-redesign mini-boss, Flanders House) reuses the
+    // same zombie-Ned art already wired to the early patientZeroFlanders
+    // enemy -- was missing here entirely, which meant the boss fight
+    // rendered no portrait at all (just the fallback letter badge).
+    zombieNed: `${BASE}/enemies/Ned%20Flanders%20Zombie.png`,
     kodos: `${BASE}/enemies/Kodos_Johnson.webp`,
     // Original upload was a .tiff (no browser renders those) -- this is a
     // converted .png sibling with the same real transparency already intact.
