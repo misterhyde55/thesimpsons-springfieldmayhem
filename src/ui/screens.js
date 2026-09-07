@@ -291,6 +291,37 @@ export function populateBoardInfo(runState, segment, reachableCount) {
     .join('');
 }
 
+// ---------- QUEST TRACKER ----------
+export function populateQuestTrackerToggle(activeQuests, onOpen) {
+  const btn = freshButton('btn-open-quest-tracker');
+  btn.classList.toggle('hidden', activeQuests.length === 0);
+  $('quest-tracker-count').textContent = activeQuests.length ? `(${activeQuests.length})` : '';
+  btn.addEventListener('click', onOpen);
+}
+
+export function showQuestTrackerModal(activeQuests, onClose) {
+  const list = $('quest-tracker-list');
+  list.innerHTML = '';
+  if (!activeQuests.length) {
+    list.innerHTML = '<p class="quest-tracker-empty">Nothing active right now. Keep exploring Springfield.</p>';
+  }
+  for (const quest of activeQuests) {
+    const card = document.createElement('div');
+    card.className = 'quest-tracker-card';
+    card.innerHTML = `
+      <div class="quest-tracker-title">${quest.title}</div>
+      <div class="quest-tracker-hint">${quest.hint}</div>
+      <div class="quest-tracker-reward">REWARD: ${quest.reward}</div>
+    `;
+    list.appendChild(card);
+  }
+  $('quest-tracker-modal').classList.remove('hidden');
+  freshButton('btn-quest-tracker-close').addEventListener('click', () => {
+    $('quest-tracker-modal').classList.add('hidden');
+    if (onClose) onClose();
+  });
+}
+
 export function populateBreakingNews(newsText) {
   $('news-text').textContent = newsText;
 }

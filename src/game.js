@@ -19,7 +19,7 @@ import { pickTravelScene, pickSceneLine } from './data/scenes.js';
 import { rollTravelEvent } from './data/travelEvents.js';
 import { pickTreehouseScene } from './data/treehouseScenes.js';
 import { DEVIL_DEALS } from './data/devilDeals.js';
-import { applyQuestResolution } from './data/quests.js';
+import { applyQuestResolution, getActiveQuestsSummary } from './data/quests.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
 import { getCurrentSegment, isFinalSegment, isSegmentComplete, isBossLocationUnlocked, markLocationVisited } from './systems/board.js';
@@ -337,6 +337,9 @@ export class Game {
     const reachableIds = getReachableLocationIds(this.runState);
     screens.populateBoardInfo(this.runState, segment, reachableIds.length);
     screens.applyMapMayhemVisuals(this.runState.mayhem);
+    screens.populateQuestTrackerToggle(getActiveQuestsSummary(this.runState), () => {
+      screens.showQuestTrackerModal(getActiveQuestsSummary(this.runState));
+    });
     mapView.mountMapView({
       onHotspotClick: (locationId) => this.handleHotspotClick(locationId),
       onHotspotHover: (locationId) => mapView.showHoverPanel(locationId, this.runState),

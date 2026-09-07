@@ -162,6 +162,7 @@
     <div class="map-hud-top-right">
       <div id="board-cash-readout" class="cash-readout">🍩 0</div>
       <div id="board-mayhem-readout" class="mayhem-readout">MAYHEM: 0%</div>
+      <button id="btn-open-quest-tracker" type="button" class="quest-tracker-toggle hidden">📋 QUESTS <span id="quest-tracker-count"></span></button>
     </div>
     <div class="map-zoom-controls">
       <button id="btn-map-zoom-in" type="button" title="Zoom in">+</button>
@@ -299,6 +300,17 @@
       <p id="shop-text"></p>
       <div id="shop-items"></div>
       <button id="btn-shop-leave">LEAVE SHOP</button>
+    </div>
+  </div>
+
+  <!-- Active quest tracker -- opened from the board HUD, lists whatever's
+       currently in runState.quests so the player understands WHY a location
+       matters instead of only remembering it from dialogue text. -->
+  <div id="quest-tracker-modal" class="modal hidden">
+    <div class="modal-box">
+      <h2>ACTIVE QUESTS</h2>
+      <div id="quest-tracker-list" class="quest-tracker-list"></div>
+      <button id="btn-quest-tracker-close">CLOSE</button>
     </div>
   </div>
 
