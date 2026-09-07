@@ -405,7 +405,30 @@ export class Game {
     saveActiveRun(this.runState);
 
     screens.showScreen('screen-travel');
-    screens.populateTravelScreen(scene, sceneLine, LOCATIONS[locationId].name, outcome, () => this.arriveAt(locationId));
+    screens.populateTravelScreen(scene, sceneLine, LOCATIONS[locationId].name, outcome, () => {
+      if (outcome?.ambushCombat) {
+        this.enterAmbushBattle(fromId, locationId, outcome.ambushCombat);
+      } else {
+        this.arriveAt(locationId);
+      }
+    });
+  }
+
+  // A travel event (data/travelEvents.js) can detour into a fight before
+  // Homer actually reaches his destination -- "AMBUSH!" A battle-victory
+  // callback for this content then continues on to the original
+  // destination (arriveAt) instead of returning to the map, so surviving
+  // the ambush doesn't cost the trip that was already in progress.
+  enterAmbushBattle(fromId, destinationId, combatContent) {
+    const battleLocationId = fromId || destinationId;
+    this.currentLocationId = battleLocationId;
+    this.currentLocation = LOCATIONS[battleLocationId];
+    this.enterBattleForLocationContent(battleLocationId, {
+      ...combatContent,
+      type: 'combat',
+      isAmbush: true,
+      ambushDestinationId: destinationId,
+    });
   }
 
   arriveAt(locationId) {
@@ -941,7 +964,8 @@ export class Game {
     const milestoneId = content.milestoneAbilityId;
     const milestoneAbility = milestoneId && !this.runState.abilityDeck.includes(milestoneId) ? ABILITIES[milestoneId] : null;
     const choices = milestoneAbility ? [milestoneAbility] : rollAbilityChoices(this.runState, 3);
-    this.showAbilityDraftScreen(locationId, choices, !!milestoneAbility);
+    const onDone = content.isAmbush ? () => this.arriveAt(content.ambushDestinationId) : undefined;
+    this.showAbilityDraftScreen(locationId, choices, !!milestoneAbility, onDone);
   }
 
   // Standard/elite/boss fights all pay out donuts on top of whatever the
@@ -986,7 +1010,10 @@ export class Game {
     this.finalizeRun(false);
   }
 
-  showAbilityDraftScreen(locationId, choices, milestone) {
+  // onDone defaults to returning to the map -- an ambush victory instead
+  // continues the interrupted trip (arriveAt the original destination)
+  // rather than dropping the player back on the board mid-road.
+  showAbilityDraftScreen(locationId, choices, milestone, onDone = () => this.showBoard()) {
     screens.showScreen('screen-ability-draft');
     screens.populateAbilityDraft(
       {
@@ -1004,7 +1031,7 @@ export class Game {
           if (milestone) screens.showBanner(`${this.runState.character.name.toUpperCase()} LEARNED ${ability.name}!`, 2400);
         }
         saveActiveRun(this.runState);
-        this.showBoard();
+        onDone();
       },
       { milestone }
     );

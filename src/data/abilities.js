@@ -250,6 +250,71 @@ export const ABILITIES = {
       api.status(STATUS.TIPSY, 2, 'self');
     },
   },
+  // ---- Duff synergy: duffCourage/duffChug stack Tipsy on Homer as a
+  // drawback (+10% damage taken per stack, statusEffects.js); these three
+  // instead treat those same stacks as fuel, so committing to Duff during a
+  // fight becomes a real build identity rather than a one-off panic button.
+  drunkenHaymaker: {
+    id: 'drunkenHaymaker',
+    name: 'Drunken Haymaker',
+    emoji: '🥊',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'enemy',
+    description: 'Deal 8 damage, +5 for each stack of Tipsy you have.',
+    effect(api) {
+      api.damage(8 + api.getStatus(STATUS.TIPSY, 'self') * 5);
+    },
+  },
+  beerBelly: {
+    id: 'beerBelly',
+    name: 'Beer Belly',
+    emoji: '🛡️',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'self',
+    description: 'Gain 5 Armor, +3 for each stack of Tipsy you have.',
+    effect(api) {
+      api.status(STATUS.ARMOR, 5 + api.getStatus(STATUS.TIPSY, 'self') * 3, 'self');
+    },
+  },
+  duffRage: {
+    id: 'duffRage',
+    name: 'Duff Rage',
+    emoji: '😤',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'self',
+    description: 'Gain 3 Strength for each stack of Tipsy you have (minimum 3).',
+    effect(api) {
+      api.status(STATUS.STRENGTH, Math.max(3, api.getStatus(STATUS.TIPSY, 'self') * 3), 'self');
+    },
+  },
+  holdMyBeer: {
+    id: 'holdMyBeer',
+    name: 'Hold My Beer',
+    emoji: '🍺',
+    icon: { category: 'items', id: 'duff' },
+    cost: 2,
+    rarity: RARITY.EPIC,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'enemy',
+    description: 'Deal 24 damage. Become Tipsy x3. "Watch this."',
+    effect(api) {
+      api.damage(24);
+      api.status(STATUS.TIPSY, 3, 'self');
+    },
+  },
   berserkerSwing: {
     id: 'berserkerSwing',
     name: 'Berserker Swing',
