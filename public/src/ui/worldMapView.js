@@ -1,12 +1,13 @@
-// The Springfield map is the real Springfieldmap2.png artwork -- not a
+// The Springfield map is the real SpringfieldMap_Clean.png artwork -- pure
+// environment art (buildings/roads/trees/water, no baked UI at all), not a
 // canvas drawing, not a CSS approximation. `.map-world` (index.html) holds
-// the `<img>` at its natural 1594x986 size plus an SVG road layer and a DOM
+// the `<img>` at its natural 1594x987 size plus an SVG road layer and a DOM
 // hotspot layer, all positioned with plain percentages against that same
-// 1594x986 box; pan/zoom then just transforms `.map-world` as a whole
-// (translate + scale), so every hotspot/road stays glued to the art at any
-// pan/zoom without ever recomputing its own position. Homer's marker is a
-// real element too, animated between locations via a CSS transition on
-// left/top rather than a per-frame redraw loop -- nothing here runs on a
+// box; pan/zoom then just transforms `.map-world` as a whole (translate +
+// scale), so every hotspot/road stays glued to the art at any pan/zoom
+// without ever recomputing its own position. Homer's marker is a real
+// element too, animated between locations via a CSS transition on left/top
+// rather than a per-frame redraw loop -- nothing here runs on a
 // requestAnimationFrame loop the way the old canvas board did.
 import { WORLD_LOCATIONS, getAllRoads, isRoadBlocked, getReachableLocationIds, START_LOCATION_ID } from '../data/worldMap.js';
 import { getCurrentSegment, isBossLocationUnlocked } from '../systems/board.js';
@@ -17,7 +18,7 @@ import { FILTER_DEFS, youAreHereInfo } from '../systems/mapIntel.js';
 const SIDEBAR_COLLAPSE_KEY = 'springfieldMayhem.mapSidebarCollapsed';
 
 const MAP_WIDTH = 1594;
-const MAP_HEIGHT = 986;
+const MAP_HEIGHT = 987;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2.5;
 const START_ZOOM = 1.5;
@@ -30,8 +31,20 @@ let clickHandler = null;
 let cameraSettledHandler = null;
 let cameraSaveTimer = null;
 
+// ---- Route reveal state -- "NO paths when nothing is selected; hovering
+// or selecting a reachable location draws ONLY that one route" (map-rebuild
+// spec). Selecting (a location the player clicked into the inspect panel)
+// wins over merely hovering something else, so the route the player is
+// actually deciding about doesn't flicker away while they move the mouse
+// toward the TRAVEL button. ----
+let hoveredLocationId = null;
+let selectedLocationId = null;
+
 // ---- Sidebar filter state (systems/mapIntel.js) ----
-let activeFilterIds = new Set();
+// Most categories start OFF ("the giant permanent legend is unnecessary");
+// QUEST and EVENT start on since those are the two things a player should
+// never have to dig for -- per the map-rebuild spec's explicit default.
+let activeFilterIds = new Set(['quest', 'event']);
 let lastRunState = null; // so toggling a filter can re-render without game.js re-driving it
 
 // Debounced so a wheel-zoom flurry or an active drag doesn't spam
@@ -189,150 +202,77 @@ function buildRoads() {
   dom.roadsSvg.setAttribute('viewBox', `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
 }
 
-// Springfieldmap2.png has a whole fake mockup UI baked into its own pixels
-// (logo, legend, "SEGMENT/MAYHEM/EPISODE TIME" header, a Homer HP card, an
-// objective box) that collides with the real UI rendered on top of it --
-// see the html comment above #map-fog. Classical inpainting (tried first)
-// mangles this art style into worse-looking artifacts than the baked text
-// itself, so these are permanent fog patches instead: rectangles in the
-// SAME image-pixel coordinate space as the art (hand-measured against the
-// source file), living inside the zoom/pan-transformed .map-world so they
-// track the art exactly at every zoom level -- a fixed-width DOM panel
-// can't do that (it gets outgrown the moment you zoom in). Soft-edged and
-// tinted rather than flat black, so it reads as drifting horror fog, not
-// a visible patch.
-const FOG_PATCHES = [
-  { x: 0, y: 0, w: 345, h: 185 }, // baked game logo
-  { x: 0, y: 195, w: 200, h: 490 }, // baked legend column (real sidebar covers this too, but not past ~1.1x zoom)
-  { x: 1005, y: 0, w: 420, h: 100 }, // baked "SEGMENT I / MAYHEM" header
-  { x: 1410, y: 0, w: 184, h: 100 }, // baked "EPISODE TIME" box (not a real resource)
-  { x: 1525, y: 110, w: 69, h: 145 }, // baked zoom controls
-  { x: 0, y: 810, w: 285, h: 176 }, // baked Homer HP/cash card
-  { x: 1180, y: 875, w: 414, h: 111 }, // baked "CURRENT OBJECTIVE" box
-  // Every baked per-building name pill + status icon -- each collides with
-  // the real .map-hotspot-label ui/worldMapView.js already renders at its
-  // own (independently-tuned) position, so leaving these in produced
-  // visibly doubled text ("FLANDERS HOUSE" baked directly under "Flanders'
-  // House" real, etc.) rather than a one-off edge case.
-  // One combined patch per location (icon + label + any status badge
-  // together) rather than separate icon/label pairs -- a single generous
-  // ellipse is far more forgiving of hand-measurement error than several
-  // small tightly-fit ones, which left visible gaps between them.
-  { x: 685, y: 15, w: 200, h: 185 }, // Springfield Elementary label + ?/lock icons
-  { x: 880, y: 70, w: 65, h: 55 }, // quest "!" icon near Krusty Burger
-  { x: 915, y: 165, w: 215, h: 55 }, // Krusty Burger label
-  { x: 1320, y: 190, w: 220, h: 80 }, // Nuclear Power Plant + Boss Area + icon
-  { x: 390, y: 305, w: 175, h: 50 }, // Flanders House label
-  { x: 690, y: 280, w: 175, h: 80 }, // Kwik-E-Mart label + icon
-  { x: 900, y: 290, w: 205, h: 80 }, // Moe's Tavern label + icon
-  { x: 1125, y: 335, w: 200, h: 90 }, // Android's Dungeon label + icon
-  { x: 1390, y: 445, w: 195, h: 80 }, // Springfield Mall label + lock
-  { x: 270, y: 330, w: 200, h: 175 }, // baked "you are here" Homer sprite + Simpsons House callout
-  { x: 650, y: 480, w: 250, h: 135 }, // Lard Lad Donuts x2
-  { x: 190, y: 555, w: 205, h: 90 }, // Springfield Church label + lock
-  { x: 155, y: 685, w: 195, h: 135 }, // Springfield Cemetery + High Danger + icon
-  { x: 520, y: 735, w: 200, h: 85 }, // Sprawl-Mart label + icon
-  { x: 880, y: 490, w: 220, h: 85 }, // Bowlarama label + icon
-  { x: 785, y: 680, w: 175, h: 110 }, // Springfield Police Station label + icon
-  { x: 1370, y: 580, w: 200, h: 85 }, // Springfield Hospital label + icon
-  { x: 1140, y: 720, w: 195, h: 80 }, // Krustylu Studios label + icon
-  { x: 1015, y: 805, w: 195, h: 130 }, // Springfield Gorge label + icons
-  { x: 1400, y: 810, w: 175, h: 85 }, // Retirement Castle label + icon
-];
-
-function buildFog() {
-  const svg = dom.fogSvg;
-  svg.setAttribute('viewBox', `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
-  // Ellipses, not rectangles -- ellipses read as drifting mist, rectangles
-  // read as debug placeholder boxes. A tight, slightly-inset solid core
-  // (guarantees full coverage of the baked text/icon underneath) sits
-  // under a larger, heavily-blurred, lower-opacity halo that does the
-  // actual feathering, so the visible edge is soft even though the core
-  // itself is a hard shape.
-  const ellipses = (extraRx, extraRy) =>
-    FOG_PATCHES.map((p) => {
-      const cx = p.x + p.w / 2;
-      const cy = p.y + p.h / 2;
-      const rx = Math.max(4, p.w / 2 + extraRx);
-      const ry = Math.max(4, p.h / 2 + extraRy);
-      return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" />`;
-    }).join('');
-  svg.innerHTML = `
-    <defs>
-      <filter id="mapFogBlur" x="-100%" y="-100%" width="300%" height="300%">
-        <feGaussianBlur stdDeviation="18" />
-      </filter>
-    </defs>
-    <g filter="url(#mapFogBlur)" fill="#1a0f28" opacity="0.75">
-      ${ellipses(20, 16)}
-    </g>
-    <g fill="#0e0818" opacity="0.98">
-      ${ellipses(0, 0)}
-    </g>
-  `;
-}
-
-function renderRoads(runState) {
+// "When NO location is selected: NO PATHS. When the player hovers a
+// reachable location: show ONLY the route from CURRENT LOCATION to
+// HOVERED LOCATION. When hover ends: route disappears. When a location is
+// selected: keep that single route visible." (map-rebuild spec) -- so
+// unlike the old renderRoads (which drew the whole graph, dimmed), this
+// draws at most ONE line, and only ever on demand. Straight point-to-point
+// for now (SpringfieldMap_Clean.png's grid is regular enough that this
+// already reads as "the road there"); true hand-authored waypoints that
+// bend around buildings are future work, not required for this to be a
+// real improvement over the old permanent dotted network.
+function renderRoute(targetId, runState) {
   const svg = dom.roadsSvg;
   svg.innerHTML = '';
+  if (!targetId || !runState) return;
   const here = runState.world.currentLocationId || START_LOCATION_ID;
-  // Springfield's full road graph is dense (most locations connect to
-  // several others) -- lighting up every single one at equal weight was
-  // reported as "everything looks a mess," since it's a hash of crossing
-  // lines with no obvious "start here." Only the roads actually leaving
-  // Homer's current location are real decisions right now, so only THOSE
-  // get the bold glowing treatment; every other road renders as a faint
-  // reference line so the street grid still reads as connected without
-  // fighting for attention.
-  for (const [a, b] of getAllRoads()) {
-    const posA = WORLD_LOCATIONS[a];
-    const posB = WORLD_LOCATIONS[b];
-    const blocked = isRoadBlocked(runState, a, b);
-    const touchesHere = a === here || b === here;
-    const x1 = posA.x * MAP_WIDTH;
-    const y1 = posA.y * MAP_HEIGHT;
-    const x2 = posB.x * MAP_WIDTH;
-    const y2 = posB.y * MAP_HEIGHT;
-    if (!touchesHere) {
-      const faint = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      faint.setAttribute('x1', x1);
-      faint.setAttribute('y1', y1);
-      faint.setAttribute('x2', x2);
-      faint.setAttribute('y2', y2);
-      faint.setAttribute('stroke', blocked ? '#a83a3a' : '#c9c9d3');
-      faint.setAttribute('stroke-width', '2');
-      faint.setAttribute('stroke-linecap', 'round');
-      faint.setAttribute('stroke-dasharray', '1 12');
-      faint.setAttribute('opacity', '0.28');
-      svg.appendChild(faint);
-      continue;
-    }
-    // A wide, soft, low-opacity glow UNDER a bright, mostly-solid core --
-    // the glow is what makes the path readable against Springfieldmap2.png's
-    // own busy, high-contrast street art (a thin dashed line at 55% opacity,
-    // the old treatment, was reported as "hard to see" and got lost in it).
-    const glow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    glow.setAttribute('x1', x1);
-    glow.setAttribute('y1', y1);
-    glow.setAttribute('x2', x2);
-    glow.setAttribute('y2', y2);
-    glow.setAttribute('stroke', blocked ? '#d0021b' : '#f6d217');
-    glow.setAttribute('stroke-width', '16');
-    glow.setAttribute('stroke-linecap', 'round');
-    glow.setAttribute('opacity', '0.35');
-    svg.appendChild(glow);
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', x1);
-    line.setAttribute('y1', y1);
-    line.setAttribute('x2', x2);
-    line.setAttribute('y2', y2);
-    line.setAttribute('stroke', blocked ? '#ff4444' : '#ffe14d');
-    line.setAttribute('stroke-width', '6');
-    line.setAttribute('stroke-linecap', 'round');
-    line.setAttribute('stroke-dasharray', blocked ? '12 10' : '3 15');
-    line.setAttribute('opacity', blocked ? '0.9' : '0.95');
-    svg.appendChild(line);
+  if (targetId === here) return;
+  const reachable = getReachableLocationIds(runState).includes(targetId);
+  if (!reachable) return;
+  const posA = WORLD_LOCATIONS[here];
+  const posB = WORLD_LOCATIONS[targetId];
+  if (!posA || !posB) return;
+  const blocked = isRoadBlocked(runState, here, targetId);
+  const x1 = posA.x * MAP_WIDTH;
+  const y1 = posA.y * MAP_HEIGHT;
+  const x2 = posB.x * MAP_WIDTH;
+  const y2 = posB.y * MAP_HEIGHT;
+  // A wide, soft, low-opacity glow UNDER a bright, mostly-solid core --
+  // the glow is what keeps the path readable against the map's own
+  // detailed street art without needing a harsh, oversized line.
+  const glow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  glow.setAttribute('x1', x1);
+  glow.setAttribute('y1', y1);
+  glow.setAttribute('x2', x2);
+  glow.setAttribute('y2', y2);
+  glow.setAttribute('stroke', blocked ? '#d0021b' : '#f6d217');
+  glow.setAttribute('stroke-width', '14');
+  glow.setAttribute('stroke-linecap', 'round');
+  glow.setAttribute('opacity', '0.3');
+  svg.appendChild(glow);
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', x1);
+  line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2);
+  line.setAttribute('y2', y2);
+  line.setAttribute('stroke', blocked ? '#ff4444' : '#ffe14d');
+  line.setAttribute('stroke-width', '4');
+  line.setAttribute('stroke-linecap', 'round');
+  line.setAttribute('stroke-dasharray', blocked ? '10 8' : '2 12');
+  line.setAttribute('opacity', '0.9');
+  svg.appendChild(line);
+}
+
+// Selecting (clicked into the inspect panel) wins over merely hovering
+// something else, so the route the player is actually deciding about
+// doesn't disappear while they move the mouse toward the TRAVEL button.
+function refreshRoute() {
+  renderRoute(selectedLocationId || hoveredLocationId, lastRunState);
+}
+
+export function setHoveredLocation(id) {
+  hoveredLocationId = id;
+  refreshRoute();
+}
+
+export function setSelectedLocation(id) {
+  if (selectedLocationId && hotspotEls[selectedLocationId]) {
+    hotspotEls[selectedLocationId].root.classList.remove('selected');
   }
+  selectedLocationId = id;
+  if (id && hotspotEls[id]) hotspotEls[id].root.classList.add('selected');
+  refreshRoute();
 }
 
 function buildHotspots(handlers) {
@@ -350,8 +290,14 @@ function buildHotspots(handlers) {
       e.stopPropagation();
       if (clickHandler) clickHandler(id);
     });
-    root.addEventListener('pointerenter', () => handlers.onHotspotHover(id));
-    root.addEventListener('pointerleave', () => handlers.onHotspotHover(null));
+    root.addEventListener('pointerenter', () => {
+      handlers.onHotspotHover(id);
+      setHoveredLocation(id);
+    });
+    root.addEventListener('pointerleave', () => {
+      handlers.onHotspotHover(null);
+      setHoveredLocation(null);
+    });
     dom.hotspotsLayer.appendChild(root);
     hotspotEls[id] = { root, pin: root.querySelector('.map-hotspot-pin') };
   }
@@ -388,6 +334,43 @@ export function hotspotInfo(locationId, runState) {
   if (isBoss) bits.push('☠ BOSS LOCATION');
   if (typeof flag === 'string') bits.push(flag.toUpperCase());
   return { name: loc.name, status: bits.join(' • ') };
+}
+
+// Richer, structured version of hotspotInfo for the click-driven inspect
+// panel (map-rebuild "click = INSPECT" flow) -- chips for quick status,
+// body lines for "why would I go there." A never-visited location with no
+// active invasion/rumor/Devil Ned reveal stays a "???" -- Homer only knows
+// what he's actually seen (map-rebuild "Fog of Knowledge"), even though
+// the hotspot icon itself is still visible (that part of the design is
+// unchanged -- see systems/mapIntel.js's own header comment).
+export function locationInspectDetails(locationId, runState) {
+  const loc = LOCATIONS[locationId];
+  const segment = getCurrentSegment(runState);
+  const visited = runState.world.visitedLocationIds.includes(locationId);
+  const isBoss = locationId === segment.bossLocationId;
+  const flag = runState.world.locationFlags[locationId];
+  const invasion = runState.world.locationInvasions?.[locationId];
+  const devilHere = runState.world.devilNedPosition === locationId;
+
+  const chips = [];
+  if (devilHere) chips.push({ text: 'DEVIL NED', urgent: true });
+  if (invasion) chips.push({ text: `UNDER ATTACK — ${invasion.turnsLeft} LEFT`, urgent: true });
+  chips.push({ text: visited ? 'VISITED' : 'UNEXPLORED', urgent: false });
+  if (isBoss) chips.push({ text: 'BOSS LOCATION', urgent: true });
+
+  const bodyLines = [];
+  if (typeof flag === 'string') bodyLines.push(`Rumor: "${flag}"`);
+  const revealed = visited || !!invasion || devilHere;
+  if (revealed) {
+    const content = segment.content[locationId];
+    if (content?.type === 'combat') bodyLines.push(content.elite ? 'Elite combat encounter' : 'Combat encounter');
+    else if (content?.type === 'boss') bodyLines.push('Boss encounter');
+    else if (content?.type === 'event') bodyLines.push('Story event');
+    else if (visited) bodyLines.push('Nothing left here for now.');
+  } else {
+    bodyLines.push('??? Not yet investigated.');
+  }
+  return { name: loc.name, chips, bodyLines };
 }
 
 // ==================== SIDEBAR (systems/mapIntel.js) ====================
@@ -535,7 +518,6 @@ export function mountMapView(handlers) {
     viewport: document.getElementById('map-viewport'),
     world: document.getElementById('map-world'),
     image: document.getElementById('map-image'),
-    fogSvg: document.getElementById('map-fog'),
     roadsSvg: document.getElementById('map-roads'),
     hotspotsLayer: document.getElementById('map-hotspots'),
     homerMarker: document.getElementById('map-homer-marker'),
@@ -545,7 +527,6 @@ export function mountMapView(handlers) {
   clickHandler = handlers.onHotspotClick;
   cameraSettledHandler = handlers.onCameraSettled || null;
   dom.image.src = getAssetUrl('ui', 'springfieldMap') || '';
-  buildFog();
   buildRoads();
   buildHotspots({
     onHotspotHover: (locationId) => handlers.onHotspotHover(locationId),
@@ -556,11 +537,16 @@ export function mountMapView(handlers) {
   document.getElementById('btn-map-zoom-reset').addEventListener('click', () => handlers.onZoomReset());
   document.getElementById('btn-filter-you-are-here').addEventListener('click', () => showYouAreHere(lastRunState));
   document.getElementById('btn-sidebar-clear').addEventListener('click', () => clearFilters());
-  let collapsed = false;
+  // "The giant permanent legend is unnecessary... create MAP FILTERS as a
+  // collapsible button" -- defaults to collapsed (the 52px icon rail)
+  // unless the player has explicitly expanded it before; only an explicit
+  // '0' in storage means "I want it open by default."
+  let collapsed = true;
   try {
-    collapsed = localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === '1';
+    const stored = localStorage.getItem(SIDEBAR_COLLAPSE_KEY);
+    if (stored !== null) collapsed = stored === '1';
   } catch {
-    // Private browsing / storage disabled -- default to expanded.
+    // Private browsing / storage disabled -- default to collapsed.
   }
   setSidebarCollapsed(collapsed);
   document.getElementById('btn-sidebar-collapse').addEventListener('click', () => {
@@ -587,9 +573,10 @@ export function renderMap(runState) {
     const state = nodeStateClass(id, runState, reachableIds, segment, bossUnlocked);
     const invaded = !!runState.world.locationInvasions?.[id];
     const devilHere = runState.world.devilNedPosition === id;
-    els.root.className = `map-hotspot ${state}${id === segment.bossLocationId ? ' is-boss' : ''}${invaded ? ' is-invaded' : ''}${devilHere ? ' is-devil-hunting' : ''}`;
+    const selected = id === selectedLocationId;
+    els.root.className = `map-hotspot ${state}${id === segment.bossLocationId ? ' is-boss' : ''}${invaded ? ' is-invaded' : ''}${devilHere ? ' is-devil-hunting' : ''}${selected ? ' selected' : ''}`;
   }
-  renderRoads(runState);
+  refreshRoute();
   renderSidebarFilterList(runState);
   applyFilterHighlights(runState);
   renderSidebarInfoPanel(runState);

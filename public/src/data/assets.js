@@ -137,7 +137,12 @@ export const ASSET_MANIFEST = {
   },
   // HUD/menu art not tied to a specific game entity.
   ui: {
-    springfieldMap: `${BASE}/ui/Springfieldmap2.png`,
+    // Springfieldmap2.png (the original upload) had an entire fake mockup
+    // UI baked into its own pixels -- see ui/worldMapView.js's old
+    // FOG_PATCHES, since removed now that this replacement is pure
+    // environment art at the exact same building layout/positions, so
+    // every WORLD_LOCATIONS coordinate still lines up with no recalibration.
+    springfieldMap: `${BASE}/ui/SpringfieldMap_Clean.png`,
   },
   // Full-screen cinematic "story panel" artwork for major story beats (see
   // data/treehouseScenes.js) -- illustrated Treehouse of Horror scenes, not

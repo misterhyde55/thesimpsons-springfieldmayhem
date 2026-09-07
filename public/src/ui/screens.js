@@ -858,6 +858,35 @@ export function hideChoiceModal() {
   $('choice-modal').classList.add('hidden');
 }
 
+// ---------- MAP: LOCATION INSPECT (click = inspect, not instant travel) ----------
+// `details` is ui/worldMapView.js's locationInspectDetails() shape
+// ({name, chips, bodyLines}); `canTravel`/`disabledReason` come from
+// game.js's own reachability check, since only it knows the segment/road
+// rules. Always exactly one primary action (TRAVEL HERE) plus CLOSE --
+// never an instant travel on the click that opened this.
+export function showLocationInspect(details, { canTravel, disabledReason } = {}, onTravel, onClose) {
+  $('location-inspect-name').textContent = details.name;
+  $('location-inspect-status').innerHTML = details.chips
+    .map((c) => `<span class="status-chip${c.urgent ? ' urgent' : ''}">${c.text}</span>`)
+    .join('');
+  $('location-inspect-body').innerHTML = details.bodyLines.map((l) => `<div>${l}</div>`).join('');
+
+  const travelBtn = freshButton('btn-location-inspect-travel');
+  travelBtn.classList.toggle('hidden', !canTravel);
+  if (canTravel) travelBtn.addEventListener('click', onTravel);
+
+  const reasonEl = $('location-inspect-disabled-reason');
+  reasonEl.classList.toggle('hidden', canTravel || !disabledReason);
+  reasonEl.textContent = disabledReason || '';
+
+  freshButton('btn-location-inspect-close').addEventListener('click', onClose);
+  $('location-inspect-modal').classList.remove('hidden');
+}
+
+export function hideLocationInspect() {
+  $('location-inspect-modal').classList.add('hidden');
+}
+
 // ---------- ABILITY DRAFT (post-battle reward) ----------
 export function populateAbilityDraft(summary, abilities, onPick, options = {}) {
   const milestone = !!options.milestone;
