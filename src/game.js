@@ -29,7 +29,7 @@ import { resolveEnding } from './data/endings.js';
 import { pickCouchGag } from './data/couchGags.js';
 import { getCharacterInfo } from './data/characterRegistry.js';
 import { getLocationContent } from './data/journeys.js';
-import { getReachableLocationIds } from './data/worldMap.js';
+import { getReachableLocationIds, START_LOCATION_ID } from './data/worldMap.js';
 import { INTERIORS, getInteriorState, checkRandomInterrupt } from './data/interiors.js';
 import { pickTravelScene, pickSceneLine } from './data/scenes.js';
 import { rollTravelEvent } from './data/travelEvents.js';
@@ -436,7 +436,7 @@ export class Game {
     });
     screens.freshButton('btn-board-pause').addEventListener('click', () => this.openPauseMenu());
     mapView.mountMapView({
-      onHotspotClick: (locationId) => this.handleHotspotClick(locationId),
+      onHotspotClick: (locationId) => this.onHotspotClick(locationId),
       onHotspotHover: (locationId) => mapView.showHoverPanel(locationId, this.runState),
       onZoomReset: () => {
         mapView.resetViewToCurrentLocation(this.runState);
@@ -480,17 +480,49 @@ export class Game {
     saveActiveRun(this.runState);
   }
 
-  isLocationClickable(locationId) {
-    if (!getReachableLocationIds(this.runState).includes(locationId)) return false;
+  // null = travel is allowed; otherwise the reason it isn't, shown
+  // directly in the inspect panel rather than a click just silently doing
+  // nothing (map-rebuild "click = INSPECT" flow).
+  locationTravelBlockReason(locationId) {
+    if (locationId === (this.runState.world.currentLocationId || START_LOCATION_ID)) return 'You are already here.';
+    if (!getReachableLocationIds(this.runState).includes(locationId)) return 'Not reachable from here yet.';
     const segment = getCurrentSegment(this.runState);
-    if (locationId === segment.bossLocationId && !isBossLocationUnlocked(this.runState)) return false;
-    return true;
+    if (locationId === segment.bossLocationId && !isBossLocationUnlocked(this.runState)) return 'Explore more of Springfield first.';
+    return null;
   }
 
-  handleHotspotClick(locationId) {
+  isLocationClickable(locationId) {
+    return this.locationTravelBlockReason(locationId) === null;
+  }
+
+  // First click on a map location opens an inspect panel (name, status,
+  // what's known about it) with an explicit TRAVEL HERE button -- it never
+  // travels on its own. Only confirmTravelTo (below), fired from that
+  // button, actually moves Homer.
+  onHotspotClick(locationId) {
     if (!this.runState) return;
-    if (!this.isLocationClickable(locationId)) return;
     mapView.showHoverPanel(null);
+    mapView.setSelectedLocation(locationId);
+    const details = mapView.locationInspectDetails(locationId, this.runState);
+    const blockReason = this.locationTravelBlockReason(locationId);
+    screens.showLocationInspect(
+      details,
+      { canTravel: !blockReason, disabledReason: blockReason },
+      () => {
+        screens.hideLocationInspect();
+        mapView.setSelectedLocation(null);
+        this.confirmTravelTo(locationId);
+      },
+      () => {
+        screens.hideLocationInspect();
+        mapView.setSelectedLocation(null);
+      }
+    );
+  }
+
+  confirmTravelTo(locationId) {
+    if (!this.runState) return;
+    if (this.locationTravelBlockReason(locationId)) return;
     this.saveMapCamera();
     mapView.travelHomerMarker(locationId, 500, () => this.travelTo(locationId));
   }

@@ -319,17 +319,10 @@ body.full-bleed-active #top-bar { display: none; }
 .map-image {
   display: block;
   width: 1594px;
-  height: 986px;
+  height: 987px;
   max-width: none;
   user-select: none;
   -webkit-user-drag: none;
-  pointer-events: none;
-}
-.map-fog {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
   pointer-events: none;
 }
 .map-roads {
@@ -364,16 +357,29 @@ body.full-bleed-active #top-bar { display: none; }
   font-size: 1.1rem;
   transition: transform 0.15s ease, border-color 0.15s ease;
 }
-.map-hotspot-label {
+/* Default: NO permanent label -- "the player should primarily see
+   Springfield, Homer, reachable destinations" (map-rebuild spec), not
+   twenty building names shouting at once. A name appears only on hover,
+   for the current/selected location, or for something urgent enough that
+   silence would be misleading (invaded/Devil Ned/an active filter match). */
+.map-hotspot-label { display: none; }
+.map-hotspot:hover .map-hotspot-label,
+.map-hotspot.state-current .map-hotspot-label,
+.map-hotspot.selected .map-hotspot-label,
+.map-hotspot.is-invaded .map-hotspot-label,
+.map-hotspot.is-devil-hunting .map-hotspot-label,
+.map-hotspot.filter-match .map-hotspot-label {
+  display: block;
   font-size: 0.6rem;
   font-weight: 800;
   letter-spacing: 0.3px;
   color: #fff8ea;
-  background: rgba(10, 10, 14, 0.75);
+  background: rgba(10, 10, 14, 0.8);
   padding: 1px 6px;
   border-radius: 5px;
   white-space: nowrap;
 }
+.map-hotspot.selected .map-hotspot-pin { border-color: #fff8ea; box-shadow: 0 0 0 3px rgba(255, 248, 234, 0.5); transform: scale(1.1); }
 .map-hotspot.state-current .map-hotspot-pin { border-color: #3ec2ff; box-shadow: 0 0 0 3px rgba(62, 194, 255, 0.35); }
 .map-hotspot.state-available .map-hotspot-pin, .map-hotspot.state-visited-available .map-hotspot-pin {
   border-color: #f6d217;
@@ -566,7 +572,7 @@ body.full-bleed-active #top-bar { display: none; }
 .map-hud-top-left {
   position: absolute;
   top: 12px;
-  right: 12px;
+  right: 54px; /* clears the global sound button (index.html), fixed top:10/right:10 */
   z-index: 6;
   text-align: right;
   background: rgba(10, 10, 14, 0.6);
@@ -577,7 +583,7 @@ body.full-bleed-active #top-bar { display: none; }
 .map-hud-top-right {
   position: absolute;
   top: 76px;
-  right: 12px;
+  right: 54px;
   z-index: 6;
   background: rgba(10, 10, 14, 0.6);
   border-radius: 10px;
@@ -717,7 +723,7 @@ body.full-bleed-active #top-bar { display: none; }
 }
 .battle-topbar, .battle-stage, .battle-log, .battle-hand-bar { position: relative; z-index: 1; }
 
-.battle-topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px 0; }
+.battle-topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 54px 0 20px; } /* extra right padding clears the global sound button (index.html), fixed top:10/right:10 */
 .battle-location-name {
   font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
   color: #fff8ea;
@@ -1192,6 +1198,29 @@ body.full-bleed-active #top-bar { display: none; }
 .shop-item-btn:disabled { background: #555 !important; cursor: not-allowed; }
 .shop-item-btn em { font-style: normal; opacity: 0.75; font-size: 0.85em; }
 .shop-empty-note { color: #ccc; font-style: italic; text-align: center; }
+
+/* ---- Location inspect panel (map-rebuild "click = INSPECT, not travel") ---- */
+.location-inspect-box { max-width: 340px; }
+.location-inspect-name {
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #f6d217;
+  font-size: 1.3rem;
+  margin: 0 0 6px;
+}
+.location-inspect-status { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 10px; }
+.location-inspect-status .status-chip {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #d6d6de;
+}
+.location-inspect-status .status-chip.urgent { background: rgba(208, 2, 27, 0.25); color: #ff8a70; }
+.location-inspect-body { text-align: left; font-size: 0.85rem; color: #d6d6de; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
+.location-inspect-cost { font-size: 0.78rem; color: #38b6ff; font-weight: 700; margin-bottom: 4px; }
+.location-inspect-disabled-reason { color: #ff8a70; font-size: 0.78rem; font-weight: 700; margin: 4px 0 0; }
 
 .quest-tracker-toggle {
   margin-top: 6px;

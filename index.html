@@ -162,21 +162,13 @@
   <section id="screen-board" class="screen map-screen">
     <div id="map-viewport" class="map-viewport">
       <div id="map-world" class="map-world">
+        <!-- SpringfieldMap_Clean.png is pure environment art (buildings,
+             roads, trees, water -- no baked UI at all), at the same
+             building layout/positions as the original upload, so every
+             WORLD_LOCATIONS coordinate below still lines up. The old
+             #map-fog layer (needed to hide a previous upload's baked-in
+             fake UI) is gone -- nothing left to hide. -->
         <img id="map-image" class="map-image" alt="Springfield" draggable="false" />
-        <!-- Springfieldmap2.png has a fake mockup UI baked into its own
-             pixels (a logo, a legend, a "SEGMENT/MAYHEM/EPISODE TIME"
-             header, a Homer HP card, an objective box -- an AI-generated
-             "screenshot" rather than a clean background) that collides
-             with the REAL UI rendered on top. It can't be cleanly painted
-             out (tried: classical inpainting mangles this art style badly
-             -- see the image-audit report), so this fog layer permanently
-             obscures those exact regions instead. It shares .map-roads'
-             viewBox and lives inside the same transformed .map-world, so
-             it scales/pans in lockstep with the art at every zoom level --
-             unlike a fixed-width DOM panel, it can never be outgrown by
-             zooming in. Styled as drifting horror fog rather than flat
-             cover rectangles, so it reads as atmosphere, not a patch. -->
-        <svg id="map-fog" class="map-fog" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
         <svg id="map-roads" class="map-roads" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
         <div id="map-hotspots" class="map-hotspots"></div>
         <div id="map-homer-marker" class="map-homer-marker">
@@ -408,6 +400,22 @@
       <h2 id="choice-modal-title" class="choice-modal-title"></h2>
       <p id="choice-modal-prompt"></p>
       <div id="choice-modal-options" class="choice-modal-options"></div>
+    </div>
+  </div>
+
+  <!-- Click a map location = INSPECT, never an instant travel -- first
+       click opens this panel (name, status, threat, travel cost); a
+       second, explicit press on TRAVEL HERE is what actually moves Homer.
+       See ui/worldMapView.js / game.js onHotspotClick. -->
+  <div id="location-inspect-modal" class="modal hidden">
+    <div class="modal-box location-inspect-box">
+      <h2 id="location-inspect-name" class="location-inspect-name">Location</h2>
+      <div id="location-inspect-status" class="location-inspect-status"></div>
+      <div id="location-inspect-body" class="location-inspect-body"></div>
+      <div id="location-inspect-cost" class="location-inspect-cost"></div>
+      <button id="btn-location-inspect-travel" class="big-button">TRAVEL HERE</button>
+      <p id="location-inspect-disabled-reason" class="location-inspect-disabled-reason hidden"></p>
+      <button id="btn-location-inspect-close" class="menu-link-button">CLOSE</button>
     </div>
   </div>
 
