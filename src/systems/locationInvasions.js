@@ -15,7 +15,11 @@ export const INVASION_CONFIG = {
 };
 
 const TRIGGER_CHANCE = 0.14;
-const TURNS_TO_RESPOND = 2;
+// Exported so a scripted trigger (data/callbacks.js donutTrailFound -- the
+// THROW A DONUT payoff) can start an invasion directly with the same
+// response window as a randomly-rolled one, instead of duplicating the
+// number.
+export const TURNS_TO_RESPOND = 2;
 
 // Called once per arrival at any location -- gives every crisis-eligible
 // location a small rolling chance to flare up, but never stacks two at

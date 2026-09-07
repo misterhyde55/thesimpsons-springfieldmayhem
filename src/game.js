@@ -7,6 +7,7 @@ import { BOSSES, ZOMBIE_NED_REWARD } from './data/bosses.js';
 import { LOCATIONS } from './data/locations.js';
 import { getEvent } from './data/events.js';
 import { ABILITIES, STARTER_ABILITY_IDS } from './data/abilities.js';
+import { ITEMS } from './data/items.js';
 import { HORROR_RULES } from './data/horrorRules.js';
 import { rollProductChoices } from './data/products.js';
 import { resolveEnding } from './data/endings.js';
@@ -298,14 +299,23 @@ export class Game {
     screens.populateStoryScene(
       scene,
       (choice) => this.onStorySceneChoice(choice),
-      onContinue || (() => this.enterBoardScreen())
+      onContinue || (() => this.enterBoardScreen()),
+      this.runState
     );
   }
 
+  // `choice.apply` returns either a plain string (older scenes) or
+  // `{text, effects, mayhemDelta}` (the redesigned decision-card scenes --
+  // see data/treehouseScenes.js's header comment) so the player sees the
+  // actual mechanical consequence as reward-toast chips, not just
+  // narration, and any Mayhem cost goes through increaseMayhem (respects
+  // the Devil's Pitchfork multiplier) rather than being hand-rolled in data.
   onStorySceneChoice(choice) {
-    const outcomeText = choice.apply(this.runState);
+    const result = choice.apply(this.runState);
+    const { text, effects, mayhemDelta } = typeof result === 'string' ? { text: result } : result;
+    if (mayhemDelta) this.increaseMayhem(mayhemDelta);
     saveActiveRun(this.runState);
-    screens.showStorySceneOutcome(outcomeText, () => this.resolveStorySceneChoice(choice));
+    screens.showStorySceneOutcome(text, () => this.resolveStorySceneChoice(choice), effects);
   }
 
   // The opening zombie scene's decision doubles as the first location
@@ -497,6 +507,16 @@ export class Game {
     }
 
     if (INTERIORS[locationId]) {
+      // CALLBACK! e.g. data/callbacks.js donutTrailFound -- an earlier
+      // choice (THROW A DONUT) reaching forward into a specific interior.
+      // Shown as a plain banner (not a full story scene) since, unlike the
+      // 'locationArrival' Devil Ned reveal, this one has no dedicated
+      // cinematic beat -- it just flags the crisis and moves on.
+      const interiorCallback = checkCallback(this.runState, 'interiorArrival', { locationId });
+      if (interiorCallback) {
+        saveActiveRun(this.runState);
+        screens.showBanner(`${interiorCallback.title} ${interiorCallback.text}`, 3000);
+      }
       this.enterInteriorScreen(locationId);
       return;
     }
@@ -1091,6 +1111,7 @@ export class Game {
     if (content.elite) this.runState.stats.elitesDefeated += 1;
     this.increaseMayhem(content.type === 'boss' ? 0 : content.elite ? 15 : 8);
     if (!gaveUpMoeWin) this.grantVictoryCash(content);
+    if (content.bonusConsumableChance && Math.random() < content.bonusConsumableChance) this.grantBonusConsumable();
     this.battle = null;
 
     markLocationVisited(this.runState, locationId);
@@ -1155,6 +1176,20 @@ export class Game {
     else amount = 3 + Math.floor(Math.random() * 5) + (enemyCount - 1) * 3;
     this.runState.donutsCurrency += amount;
     screens.showRewardToasts(`+${amount} 🍩 SPRINGFIELD CASH`);
+  }
+
+  // A small chance of a staple consumable on top of cash -- opt-in per
+  // encounter via content.bonusConsumableChance, so a decision card
+  // (e.g. THE DEAD HAVE RISEN's FIGHT THROUGH THEM) can honestly promise
+  // "Chance of a Consumable" instead of describing a reward that never
+  // actually happens.
+  grantBonusConsumable() {
+    const pool = ['krustyBurger', 'duffBeer', 'squishee'];
+    const itemId = pool[Math.floor(Math.random() * pool.length)];
+    this.runState.consumables[itemId] = (this.runState.consumables[itemId] || 0) + 1;
+    recordDiscoveries(this.meta, [itemId]);
+    saveMeta(this.meta);
+    screens.showRewardToasts(`+1 ${ITEMS[itemId].emoji} ${ITEMS[itemId].name.toUpperCase()}`);
   }
 
   // ---------- ENCOUNTER COMPLETE (combat-redesign performance summary) ----------

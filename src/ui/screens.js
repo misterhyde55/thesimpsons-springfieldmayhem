@@ -342,7 +342,48 @@ export function populateBreakingNews(newsText) {
 // out, either the scene's choices appear (onChoice) or Continue itself
 // resolves the scene (onContinue). A scene with no narration at all just
 // shows its choices/Continue immediately.
-export function populateStoryScene(scene, onChoice, onContinue) {
+// A choice's danger rating (0-4) as a small row of pips -- filled pips use
+// the card's own tone color (set via CSS on .decision-danger), empty ones
+// stay dim, so "how risky is this" reads at a glance without needing to
+// parse a number.
+function dangerPipsHtml(danger) {
+  const n = Math.max(0, Math.min(4, danger || 0));
+  let out = '';
+  for (let i = 0; i < 4; i += 1) out += `<span class="decision-danger-pip${i < n ? ' filled' : ''}"></span>`;
+  return out;
+}
+
+// One data-driven decision card -- see data/treehouseScenes.js's header
+// comment for the full field list. Never a generic <button>: category
+// drives the icon + small type badge, tone drives the accent color, and
+// known effects/warnings/cost are always visible before the player commits
+// (REDESIGN ALL DECISION / STORY SCREENS -- "choices must explain what
+// they do"). `unknown` choices collapse effects/warnings into a single
+// "???" line instead, preserving mystery on purpose.
+function decisionCardHtml(choice, disabledReason) {
+  const tone = choice.tone || 'safe';
+  const effectsHtml = choice.unknown
+    ? '<li class="decision-effect-unknown">??? UNKNOWN CONSEQUENCE</li>'
+    : (choice.effects || []).map((e) => `<li class="decision-effect-good">${e}</li>`).join('');
+  const warningsHtml = choice.unknown ? '' : (choice.warnings || []).map((w) => `<li class="decision-effect-warn">${w}</li>`).join('');
+  return `
+    <button class="decision-card tone-${tone}" data-choice-id="${choice.id}" ${disabledReason ? 'disabled' : ''}>
+      <div class="decision-card-top">
+        <span class="decision-card-icon">${iconHtml('decision', choice.category || 'risk', choice.category || 'CHOICE')}</span>
+        <span class="decision-card-type">${(choice.category || '').toUpperCase()}</span>
+        <span class="decision-danger">${dangerPipsHtml(choice.danger)}</span>
+      </div>
+      <div class="decision-card-label">${choice.label}</div>
+      <div class="decision-card-desc">${choice.description || ''}</div>
+      ${choice.combatPreview ? `<div class="decision-card-combat">⚔ ${choice.combatPreview}</div>` : ''}
+      ${choice.cost ? `<div class="decision-card-cost">COST: ${choice.cost}</div>` : ''}
+      <ul class="decision-card-effects">${effectsHtml}${warningsHtml}</ul>
+      ${disabledReason ? `<div class="decision-card-disabled-reason">${disabledReason}</div>` : ''}
+    </button>
+  `;
+}
+
+export function populateStoryScene(scene, onChoice, onContinue, runState) {
   $('story-scene-art').style.backgroundImage = scene.image ? `url('${scene.image}')` : 'none';
   $('story-scene-title').textContent = scene.title;
   $('story-scene-narration').textContent = '';
@@ -363,12 +404,10 @@ export function populateStoryScene(scene, onChoice, onContinue) {
     if (scene.choices && scene.choices.length) {
       continueBtn.classList.add('hidden');
       choicesEl.classList.remove('hidden');
+      choicesEl.innerHTML = scene.choices.map((c) => decisionCardHtml(c, c.disabledReason && runState ? c.disabledReason(runState) : null)).join('');
       for (const choice of scene.choices) {
-        const btn = document.createElement('button');
-        btn.className = 'big-button secondary-button story-scene-choice-btn';
-        btn.textContent = choice.label;
-        btn.addEventListener('click', () => onChoice(choice));
-        choicesEl.appendChild(btn);
+        const btn = choicesEl.querySelector(`[data-choice-id="${choice.id}"]`);
+        if (btn && !btn.disabled) btn.addEventListener('click', () => onChoice(choice));
       }
       return;
     }
@@ -380,9 +419,14 @@ export function populateStoryScene(scene, onChoice, onContinue) {
 
 // Shows the one-line outcome of a picked choice, then hands off to
 // `onContinue` (game.js resolves the choice's `leadsTo` from there).
-export function showStorySceneOutcome(text, onContinue) {
+// `effects`, when given, also fires the reward-toast chip stack so the
+// player sees the actual mechanical consequence (HP -8, +8% MAYHEM, ...),
+// not just narration text (REDESIGN ALL DECISION / STORY SCREENS --
+// "consequence feedback").
+export function showStorySceneOutcome(text, onContinue, effects) {
   $('story-scene-choices').classList.add('hidden');
   $('story-scene-narration').textContent = text;
+  if (effects && effects.length) showRewardToasts(effects);
   const continueBtn = freshButton('btn-story-scene-continue');
   continueBtn.textContent = 'CONTINUE';
   continueBtn.classList.remove('hidden');

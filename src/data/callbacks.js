@@ -1,5 +1,6 @@
 import { STATUS } from './statusEffects.js';
 import { addStatus } from '../systems/statusEngine.js';
+import { TURNS_TO_RESPOND } from '../systems/locationInvasions.js';
 
 // Callbacks let an early, seemingly-throwaway decision reach forward and
 // change something much later -- the game remembers a flag set by an event
@@ -102,6 +103,29 @@ export const CALLBACKS = {
   // lethal damage" example. Deliberately a higher HP threshold (0.15, not
   // milhouseSaves'/barneyReturnsFavor's 0.25) and a bigger heal, since this
   // one requires a whole quest to unlock rather than one dialogue choice.
+  // Payoff for THROW A DONUT (data/treehouseScenes.js zombieOutbreakBegins,
+  // which sets callbackFlags.threwDonutAtZombies) -- the literal "a choice
+  // from ten minutes ago comes back" example: distracting the horde with a
+  // donut just means they end up somewhere else. Checked at a new
+  // 'interiorArrival' trigger point (game.js arriveAt, right before
+  // entering an interior) rather than the existing 'locationArrival' one,
+  // since that trigger point is hardcoded to the Devil Ned reveal's own
+  // full-screen scene and isn't a generic banner hook.
+  donutTrailFound: {
+    id: 'donutTrailFound',
+    triggerPoint: 'interiorArrival',
+    title: 'CALLBACK!',
+    condition(runState, context) {
+      if (!runState.callbackFlags.threwDonutAtZombies) return false;
+      if (context.locationId !== 'kwikEMart') return false;
+      const state = runState.world.locationStates.kwikEMart;
+      return !runState.world.locationInvasions.kwikEMart && state !== 'overrun' && state !== 'underAttack';
+    },
+    fire(runState) {
+      runState.world.locationInvasions.kwikEMart = { turnsLeft: TURNS_TO_RESPOND };
+      return { text: 'Apu: "The zombies followed some sort of trail of donuts here!" KWIK-E-MART: UNDER ATTACK.' };
+    },
+  },
   wiggumSaves: {
     id: 'wiggumSaves',
     triggerPoint: 'lowHp',
