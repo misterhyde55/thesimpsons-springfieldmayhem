@@ -166,6 +166,11 @@ export function createRunState(character) {
       // sets locationStates[id] = 'overrun' instead -- a bad decision the
       // player can't take back for the rest of the episode.
       locationInvasions: {},
+      // Devil Ned's current map position (systems/devilNedHunt.js) -- null
+      // until he's actually manifested (locationFlags.hasDevilPortal), then
+      // starts at Springfield Church and closes one road-hop toward Homer
+      // on every arrival until he catches up.
+      devilNedPosition: null,
       secretsFoundIds: [],
       // The player's last pan/zoom on the Springfield map (ui/worldMapView.js
       // {x, y, zoom}) -- null until they've actually moved the camera once,
@@ -192,8 +197,13 @@ export function deserializeRunState(obj) {
     // this key -- default it so economy.js doesn't have to guard everywhere.
     consumables: obj.consumables || {},
     quests: obj.quests || {},
-    // Saves from before location invasions existed won't have this key.
-    world: { ...obj.world, locationInvasions: obj.world.locationInvasions || {} },
+    // Saves from before location invasions/Devil Ned's hunt existed won't
+    // have these keys.
+    world: {
+      ...obj.world,
+      locationInvasions: obj.world.locationInvasions || {},
+      devilNedPosition: obj.world.devilNedPosition ?? null,
+    },
   };
 }
 
