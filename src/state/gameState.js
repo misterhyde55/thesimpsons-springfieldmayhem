@@ -33,8 +33,11 @@ function withMetaDefaults(meta) {
     // Merged one level deep on purpose -- a save from before `musicVolume`
     // existed has `settings: {musicOn, sfxOn}` with no volume key; a plain
     // top-level spread of `meta` would let that older object win wholesale
-    // and silently drop the new default forever.
-    settings: { musicOn: true, sfxOn: true, musicVolume: 1, ...meta.settings },
+    // and silently drop the new default forever. `masterMuted` is the
+    // global HUD sound button (independent of musicOn/sfxOn -- see
+    // engine/audio.js's setMuted); `sfxVolume` backs the Options SFX
+    // slider the same way musicVolume backs the Music one.
+    settings: { musicOn: true, sfxOn: true, musicVolume: 1, sfxVolume: 1, masterVolume: 1, masterMuted: false, ...meta.settings },
   };
 }
 

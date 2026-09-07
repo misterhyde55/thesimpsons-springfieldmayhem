@@ -1,4 +1,19 @@
-import { playMenuMove, playMenuSelect, playEpisodeStart, playMusic, setMusicEnabled, setMusicVolume } from './engine/audio.js';
+import {
+  playMenuMove,
+  playMenuSelect,
+  playEpisodeStart,
+  playMusic,
+  playMusicForScene,
+  SCENE,
+  setMusicEnabled,
+  setMusicVolume,
+  setSfxEnabled,
+  setSfxVolume,
+  setMasterVolume,
+  setMuted,
+  toggleMuted,
+  isMuted,
+} from './engine/audio.js';
 import { pickRandom, clamp } from './engine/collision.js';
 
 import { CHARACTERS } from './data/characters.js';
@@ -81,6 +96,10 @@ export class Game {
     this.meta = loadMeta();
     setMusicEnabled(this.meta.settings.musicOn);
     setMusicVolume(this.meta.settings.musicVolume);
+    setSfxEnabled(this.meta.settings.sfxOn);
+    setSfxVolume(this.meta.settings.sfxVolume);
+    setMasterVolume(this.meta.settings.masterVolume);
+    setMuted(this.meta.settings.masterMuted);
 
     this.runState = null;
     this.battle = null;
@@ -105,6 +124,11 @@ export class Game {
 
     document.getElementById('btn-news-continue').addEventListener('click', () => this.continueAfterNews());
     document.addEventListener('keydown', (e) => this.handleGlobalKeydown(e));
+
+    // Global sound button (index.html) -- lives outside every .screen, so
+    // it's wired once here rather than re-bound on each screen transition.
+    document.getElementById('btn-sound-toggle').addEventListener('click', () => this.toggleGlobalMuted());
+    this.updateSoundButtons();
   }
 
   init() {
@@ -142,7 +166,7 @@ export class Game {
   }
 
   showMainMenu() {
-    playMusic('homeMenuMusic');
+    playMusicForScene(SCENE.MAIN_MENU, { fadeInMs: 700 });
     screens.showScreen('screen-main-menu');
     this.mainMenuNav = screens.populateMainMenu(this.meta, hasActiveRun(), {
       'new-episode': () => this.beginNewEpisode(),
@@ -197,11 +221,21 @@ export class Game {
           this.meta = loadMeta();
           setMusicEnabled(this.meta.settings.musicOn);
           setMusicVolume(this.meta.settings.musicVolume);
+          setSfxEnabled(this.meta.settings.sfxOn);
+          setSfxVolume(this.meta.settings.sfxVolume);
+          setMasterVolume(this.meta.settings.masterVolume);
+          setMuted(this.meta.settings.masterMuted);
+          this.updateSoundButtons();
           if (this.meta.settings.musicOn) playMusic('homeMenuMusic');
           this.showMainMenu();
         }
       },
       onBack: () => this.showMainMenu(),
+      onMasterVolumeChange: (volume01) => {
+        this.meta.settings.masterVolume = volume01;
+        saveMeta(this.meta);
+        setMasterVolume(volume01);
+      },
       onMusicToggle: (enabled) => {
         this.meta.settings.musicOn = enabled;
         saveMeta(this.meta);
@@ -213,7 +247,47 @@ export class Game {
         saveMeta(this.meta);
         setMusicVolume(volume01);
       },
+      onSfxToggle: (enabled) => {
+        this.meta.settings.sfxOn = enabled;
+        saveMeta(this.meta);
+        setSfxEnabled(enabled);
+      },
+      onSfxVolumeChange: (volume01) => {
+        this.meta.settings.sfxVolume = volume01;
+        saveMeta(this.meta);
+        setSfxVolume(volume01);
+      },
+      onMuteToggle: (muted) => this.setGlobalMuted(muted),
+      muted: this.meta.settings.masterMuted,
     });
+  }
+
+  // ---------- GLOBAL SOUND (HUD mute button + Options "MUTE ALL") ----------
+  // Single source of truth for the master mute flag -- both the persistent
+  // HUD button (every gameplay screen) and the Options "MUTE ALL" toggle
+  // call this, so either one immediately reflects in the other and in
+  // localStorage (meta.settings.masterMuted, per the audio-system spec:
+  // survive a refresh, survive returning tomorrow).
+  setGlobalMuted(muted) {
+    this.meta.settings.masterMuted = muted;
+    saveMeta(this.meta);
+    setMuted(muted);
+    this.updateSoundButtons();
+  }
+
+  toggleGlobalMuted() {
+    const muted = toggleMuted();
+    this.meta.settings.masterMuted = muted;
+    saveMeta(this.meta);
+    this.updateSoundButtons();
+  }
+
+  // Refreshes every currently-rendered SOUND button's icon/label/pressed
+  // state to match the real mute flag -- called after any mute change, not
+  // just from the button's own click handler, so Options' "MUTE ALL" and
+  // the HUD button never disagree.
+  updateSoundButtons() {
+    screens.updateSoundButtons(isMuted());
   }
 
   // ---------- RUN SETUP ----------
@@ -229,10 +303,13 @@ export class Game {
 
   confirmNewEpisode() {
     playEpisodeStart();
-    // No dedicated in-run track exists yet -- the menu theme now plays
-    // continuously as the site's ambiance rather than cutting out the
-    // instant a game starts (see engine/audio.js playMusic's own no-op
-    // guard against restarting a track that's already playing).
+    // The Hit & Run menu theme belongs ONLY to the main menu -- fade it
+    // out the instant gameplay begins, rather than letting it ride into
+    // the opening story beat/map/combat. Each scene the run passes through
+    // will call playMusicForScene itself once it's actually showing (no
+    // real track assigned to any of them yet, so this is silence until
+    // then, not a gap waiting to be filled by a later call).
+    playMusicForScene(null, { fadeOutMs: 800 });
     const character = CHARACTERS[this.pendingCharacterId];
     this.runState = createRunState(character);
     this.runState.episode = this.pendingEpisode;
@@ -247,6 +324,7 @@ export class Game {
       this.showMainMenu();
       return;
     }
+    playMusicForScene(null, { fadeOutMs: 800 });
     this.runState = runState;
     this.enterBoardScreen();
   }
@@ -295,6 +373,7 @@ export class Game {
 
   // ---------- STORY SCENE (cinematic Treehouse of Horror artwork moments) ----------
   showStoryScene(scene, onContinue) {
+    playMusicForScene(SCENE.EVENT);
     screens.showScreen('screen-story-scene');
     screens.populateStoryScene(
       scene,
@@ -346,6 +425,7 @@ export class Game {
   }
 
   enterBoardScreen() {
+    playMusicForScene(SCENE.MAP);
     screens.showScreen('screen-board');
     const segment = getCurrentSegment(this.runState);
     const reachableIds = getReachableLocationIds(this.runState);
@@ -586,6 +666,7 @@ export class Game {
 
   // ---------- EVENT (non-enterable locations) ----------
   showEventScreenForLocation(locationId, content) {
+    playMusicForScene(SCENE.EVENT);
     const eventId = content.eventId || pickRandom(content.eventPool);
     const event = getEvent(eventId);
     screens.showScreen('screen-event');
@@ -600,6 +681,7 @@ export class Game {
 
   // ---------- LOCATION INTERIOR (enterable Springfield buildings) ----------
   enterInteriorScreen(locationId) {
+    playMusicForScene(locationId === 'kwikEMart' || locationId === 'moesTavern' ? SCENE.SHOP : SCENE.LOCATION);
     this.interiorLocationId = locationId;
     const { stateId, state } = getInteriorState(locationId, this.runState);
     this.interiorStateId = stateId;
@@ -781,6 +863,7 @@ export class Game {
   }
 
   startBattleForLocationContent(locationId, content, enemyTemplates, isBoss) {
+    playMusicForScene(isBoss ? SCENE.BOSS : SCENE.COMBAT);
     if (isBoss && moeSupportsInBossFight(this.runState)) {
       this.runState.hp = Math.min(this.runState.maxHp, this.runState.hp + 30);
     }

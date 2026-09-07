@@ -1097,6 +1097,35 @@ body.full-bleed-active #top-bar { display: none; }
   gap: 6px;
   pointer-events: none;
 }
+
+/* ---- Global sound control -- one persistent button (index.html, outside
+   any .screen), consistent top-right corner on every screen. Sits above
+   each screen's own top-right HUD content (mayhem/cash readouts sit lower,
+   with their own inset) rather than needing per-screen placement. ---- */
+.sound-toggle-btn {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 50;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(10, 10, 14, 0.72);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  color: #fff8ea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.sound-toggle-btn:hover { border-color: #f6d217; transform: scale(1.08); }
+.sound-toggle-btn:active { transform: scale(0.96); }
+.sound-icon { width: 18px; height: 18px; }
+.sound-icon-muted { display: none; }
+.sound-toggle-btn.is-muted { border-color: #d0021b; color: #ff8a70; }
+.sound-toggle-btn.is-muted .sound-icon-on { display: none; }
+.sound-toggle-btn.is-muted .sound-icon-muted { display: block; }
 .reward-toast-chip {
   background: rgba(12, 10, 4, 0.88);
   border: 2px solid #f6d217;
@@ -1648,6 +1677,15 @@ body.full-bleed-active #top-bar { display: none; }
 }
 
 /* ---------------- Settings ---------------- */
+.settings-section-title {
+  max-width: 360px;
+  margin: 0 auto 10px;
+  text-align: left;
+  color: #f6d217;
+  font-size: 0.78rem;
+  letter-spacing: 2px;
+  font-weight: 800;
+}
 .settings-row {
   display: flex;
   align-items: center;
