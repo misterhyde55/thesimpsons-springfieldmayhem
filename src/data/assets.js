@@ -60,8 +60,9 @@ export const ASSET_MANIFEST = {
   // Pickups: donuts and data/items.js entries, keyed by item id ('donut' for the donut itself).
   items: {},
   // data/enemies.js entries, keyed by enemy id. The generic (unnamed)
-  // zombie mob shares one uploaded sprite; Patient Zero Flanders is a named
-  // character so he keeps his own portrait instead.
+  // zombie mob shares one uploaded sprite; named zombie characters with a
+  // dedicated "zombified" portrait (Patient Zero Flanders, Zombie Skinner)
+  // use that instead of their normal character art.
   enemies: {
     zombieBarfly: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
     zombieMobGuy: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
@@ -69,7 +70,9 @@ export const ASSET_MANIFEST = {
     undeadCafeteriaLady: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
     zombieGroundskeeper: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
     zombieHorde: `${BASE}/enemies/Disco_Zombie_Tapped_Out.webp`,
-    patientZeroFlanders: `${BASE}/characters/Ned%20Flanders.png`,
+    // Real filename has a literal space -- encoded here so the browser
+    // requests it correctly; Vercel's static host is also case-sensitive.
+    patientZeroFlanders: `${BASE}/enemies/Ned%20Flanders%20Zombie.png`,
     // Not yet used by any enemy/event data -- registered so it's ready the
     // moment a Devil Flanders encounter is written.
     devilFlanders: `${BASE}/enemies/Devil_Flanders.png`,
@@ -94,10 +97,7 @@ export const ASSET_MANIFEST = {
   bosses: {
     chiefWiggum: `${BASE}/characters/chiefwiggum.png`,
     mrBurns: `${BASE}/characters/mrburns.png`,
-    // No dedicated "zombified" art uploaded yet -- reuses Skinner's normal
-    // portrait so the boss intro/battle screen isn't emoji-only; swap this
-    // for zombie-specific art the moment it's uploaded, no code changes needed.
-    zombieSkinner: `${BASE}/characters/principalskinner.png`,
+    zombieSkinner: `${BASE}/enemies/Principal%20Skinner%20Zombie.png`,
     kodos: `${BASE}/enemies/Kodos_Johnson.webp`,
     // Original upload was a .tiff (no browser renders those) -- this is a
     // converted .png sibling with the same real transparency already intact.
