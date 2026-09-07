@@ -92,6 +92,22 @@ export const ITEMS = {
       runState.hp = Math.min(runState.maxHp, runState.hp + 35);
     },
   },
+  // THE DEAD HAVE RISEN's BARRICADE THE HOUSE choice (data/treehouseScenes.js
+  // zombieOutbreakBegins) -- applied immediately on grant, like
+  // forbiddenDonut below, rather than stashed as a held consumable, since
+  // "reinforced yourself before diving back out" reads better as an
+  // instant permanent gain than as an item to save for later.
+  homemadeWeapon: {
+    id: 'homemadeWeapon',
+    name: 'Homemade Weapon',
+    emoji: '🪑',
+    description: 'A splintered table leg from the barricade. +8 Max HP, permanently.',
+    rare: true,
+    apply(runState) {
+      runState.maxHp += 8;
+      runState.hp += 8;
+    },
+  },
   // Devil Ned's optional-boss reward -- never appears in a normal shop,
   // only handed out by data/devilDeals.js's victoryReward.
   forbiddenDonut: {

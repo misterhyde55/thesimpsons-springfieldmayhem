@@ -20,12 +20,47 @@
 // registry is safe to extend with placeholder metadata before the art for
 // it exists.
 //
-// `choices`, when present, turns the scene into a real decision: each
-// choice's `apply(runState)` mutates state and returns the one-line outcome
-// shown before the scene resolves; `leadsTo` ('board' | 'combat') tells
-// game.js what screen comes next. A scene with `choices: null` is just a
-// beat -- read it, hit Continue, move on.
+// `choices`, when present, turns the scene into a real decision, rendered
+// by ui/screens.js as data-driven DECISION CARDS (never generic buttons --
+// see the REDESIGN ALL DECISION / STORY SCREENS pass), each with:
+//   category    -- data/icons.js `decision` id (also the small type badge:
+//                  COMBAT/ESCAPE/PREPARE/TRICK/HORROR/...)
+//   tone        -- 'safe' | 'danger' | 'trick' | 'supernatural': the
+//                  card's accent color, independent of `category`
+//   description -- one line of flavor under the label
+//   cost        -- a plain string shown before the player commits ("1
+//                  Donut"), or omitted if free
+//   effects     -- known ✓ consequences, e.g. ['Heal 10 HP']
+//   warnings    -- known ⚠ costs/risks, e.g. ['+8% Mayhem']
+//   danger      -- 0-4 star rating shown in the corner, omitted for 0
+//   unknown     -- true hides effects/warnings behind a single "???" line
+//                  (mystery choices -- used sparingly, see section 8)
+//   disabledReason(runState) -- optional; a non-null string disables the
+//                  card and shows why (e.g. "Need 1 Donut")
+// `apply(runState)` mutates state and returns either a plain string (old
+// shape, still supported) or `{text, effects, mayhemDelta}` -- `effects` is
+// shown as reward-toast chips (screens.showRewardToasts) so the player sees
+// the actual consequence, not just narration; `mayhemDelta` is applied via
+// game.js's increaseMayhem (respects the Devil's Pitchfork multiplier).
+// `leadsTo` ('board' | 'combat') tells game.js what screen comes next. A
+// scene with `choices: null` is just a beat -- read it, hit Continue, move
+// on.
 import { getAssetUrl } from './assets.js';
+import { getReachableLocationIds } from './worldMap.js';
+import { getLocationContent } from './journeys.js';
+import { LOCATIONS } from './locations.js';
+import { ITEMS } from './items.js';
+import { setCallbackFlag } from '../systems/callbackEngine.js';
+
+// A deliberately vague hint, not a spoiler -- "preserve mystery" (section 7
+// of the redesign spec): the player learns the TYPE of what's waiting
+// nearby, never the exact enemies or reward.
+function intelHintForContentType(type) {
+  if (type === 'boss') return 'something huge is holed up there.';
+  if (type === 'combat') return 'zombies are gathering there.';
+  if (type === 'event') return 'something strange is going on there.';
+  return "it's quiet there. For now.";
+}
 
 export const TREEHOUSE_SCENES = {
   zombieOutbreakBegins: {
@@ -48,37 +83,105 @@ export const TREEHOUSE_SCENES = {
       {
         id: 'runForCar',
         label: 'RUN FOR THE CAR',
+        category: 'escape',
+        tone: 'safe',
+        description: 'Try to reach the family car before the zombies surround the house.',
+        effects: ['Avoid the opening battle', 'Reach Springfield immediately'],
+        warnings: ['35% chance of taking 8–15 damage'],
+        danger: 1,
         leadsTo: 'board',
-        apply() {
-          return 'You bolt for the car. The engine turns over on the second try -- always the second try.';
+        apply(runState) {
+          if (Math.random() < 0.35) {
+            const dmg = 8 + Math.floor(Math.random() * 8);
+            runState.hp = Math.max(1, runState.hp - dmg);
+            return {
+              text: 'A hand closes around Homer\'s sleeve on the way past. He yanks free and keeps running.',
+              effects: [`HP -${dmg}`, 'ESCAPED COMBAT'],
+            };
+          }
+          return {
+            text: 'Homer barely makes it. The engine turns over on the second try -- always the second try.',
+            effects: ['ESCAPED COMBAT'],
+          };
         },
       },
       {
         id: 'fightThroughThem',
         label: 'FIGHT THROUGH THEM',
+        category: 'combat',
+        tone: 'danger',
+        description: 'Take the zombies head-on.',
+        combatPreview: '3 Springfield Zombies',
+        effects: ['$15–25 Springfield Cash', 'Choose a new Action', 'Chance of a Consumable'],
+        danger: 3,
         leadsTo: 'combat',
+        combatLocationId: 'simpsonHouse',
+        combatContent: { type: 'combat', enemyIds: ['zombieMobGuy', 'zombieMobGuy', 'zombieMobGuy'], bonusConsumableChance: 0.4 },
         apply() {
-          return "No time to think. You grab whatever's heavy and start swinging.";
+          return {
+            text: "No time to think. You grab whatever's heavy and start swinging.",
+            effects: ['COMBAT: 3 SPRINGFIELD ZOMBIES'],
+          };
         },
       },
       {
-        id: 'runBackInside',
-        label: 'RUN BACK INSIDE',
+        id: 'barricadeTheHouse',
+        label: 'BARRICADE THE HOUSE',
+        category: 'prepare',
+        tone: 'safe',
+        description: 'Return inside and buy yourself some time.',
+        effects: ['Heal 10 HP', 'Gain HOMEMADE WEAPON (+8 Max HP)', 'Learn what’s waiting nearby'],
+        warnings: ['+8% Mayhem'],
+        danger: 0,
         leadsTo: 'board',
-        apply() {
-          return 'You slam the door and throw the bolt. That bought you a minute. Maybe.';
+        apply(runState) {
+          // The realized heal, not the label -- at the very start of a run
+          // (this scene's only real firing point) Homer is already at full
+          // HP, so a scripted "HP +10" toast would be an honest-sounding
+          // lie about a heal that didn't happen. Report what actually
+          // changed (REDESIGN ALL DECISION / STORY SCREENS -- "consequence
+          // feedback" means true feedback, not the pre-written intent).
+          const healed = Math.min(runState.maxHp, runState.hp + 10) - runState.hp;
+          runState.hp += healed;
+          ITEMS.homemadeWeapon.apply(runState);
+          const nearby = getReachableLocationIds(runState);
+          let intelLine = '';
+          if (nearby.length) {
+            const id = nearby[Math.floor(Math.random() * nearby.length)];
+            const content = getLocationContent(runState, id);
+            intelLine = ` Through the window, Homer spots ${LOCATIONS[id].name.toUpperCase()}: ${intelHintForContentType(content && content.type)}`;
+          }
+          const effects = [];
+          if (healed > 0) effects.push(`HP +${healed}`);
+          effects.push('HOMEMADE WEAPON (+8 Max HP)', '+8% MAYHEM');
+          return {
+            text: `You slam the door and throw the bolt, dragging furniture in front of it.${intelLine}`,
+            effects,
+            mayhemDelta: 8,
+          };
         },
       },
       {
         id: 'throwDonut',
         label: 'THROW A DONUT',
+        category: 'trick',
+        tone: 'trick',
+        description: "Use Homer's greatest weapon.",
+        cost: '1 Donut',
+        effects: ['Escape without combat', 'Zombies drawn toward another nearby location'],
+        warnings: ['That location becomes THREATENED'],
+        danger: 1,
         leadsTo: 'board',
+        disabledReason(runState) {
+          return runState.donutsCurrency < 1 ? 'Need 1 Donut' : null;
+        },
         apply(runState) {
-          if (Math.random() < 0.5) {
-            runState.donutsCurrency = Math.max(0, runState.donutsCurrency - 1);
-            return 'It works. Sort of. They shuffle after the donut instead of you. (-1 donut)';
-          }
-          return "It just makes one of them hungrier. That was a mistake.";
+          runState.donutsCurrency = Math.max(0, runState.donutsCurrency - 1);
+          setCallbackFlag(runState, 'threwDonutAtZombies');
+          return {
+            text: 'It works. They shuffle off after the donut instead of you, moaning happily.',
+            effects: ['-1 DONUT', 'ESCAPED COMBAT', 'ZOMBIES DRAWN ELSEWHERE'],
+          };
         },
       },
     ],
@@ -140,19 +243,36 @@ export const TREEHOUSE_SCENES = {
       {
         id: 'faceDevilNed',
         label: 'FACE HIM',
+        category: 'horror',
+        tone: 'supernatural',
+        description: 'Turn and face what\'s wearing your neighbor.',
+        effects: ['Boss Fight: Devil Ned', 'His reward is worth the risk'],
+        danger: 4,
         leadsTo: 'combat',
         combatLocationId: 'springfieldChurch',
         combatContent: { type: 'boss', bossId: 'devilNed' },
         apply() {
-          return '"Hi-diddly-ho, Homer," says the thing wearing Ned Flanders. "I believe you owe me a donut."';
+          return {
+            text: '"Hi-diddly-ho, Homer," says the thing wearing Ned Flanders. "I believe you owe me a donut."',
+            effects: ['BOSS FIGHT: DEVIL NED'],
+          };
         },
       },
       {
         id: 'avoidDevilNed',
         label: 'AVOID HIM (FOR NOW)',
+        category: 'escape',
+        tone: 'safe',
+        description: 'Walk away. Whatever this is, it can wait.',
+        effects: ['Avoid this fight entirely'],
+        warnings: ['He now knows where to find you'],
+        danger: 1,
         leadsTo: 'board',
         apply() {
-          return 'You turn and walk the other way. Somewhere behind you, you hear him start whistling. He knows where the church is. So do you, now.';
+          return {
+            text: 'You turn and walk the other way. Somewhere behind you, you hear him start whistling. He knows where the church is. So do you, now.',
+            effects: ['AVOIDED DEVIL NED'],
+          };
         },
       },
     ],

@@ -116,6 +116,27 @@ export const ICON_MANIFEST = {
     rumor: `${BASE}/map/rumor.png`,
     unknownLocation: `${BASE}/map/unknown.png`,
   },
+  // Decision-card categories (ui/screens.js populateStoryScene /
+  // data/treehouseScenes.js + data/events.js choices) -- a small shared
+  // vocabulary so the player can read the KIND of decision at a glance
+  // before reading a word of the description, the same "icon first, badge
+  // fallback, never emoji" rule as every other icon domain here.
+  decision: {
+    combat: `${BASE}/decision/combat.png`,
+    escape: `${BASE}/decision/escape.png`,
+    risk: `${BASE}/decision/risk.png`,
+    shop: `${BASE}/decision/shop.png`,
+    rest: `${BASE}/decision/rest.png`,
+    investigate: `${BASE}/decision/investigate.png`,
+    social: `${BASE}/decision/social.png`,
+    horror: `${BASE}/decision/horror.png`,
+    secret: `${BASE}/decision/secret.png`,
+    quest: `${BASE}/decision/quest.png`,
+    sacrifice: `${BASE}/decision/sacrifice.png`,
+    prepare: `${BASE}/decision/prepare.png`,
+    trick: `${BASE}/decision/trick.png`,
+    mystery: `${BASE}/decision/mystery.png`,
+  },
 };
 
 export function getIconUrl(category, id) {
