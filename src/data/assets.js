@@ -80,7 +80,7 @@ export const ASSET_MANIFEST = {
     // character's real portrait, same pattern as patientZeroFlanders above.
     // No dedicated "zombified" art uploaded for these yet, so it's the
     // normal portrait until/unless zombie-specific art shows up.
-    zombieBarney: `${BASE}/characters/barney.png`,
+    zombieBarney: `${BASE}/enemies/barneyzombie.png`,
     zombieWiggum: `${BASE}/characters/chiefwiggum.png`,
     zombieRalph: `${BASE}/characters/ralph.png`,
     zombieMilhouse: `${BASE}/characters/milhouse.png`,
@@ -120,6 +120,7 @@ export const ASSET_MANIFEST = {
     flandersHouse: `${BASE}/buildings/Flanders%20House.webp`,
     nuclearPlant: `${BASE}/buildings/Springfield%20Nuclear%20Power%20Plant.png`,
     springfieldCemetery: `${BASE}/buildings/Springfield_Cemetery.webp`,
+    burnsManor: `${BASE}/buildings/mrburnsmansion.png`,
   },
   // Full-scene backgrounds not tied to a specific location (menus, etc.)
   backgrounds: {
