@@ -876,35 +876,74 @@ export function hideShopModal() {
   $('shop-modal').classList.add('hidden');
 }
 
-// ---------- CHOICE MODAL (Devil Ned's deals + reward, data/devilDeals.js;
-// also Zombie Ned's mid-fight event + reward, data/bosses.js) ----------
-// Generic N-option modal: {title, prompt|bodyHtml, choiceA, choiceB, choiceC?,
-// choiceD?} where each choice is {label, apply(...)}. Most deals are a plain
-// 2-way accept/refuse; a reward screen can add choiceC/choiceD for a real
-// 3-4 way pick. Always at least two buttons, no "leave" -- a deal or a
-// reward always needs a real pick, never a shrug. `bodyHtml` (trusted,
-// internally-authored content only) lets the ENCOUNTER COMPLETE summary
-// render a stat list instead of a single line of prose.
+// ---------- CHOICE MODAL / StoryEventModal (Devil Ned's deals + reward,
+// data/devilDeals.js; Zombie Ned's Rod & Todd mid-fight event + reward,
+// data/bosses.js; ENCOUNTER COMPLETE summary) ----------
+// Generic N-option event popup: {title, subtitle?, icon?, speaker?,
+// prompt|bodyHtml, choiceA, choiceB, choiceC?, choiceD?}. Each choice is a
+// decisionCardHtml-shaped object -- {label, apply(...), id?, category?,
+// tone?, description?, cost?, danger?, effects?, warnings?} -- rendered
+// through the exact same torn-panel decision-card system the Treehouse
+// Scenes use (REDESIGN ALL STORY / MID-COMBAT DECISION POPUPS), so a caller
+// that only supplies {label, apply} still gets the themed card, just
+// without the extra bullets/danger pips. Always at least two buttons, no
+// "leave" -- a deal or a reward always needs a real pick, never a shrug.
+// `bodyHtml` (trusted, internally-authored content only) lets the
+// ENCOUNTER COMPLETE summary render a stat list instead of a single line
+// of prose. The background stays visible behind the modal (see .modal's
+// own translucent scrim in style.css) -- this never fully hides combat.
+const CHOICE_LETTERS = ['A', 'B', 'C', 'D'];
+
 export function showChoiceModal(deal, onChoose) {
+  $('choice-modal-eyebrow').innerHTML = deal.icon
+    ? `${iconHtml('decision', deal.icon, 'Event', 'choice-modal-eyebrow-icon')}<span>EVENT</span>`
+    : '<span>EVENT</span>';
   $('choice-modal-title').textContent = deal.title || '';
   const promptEl = $('choice-modal-prompt');
-  if (deal.bodyHtml) promptEl.innerHTML = deal.bodyHtml;
-  else promptEl.textContent = deal.prompt || '';
+  if (deal.bodyHtml) {
+    promptEl.innerHTML = deal.bodyHtml;
+  } else if (deal.speaker) {
+    promptEl.innerHTML = `<span class="choice-modal-speaker">${deal.speaker}:</span> ${deal.prompt || ''}`;
+  } else {
+    promptEl.textContent = deal.prompt || '';
+  }
   const container = $('choice-modal-options');
   container.innerHTML = '';
   const choices = [deal.choiceA, deal.choiceB, deal.choiceC, deal.choiceD].filter(Boolean);
+  container.innerHTML = choices
+    .map((choice, i) => decisionCardHtml({ ...choice, id: choice.id || CHOICE_LETTERS[i] }, null))
+    .join('');
   for (const choice of choices) {
-    const btn = document.createElement('button');
-    btn.className = 'choice-modal-btn';
-    btn.textContent = choice.label;
-    btn.addEventListener('click', () => onChoose(choice));
-    container.appendChild(btn);
+    const id = choice.id || CHOICE_LETTERS[choices.indexOf(choice)];
+    const btn = container.querySelector(`[data-choice-id="${id}"]`);
+    if (btn) btn.addEventListener('click', () => onChoose(choice));
   }
+  $('choice-modal-result').classList.add('hidden');
+  container.classList.remove('hidden');
   $('choice-modal').classList.remove('hidden');
 }
 
 export function hideChoiceModal() {
   $('choice-modal').classList.add('hidden');
+}
+
+// Swaps the still-open choice modal to a brief structured result view
+// (a short line of prose + bullet effects, e.g. "ROD & TODD RESCUED /
+// HOMER -12 HP") instead of hiding it immediately -- lets the player see
+// the mechanical consequence of what they just picked before combat
+// resumes, without leaving the scene. Callers whose choice.apply() still
+// returns a plain string (every choiceModal user except the Rod & Todd
+// event, for now) keep using showBanner instead; this is opt-in.
+export function showChoiceResult(resultText, effects, onContinue) {
+  $('choice-modal-options').classList.add('hidden');
+  const resultEl = $('choice-modal-result');
+  resultEl.innerHTML = `
+    <p class="choice-modal-result-text">${resultText}</p>
+    ${effects && effects.length ? `<ul class="choice-modal-result-effects">${effects.map((e) => `<li>${e}</li>`).join('')}</ul>` : ''}
+    <button type="button" class="big-button choice-modal-result-continue">CONTINUE</button>
+  `;
+  resultEl.classList.remove('hidden');
+  resultEl.querySelector('.choice-modal-result-continue').addEventListener('click', onContinue);
 }
 
 // ---------- MAP: LOCATION INSPECT (click = inspect, not instant travel) ----------

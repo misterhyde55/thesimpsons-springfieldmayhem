@@ -1109,13 +1109,26 @@ export class Game {
   // waiting for a fresh one.
   showMidFightEvent(event) {
     screens.showChoiceModal(event, (choice) => {
-      const resultText = choice.apply(this.runState, this.battle);
-      screens.hideChoiceModal();
+      const result = choice.apply(this.runState, this.battle);
       syncRunStateFromBattle(this.runState, this.battle);
       saveActiveRun(this.runState);
       screens.renderBattle(this.battle, this.runState);
-      screens.showBanner(resultText, 3200);
-      this.afterPlayerAction();
+      // Rod & Todd's choices return a structured {text, effects} result --
+      // show it inside the still-open modal (REDESIGN ALL STORY / MID-
+      // COMBAT DECISION POPUPS: "briefly show a structured result summary
+      // before resuming") instead of hiding straight to a banner. Any
+      // other checkMidFightEvent that still returns a plain string keeps
+      // the old banner behavior.
+      if (result && typeof result === 'object') {
+        screens.showChoiceResult(result.text, result.effects, () => {
+          screens.hideChoiceModal();
+          this.afterPlayerAction();
+        });
+      } else {
+        screens.hideChoiceModal();
+        screens.showBanner(result, 3200);
+        this.afterPlayerAction();
+      }
     });
   }
 

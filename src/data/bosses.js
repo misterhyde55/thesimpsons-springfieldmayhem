@@ -53,21 +53,44 @@ export const BOSSES = {
       battle.flags.rodAndToddChecked = true;
       return {
         title: 'A MUFFLED VOICE',
-        prompt: '"Help! We\'re stuck in here!" Rod and Todd are trapped somewhere inside the house.',
+        icon: 'horror',
+        speaker: 'ROD & TODD',
+        prompt: '"Help! We\'re stuck in here!" A door rattles somewhere behind Ned -- the boys are trapped inside the house.',
         choiceA: {
-          label: 'RESCUE THEM (costs this turn -- Ned gets a free hit)',
+          id: 'rescue',
+          category: 'risk',
+          tone: 'danger',
+          label: 'RESCUE ROD & TODD',
+          description: 'Break away from the fight and kick the door in.',
+          cost: 'This turn',
+          danger: 2,
+          warnings: ['Ned gets a free hit in the confusion (~10-16 dmg)'],
+          effects: ['Rod & Todd rescued -- may pay off later'],
           apply(rs, b) {
             const dmg = 10 + Math.floor(Math.random() * 7);
             const { dealt } = applyIncomingDamage(b.player, dmg);
             b.flags.rodAndToddSaved = true;
-            return `You kick down the door and pull the boys to safety. Ned gets a free swing in the confusion. (-${dealt} HP) ROD & TODD: SAVED.`;
+            return {
+              text: 'You kick down the door and pull the boys to safety. Ned gets a free swing in the confusion.',
+              effects: ['ROD & TODD RESCUED', `HOMER -${dealt} HP`, 'ZOMBIE NED ACTS FREE', 'CALLBACK FLAG ADDED'],
+            };
           },
         },
         choiceB: {
-          label: 'IGNORE THEM AND KEEP FIGHTING',
+          id: 'ignore',
+          category: 'escape',
+          tone: 'safe',
+          label: 'KEEP FIGHTING',
+          description: "You can't risk it right now. Stay focused on Ned.",
+          danger: 1,
+          effects: ['No immediate cost'],
+          warnings: ['The voice fades -- this chance may not come back'],
           apply(rs, b) {
             b.flags.rodAndToddSaved = false;
-            return "You can't risk it right now. The voice fades. Maybe later.";
+            return {
+              text: "You can't risk it right now. The voice fades. Maybe later.",
+              effects: ['ROD & TODD LEFT BEHIND', 'CALLBACK FLAG ADDED'],
+            };
           },
         },
       };
