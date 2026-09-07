@@ -79,6 +79,19 @@ export const ITEMS = {
       runState.infection = Math.max(0, (runState.infection || 0) - 3);
     },
   },
+  // Zombie Ned's reward pool (data/bosses.js zombieNed / game.js's
+  // encounter-reward screen for that fight) -- goes straight into the held
+  // consumables bag like any other rare item, not applied on the spot.
+  flandersFirstAidKit: {
+    id: 'flandersFirstAidKit',
+    name: "Flanders' First Aid Kit",
+    emoji: '🩹',
+    description: 'Restores 35 HP. "Neighborly" brand, expiration date optimistic.',
+    rare: true,
+    apply(runState) {
+      runState.hp = Math.min(runState.maxHp, runState.hp + 35);
+    },
+  },
   // Devil Ned's optional-boss reward -- never appears in a normal shop,
   // only handed out by data/devilDeals.js's victoryReward.
   forbiddenDonut: {

@@ -495,6 +495,11 @@ export function populateBattle(battle, runState, handlers) {
         <div class="combatant-name">${enemy.name}</div>
         ${battle.isBoss ? `<div class="boss-phase-label">${bossPhaseLabelText(enemy)}</div>` : ''}
         <div class="hp-bar-outer"><div class="hp-bar-inner"></div><span class="hp-bar-label"></span></div>
+        ${
+          enemy.breakMax
+            ? '<div class="break-bar-outer"><div class="break-bar-inner"></div><span class="break-bar-label"></span></div>'
+            : ''
+        }
       </div>
     `;
     slot.addEventListener('click', () => handlers.onTargetEnemy(enemy.instanceId));
@@ -518,6 +523,26 @@ export function populateBattle(battle, runState, handlers) {
     abilitiesContainer.appendChild(btn);
   }
   freshButton('btn-battle-end-turn').addEventListener('click', () => handlers.onEndTurn());
+
+  // Battlefield objects (data/battleEnvironments.js) -- free, limited-use
+  // actions separate from Homer's own ability deck. Only some encounters
+  // have any (battle.environment is [] otherwise), so the row hides itself.
+  const envContainer = $('battle-environment');
+  envContainer.innerHTML = '';
+  envContainer.classList.toggle('hidden', battle.environment.length === 0);
+  for (const action of battle.environment) {
+    const btn = document.createElement('button');
+    btn.className = 'environment-action-btn';
+    btn.dataset.actionId = action.id;
+    btn.title = action.description;
+    btn.innerHTML = `
+      <span class="env-action-icon">${action.icon}</span>
+      <span class="env-action-name">${action.label}</span>
+      <span class="env-action-uses"></span>
+    `;
+    btn.addEventListener('click', () => handlers.onEnvironmentClick(action.id));
+    envContainer.appendChild(btn);
+  }
 
   renderBattle(battle, runState);
 }
@@ -543,6 +568,11 @@ export function renderBattle(battle, runState) {
     slot.querySelector('.hp-bar-inner').style.width = `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%`;
     slot.querySelector('.hp-bar-label').textContent = `${Math.max(0, Math.round(enemy.hp))} / ${enemy.maxHp}`;
     slot.querySelector('.status-row').innerHTML = statusPipsHtml(enemy.statuses);
+    const breakOuter = slot.querySelector('.break-bar-outer');
+    if (breakOuter) {
+      breakOuter.querySelector('.break-bar-inner').style.width = `${Math.max(0, (enemy.break / enemy.breakMax) * 100)}%`;
+      breakOuter.querySelector('.break-bar-label').textContent = `BREAK ${Math.max(0, enemy.break)}/${enemy.breakMax}`;
+    }
     const phaseLabelEl = slot.querySelector('.boss-phase-label');
     if (phaseLabelEl) phaseLabelEl.innerHTML = bossPhaseLabelText(enemy);
     const intentEl = slot.querySelector('.enemy-intent');
@@ -564,6 +594,15 @@ export function renderBattle(battle, runState) {
     btn.classList.toggle('targeting', ability.id === targetingAbilityId);
   });
   $('battle-enemies').classList.toggle('targeting-mode', !!targetingAbilityId);
+
+  const envContainer = $('battle-environment');
+  for (const action of battle.environment) {
+    const btn = envContainer.querySelector(`[data-action-id="${action.id}"]`);
+    if (!btn) continue;
+    btn.disabled = battle.outcome !== null || action.usesLeft <= 0;
+    btn.classList.toggle('targeting', action.id === targetingAbilityId);
+    btn.querySelector('.env-action-uses').textContent = `x${action.usesLeft}`;
+  }
 }
 
 export function setBattleTargetingAbility(abilityId) {
@@ -717,16 +756,24 @@ export function hideShopModal() {
   $('shop-modal').classList.add('hidden');
 }
 
-// ---------- CHOICE MODAL (Devil Ned's deals + reward, data/devilDeals.js) ----------
-// Generic 2-option modal: {title, prompt, choiceA, choiceB} where each
-// choice is {label, apply(...)}. Always exactly two buttons, no "leave" --
-// a deal or a reward always needs a real pick, never a shrug.
+// ---------- CHOICE MODAL (Devil Ned's deals + reward, data/devilDeals.js;
+// also Zombie Ned's mid-fight event + reward, data/bosses.js) ----------
+// Generic N-option modal: {title, prompt|bodyHtml, choiceA, choiceB, choiceC?,
+// choiceD?} where each choice is {label, apply(...)}. Most deals are a plain
+// 2-way accept/refuse; a reward screen can add choiceC/choiceD for a real
+// 3-4 way pick. Always at least two buttons, no "leave" -- a deal or a
+// reward always needs a real pick, never a shrug. `bodyHtml` (trusted,
+// internally-authored content only) lets the ENCOUNTER COMPLETE summary
+// render a stat list instead of a single line of prose.
 export function showChoiceModal(deal, onChoose) {
   $('choice-modal-title').textContent = deal.title || '';
-  $('choice-modal-prompt').textContent = deal.prompt;
+  const promptEl = $('choice-modal-prompt');
+  if (deal.bodyHtml) promptEl.innerHTML = deal.bodyHtml;
+  else promptEl.textContent = deal.prompt || '';
   const container = $('choice-modal-options');
   container.innerHTML = '';
-  for (const choice of [deal.choiceA, deal.choiceB]) {
+  const choices = [deal.choiceA, deal.choiceB, deal.choiceC, deal.choiceD].filter(Boolean);
+  for (const choice of choices) {
     const btn = document.createElement('button');
     btn.className = 'choice-modal-btn';
     btn.textContent = choice.label;

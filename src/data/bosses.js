@@ -1,4 +1,8 @@
 import { DEVIL_DEALS } from './devilDeals.js';
+import { STATUS } from './statusEffects.js';
+import { gainArmor, addStatus, applyIncomingDamage } from '../systems/statusEngine.js';
+import { RELICS } from './relics.js';
+import { ITEMS } from './items.js';
 
 // Turn-based bosses. `phases` swap the enemy's intent pool at HP thresholds
 // (see systems/enemyAI.js) so a fight visibly escalates. `intro` is shown on
@@ -7,6 +11,106 @@ import { DEVIL_DEALS } from './devilDeals.js';
 // (ui/screens.js bossPhaseInfo) -- every other boss below leaves it off and
 // just gets the plain numbered label.
 export const BOSSES = {
+  // ---- Homer vs. Zombie Ned, Flanders House (Segment I) ----
+  // The combat-redesign prototype encounter: every mechanic below exists
+  // to make THIS fight specifically good, not to be a template every other
+  // enemy copies wholesale -- future enemies should reuse the underlying
+  // systems (interruptible intents, Break, onPlayerAbility reactions,
+  // checkMidFightEvent, onPhaseChange) with their OWN personality, the way
+  // Devil Ned's 'deal' intents already do for a completely different
+  // problem (a mid-combat choice, not a reaction to how you're fighting).
+  zombieNed: {
+    id: 'zombieNed',
+    name: 'Zombie Ned',
+    emoji: '🧟',
+    hp: 90,
+    breakMax: 18,
+    subtitle: 'OKILLY DOKILLY',
+    intro: 'Ned Flanders shambles out from behind the hedge, still smiling. "Hi-diddly-ho, Homer... I could just eat you up."',
+    // Forgiveness: every 3rd Attack (target:'enemy') play landed on Ned
+    // specifically grants him Armor -- mindlessly mashing Attack becomes
+    // inefficient, so the fight rewards mixing in Skills/environment
+    // objects instead. Uses the generic per-enemy onPlayerAbility hook
+    // (battleEngine.js playAbility/playEnvironmentAction), fired for every
+    // played card/environment action regardless of who it targeted.
+    onPlayerAbility(battle, runState, enemy, ability, targetEnemy) {
+      if (targetEnemy !== enemy || ability.target !== 'enemy') return;
+      enemy.forgivenessCount = (enemy.forgivenessCount || 0) + 1;
+      if (enemy.forgivenessCount % 3 === 0) {
+        gainArmor(enemy, 8);
+        battle.flags.forgivenessTriggered = (battle.flags.forgivenessTriggered || 0) + 1;
+      }
+    },
+    // Rod & Todd, mid-fight: fires once, the first time Ned drops to half
+    // HP (checked from game.js after any damaging play -- see
+    // checkMidFightEvent call sites). Reuses the exact showChoiceModal
+    // shape Devil Ned's 'deal' intents already use for "pause combat for a
+    // real decision," just triggered by an HP threshold instead of an
+    // intent roll.
+    checkMidFightEvent(battle, runState, enemy) {
+      if (battle.flags.rodAndToddChecked) return null;
+      if (enemy.hp / enemy.maxHp > 0.5) return null;
+      battle.flags.rodAndToddChecked = true;
+      return {
+        title: 'A MUFFLED VOICE',
+        prompt: '"Help! We\'re stuck in here!" Rod and Todd are trapped somewhere inside the house.',
+        choiceA: {
+          label: 'RESCUE THEM (costs this turn -- Ned gets a free hit)',
+          apply(rs, b) {
+            const dmg = 10 + Math.floor(Math.random() * 7);
+            const { dealt } = applyIncomingDamage(b.player, dmg);
+            b.flags.rodAndToddSaved = true;
+            return `You kick down the door and pull the boys to safety. Ned gets a free swing in the confusion. (-${dealt} HP) ROD & TODD: SAVED.`;
+          },
+        },
+        choiceB: {
+          label: 'IGNORE THEM AND KEEP FIGHTING',
+          apply(rs, b) {
+            b.flags.rodAndToddSaved = false;
+            return "You can't risk it right now. The voice fades. Maybe later.";
+          },
+        },
+      };
+    },
+    // "Ned Snaps" -- entering the final phase, he loses his composure (and
+    // his guard): reuses the existing Vulnerable status rather than
+    // inventing a bespoke "lower defense" number, so it reads on the same
+    // status pip the player already understands.
+    onPhaseChange(battle, runState, enemy, phaseIndex) {
+      if (phaseIndex === 2) addStatus(enemy, STATUS.VULNERABLE, 3);
+    },
+    phases: [
+      {
+        minHpPct: 0.6,
+        name: 'OKILLY DOKILLY',
+        intents: [
+          { type: 'attack', value: 10, weight: 35, label: 'Neighborly Swipe', icon: '🧟' },
+          { type: 'defend', value: 10, weight: 20, label: 'Turn The Other Cheek', icon: '🛡️' },
+          { type: 'prayer', value: 25, weight: 25, label: 'Prayer', icon: '🙏', interruptible: true, interruptThreshold: 15 },
+          { type: 'bewilder', value: 1, weight: 20, label: 'Howdy, Neighbor', icon: '😵‍💫' },
+        ],
+      },
+      {
+        minHpPct: 0.3,
+        name: 'STUPID SEXY ZOMBIE',
+        intents: [
+          { type: 'attack', value: 12, weight: 30, label: 'Neighborly Swipe', icon: '🧟' },
+          { type: 'prayer', value: 25, weight: 20, label: 'Prayer', icon: '🙏', interruptible: true, interruptThreshold: 15 },
+          { type: 'distract', value: 1, weight: 25, label: 'Ski Nightmare', icon: '💃' },
+          { type: 'bewilder', value: 1, weight: 25, label: 'Howdy, Neighbor', icon: '😵‍💫' },
+        ],
+      },
+      {
+        minHpPct: 0,
+        name: 'NED SNAPS',
+        intents: [
+          { type: 'attack', value: 18, weight: 55, label: 'Neighborino Rage', icon: '😡' },
+          { type: 'distract', value: 1, weight: 20, label: 'Ski Nightmare', icon: '💃' },
+          { type: 'bewilder', value: 1, weight: 25, label: 'Howdy, Neighbor', icon: '😵‍💫' },
+        ],
+      },
+    ],
+  },
   zombieSkinner: {
     id: 'zombieSkinner',
     name: 'Zombie Principal Skinner',
@@ -142,5 +246,36 @@ export const BOSSES = {
         ],
       },
     ],
+  },
+};
+
+// Zombie Ned's post-victory reward choice (game.js's onBattleVictory,
+// after the ENCOUNTER COMPLETE summary). Same shape as DEVIL_DEALS --
+// {title, prompt, choiceA/choiceB, each {label, apply(runState) => resultText}}
+// -- so it goes through the same generic ui/screens.js showChoiceModal.
+export const ZOMBIE_NED_REWARD = {
+  id: 'zombieNedReward',
+  title: 'A NEIGHBORLY SPOILS',
+  prompt: 'Ned finally falls still. Something of his is worth taking. Pick one, Homer.',
+  choiceA: {
+    label: '🥊 LEFT-HANDED UPPERCUT (New Ability)',
+    apply(runState) {
+      if (!runState.abilityDeck.includes('leftHandedUppercut')) runState.abilityDeck.push('leftHandedUppercut');
+      return 'You learn a dirty trick. LEFT-HANDED UPPERCUT JOINS YOUR ABILITIES.';
+    },
+  },
+  choiceB: {
+    label: `${RELICS.neighborlyShield.emoji} ${RELICS.neighborlyShield.name.toUpperCase()} (Relic)`,
+    apply(runState) {
+      if (!runState.relics.includes('neighborlyShield')) runState.relics.push('neighborlyShield');
+      return `You take Ned's garden shield off the fence. ${RELICS.neighborlyShield.name.toUpperCase()} JOINS YOUR RELICS.`;
+    },
+  },
+  choiceC: {
+    label: `${ITEMS.flandersFirstAidKit.emoji} ${ITEMS.flandersFirstAidKit.name.toUpperCase()} (Item)`,
+    apply(runState) {
+      runState.consumables.flandersFirstAidKit = (runState.consumables.flandersFirstAidKit || 0) + 1;
+      return `You grab a first aid kit off his shelf. ${ITEMS.flandersFirstAidKit.name.toUpperCase()} JOINS YOUR ITEMS.`;
+    },
   },
 };

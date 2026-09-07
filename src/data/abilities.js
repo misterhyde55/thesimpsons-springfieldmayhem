@@ -114,10 +114,29 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'bowling',
     target: 'enemy',
-    description: 'Deal 18 damage. If the enemy is Stunned, deal +8.',
+    description: 'Deal 18 damage. If the enemy is Stunned, deal +8. Chips 8 Break.',
     effect(api) {
       const bonus = api.getStatus(STATUS.STUN, 'target') > 0 ? 8 : 0;
       api.damage(18 + bonus);
+      api.reduceBreak(8);
+    },
+  },
+  // Zombie Ned's reward pool (data/bosses.js zombieNed / game.js's
+  // encounter-reward screen for that fight).
+  leftHandedUppercut: {
+    id: 'leftHandedUppercut',
+    name: 'Left-Handed Uppercut',
+    emoji: '🥊',
+    icon: { category: 'combat', id: 'heavyAttack' },
+    cost: 2,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'homer',
+    archetype: 'universal',
+    target: 'enemy',
+    description: 'Deal 16 damage. Chips 12 Break.',
+    effect(api) {
+      api.damage(16);
+      api.reduceBreak(12);
     },
   },
   duffCourage: {

@@ -643,6 +643,29 @@ body.full-bleed-active #top-bar { display: none; }
   margin: 0 auto;
 }
 .hp-bar-inner { height: 100%; width: 100%; background: #3ec24c; transition: width 0.25s ease; }
+.break-bar-outer {
+  position: relative;
+  width: 100%;
+  max-width: 220px;
+  height: 10px;
+  background: #2a2410;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #000;
+  margin: 2px auto 0;
+}
+.break-bar-inner { height: 100%; width: 100%; background: #f6d217; transition: width 0.25s ease; }
+.break-bar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.52rem;
+  font-weight: 800;
+  color: #1b1b1f;
+  text-shadow: none;
+}
 .hp-bar-label {
   position: absolute;
   inset: 0;
@@ -826,6 +849,30 @@ body.full-bleed-active #top-bar { display: none; }
   background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
 }
 
+/* ---- Environment actions (data/battleEnvironments.js): free, limited-use
+   battlefield objects, visually distinct from the ability hand below them
+   so they read as "not a card" -- a garden gnome you can throw, not a
+   spell in Homer's deck. ---- */
+.battle-environment-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 0 20px; position: relative; z-index: 1; }
+.environment-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(20, 20, 26, 0.75);
+  border: 2px solid #6fd0ff;
+  border-radius: 20px;
+  padding: 5px 12px 5px 8px;
+  color: #fff8ea;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.environment-action-btn:hover:not(:disabled) { border-color: #f6d217; transform: translateY(-2px); }
+.environment-action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.environment-action-btn.targeting { border-color: #3ec24c; box-shadow: 0 0 0 2px rgba(62, 194, 76, 0.5); }
+.env-action-icon { font-size: 1.2rem; line-height: 1; }
+.env-action-name { font-weight: 800; font-size: 0.68rem; letter-spacing: 0.3px; }
+.env-action-uses { font-size: 0.65rem; color: #6fd0ff; font-weight: 800; }
+
 .energy-orb {
   flex: 0 0 auto;
   width: 54px;
@@ -953,6 +1000,8 @@ body.full-bleed-active #top-bar { display: none; }
 .floating-damage { color: #ff4d4d; }
 .floating-heal { color: #3ec24c; }
 .floating-crit { color: #f6d217; font-size: 2rem; }
+.floating-break { color: #f6d217; font-size: 1.3rem; }
+.floating-phase { color: #ff5a3c; font-size: 1.4rem; text-transform: uppercase; }
 @keyframes floatUp {
   0% { opacity: 0; transform: translate(-50%, 8px) scale(0.85); }
   15% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
@@ -978,6 +1027,23 @@ body.full-bleed-active #top-bar { display: none; }
   0% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
   100% { transform: translateY(0); }
+}
+/* Break meter depleted -- a harder, longer flash than a normal hit so it
+   reads as a distinct combat event, not just more damage. */
+.combatant-break { animation: combatantBreak 0.5s ease; }
+@keyframes combatantBreak {
+  0% { transform: scale(1); filter: brightness(1) grayscale(0); }
+  25% { transform: scale(0.92); filter: brightness(2.2) grayscale(0.6); }
+  55% { transform: scale(1.04); filter: brightness(1.6) grayscale(0.2); }
+  100% { transform: scale(1); filter: brightness(1) grayscale(0); }
+}
+/* Boss phase transition -- a slower color-shift so it reads as "something
+   just changed," distinct from a hit or a break. */
+.combatant-phase { animation: combatantPhase 0.6s ease; }
+@keyframes combatantPhase {
+  0% { filter: brightness(1) hue-rotate(0deg); }
+  50% { filter: brightness(1.5) hue-rotate(25deg); }
+  100% { filter: brightness(1) hue-rotate(0deg); }
 }
 
 /* ---------------- Boss intro ---------------- */
@@ -1122,6 +1188,19 @@ body.full-bleed-active #top-bar { display: none; }
 .choice-modal-options { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 .choice-modal-btn { background: #d0021b !important; color: #fff; }
 .choice-modal-btn:hover { background: #f6414d !important; }
+
+/* ---- ENCOUNTER COMPLETE summary (Zombie Ned and future graded fights) --
+   reuses the choice modal shell via bodyHtml, styled as a report card
+   rather than a wall of red buttons. ---- */
+.encounter-grade {
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  font-size: 2.4rem;
+  color: #f6d217;
+  text-shadow: 2px 2px 0 #000;
+  margin-bottom: 8px;
+}
+.encounter-stats-list { list-style: none; padding: 0; margin: 0; text-align: left; }
+.encounter-stats-list li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid #3a3a44; font-size: 0.85rem; }
 
 /* ---------------- Level complete / upgrades ---------------- */
 .stat-list { list-style: none; padding: 0; text-align: left; max-width: 320px; margin: 16px auto; }

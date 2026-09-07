@@ -30,7 +30,9 @@ export const JOURNEYS = {
         bossLocationId: 'springfieldElementary',
         content: {
           simpsonHouse: { type: 'combat', enemyIds: ['zombieMobGuy'] },
-          flandersHouse: { type: 'combat', elite: true, enemyIds: ['patientZeroFlanders'] },
+          // Combat-redesign prototype encounter -- see data/bosses.js
+          // zombieNed and data/battleEnvironments.js's 'flandersHouse' set.
+          flandersHouse: { type: 'boss', bossId: 'zombieNed', environmentId: 'flandersHouse' },
           springfieldCemetery: { type: 'combat', enemyIds: ['shamblingIntern', 'rabidStrayDog'] },
           nuclearPlant: { type: 'combat', elite: true, enemyIds: ['zombieHorde'], milestoneAbilityId: 'nuclearUppercut' },
           springfieldElementary: { type: 'boss', bossId: 'zombieSkinner' },

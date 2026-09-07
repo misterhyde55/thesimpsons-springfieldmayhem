@@ -1,4 +1,4 @@
-import { STATUS, DECAYING_ON_OWN_TURN } from '../data/statusEffects.js';
+import { STATUS, DECAYING_ON_OWN_TURN, DOT_STATUSES } from '../data/statusEffects.js';
 
 // A "combatant" is either battle.player or one of battle.enemies -- both
 // shapes carry a plain `statuses` map of STATUS id -> stack count, so this
@@ -33,6 +33,7 @@ export function applyIncomingDamage(target, rawDamage) {
   let damage = rawDamage;
   if (getStatus(target, STATUS.TIPSY) > 0) damage *= 1 + getStatus(target, STATUS.TIPSY) * 0.1;
   if (getStatus(target, STATUS.VULNERABLE) > 0) damage *= 1.5;
+  if (getStatus(target, STATUS.SOAKED) > 0) damage *= 1.25;
   damage = Math.round(damage);
 
   if (getStatus(target, STATUS.DODGE) > 0) {
@@ -50,9 +51,26 @@ export function applyIncomingDamage(target, rawDamage) {
 
 export function heal(target, amount) {
   if (amount <= 0) return 0;
+  const effective = getStatus(target, STATUS.CURSED) > 0 ? Math.floor(amount / 2) : amount;
   const before = target.hp;
-  target.hp = Math.min(target.maxHp, target.hp + amount);
+  target.hp = Math.min(target.maxHp, target.hp + effective);
   return target.hp - before;
+}
+
+// Armor specifically (not the generic addStatus) so Slimed's penalty lives
+// in one place -- everything that grants Block/Armor should route through
+// this rather than calling addStatus(ARMOR, ...) directly.
+export function gainArmor(target, amount) {
+  if (amount <= 0) return;
+  const effective = getStatus(target, STATUS.SLIMED) > 0 ? Math.floor(amount / 2) : amount;
+  addStatus(target, STATUS.ARMOR, effective);
+}
+
+// Max Energy after Terrified/Exhausted reduce it, floored at 1 so a
+// debuffed combatant can never be locked out of acting entirely.
+export function effectiveMaxEnergy(combatant, baseMaxEnergy) {
+  const reduction = (getStatus(combatant, STATUS.TERRIFIED) > 0 ? 1 : 0) + getStatus(combatant, STATUS.EXHAUSTED);
+  return Math.max(1, baseMaxEnergy - reduction);
 }
 
 // Called at the start of a combatant's own turn: decays Weak/Vulnerable,
@@ -66,13 +84,18 @@ export function tickTurnStart(combatant) {
   return { stunned };
 }
 
-// Called at the end of a combatant's own turn: Poison/Infection ticks
-// damage equal to its stacks, then decays by 1. Returns the damage dealt
-// (0 if none) so the caller can show a popup and check for death.
+// Called at the end of a combatant's own turn: every DoT status (Poison,
+// Burning, Bleeding) ticks damage equal to its own stack count, then
+// decays by 1. Returns the total damage dealt (0 if none) so the caller
+// can show a popup and check for death.
 export function tickTurnEnd(combatant) {
-  const poison = getStatus(combatant, STATUS.POISON);
-  if (poison <= 0) return 0;
-  combatant.hp = Math.max(0, combatant.hp - poison);
-  addStatus(combatant, STATUS.POISON, -1);
-  return poison;
+  let total = 0;
+  for (const statusId of DOT_STATUSES) {
+    const stacks = getStatus(combatant, statusId);
+    if (stacks <= 0) continue;
+    combatant.hp = Math.max(0, combatant.hp - stacks);
+    addStatus(combatant, statusId, -1);
+    total += stacks;
+  }
+  return total;
 }
