@@ -80,7 +80,7 @@ export const ASSET_MANIFEST = {
     // character's real portrait, same pattern as patientZeroFlanders above.
     // No dedicated "zombified" art uploaded for these yet, so it's the
     // normal portrait until/unless zombie-specific art shows up.
-    zombieBarney: `${BASE}/characters/barney.png`,
+    zombieBarney: `${BASE}/enemies/barneyzombie.png`,
     zombieWiggum: `${BASE}/characters/chiefwiggum.png`,
     zombieRalph: `${BASE}/characters/ralph.png`,
     zombieMilhouse: `${BASE}/characters/milhouse.png`,
@@ -90,6 +90,11 @@ export const ASSET_MANIFEST = {
     zombieKrustyDeluxe: `${BASE}/characters/krusty.png`,
     zombieGrandpa: `${BASE}/characters/grampa.png`,
     zombieSkinnerZombie: `${BASE}/enemies/Principal%20Skinner%20Zombie.png`,
+    // Segment II: Alien Invasion. alienEnforcer's own "Ray Blast" intent is
+    // a literal match for alien2's raygun-and-tentacles art; alien1's
+    // feral clawed look fits the lesser, more common alienProbe instead.
+    alienProbe: `${BASE}/enemies/alien1.png`,
+    alienEnforcer: `${BASE}/enemies/alien2.png`,
   },
   // data/bosses.js entries, keyed by boss id. Chief Wiggum and Mr. Burns reuse
   // their characters/ portrait here for the in-arena boss sprite -- one image
@@ -115,6 +120,7 @@ export const ASSET_MANIFEST = {
     flandersHouse: `${BASE}/buildings/Flanders%20House.webp`,
     nuclearPlant: `${BASE}/buildings/Springfield%20Nuclear%20Power%20Plant.png`,
     springfieldCemetery: `${BASE}/buildings/Springfield_Cemetery.webp`,
+    burnsManor: `${BASE}/buildings/mrburnsmansion.png`,
   },
   // Full-scene backgrounds not tied to a specific location (menus, etc.)
   backgrounds: {
