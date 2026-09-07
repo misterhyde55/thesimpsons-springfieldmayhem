@@ -376,10 +376,20 @@ body.full-bleed-active #top-bar { display: none; }
 .map-hotspot.state-locked .map-hotspot-pin { border-color: #d0021b; opacity: 0.85; }
 .map-hotspot.state-unreachable { opacity: 0.55; }
 .map-hotspot.is-boss .map-hotspot-pin { border-color: #d0021b; border-width: 3px; }
+.map-hotspot.is-invaded .map-hotspot-pin {
+  border-color: #ff2222;
+  border-width: 3px;
+  animation: hotspotInvadedPulse 0.9s ease-in-out infinite;
+}
+.map-hotspot.is-invaded .map-hotspot-label { background: rgba(120, 0, 0, 0.85); color: #ffd6d6; }
 .map-hotspot:hover .map-hotspot-pin { transform: scale(1.12); }
 @keyframes hotspotPulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(246, 210, 23, 0.5); }
   50% { box-shadow: 0 0 0 6px rgba(246, 210, 23, 0); }
+}
+@keyframes hotspotInvadedPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 34, 34, 0.7); }
+  50% { box-shadow: 0 0 0 9px rgba(255, 34, 34, 0); }
 }
 
 .map-homer-marker {
@@ -484,6 +494,7 @@ body.full-bleed-active #top-bar { display: none; }
 #news-text { font-size: 1.3rem; margin-top: 16px; }
 
 .mayhem-readout { color: #ff5a3c; font-weight: 800; font-size: 0.85rem; letter-spacing: 1px; margin-top: 4px; }
+.cash-readout { color: #f6d217; font-weight: 800; font-size: 0.85rem; letter-spacing: 1px; text-align: right; }
 
 .hp-bar-outer {
   position: relative;
@@ -865,6 +876,39 @@ body.full-bleed-active #top-bar { display: none; }
   border-radius: 10px;
   padding: 8px 16px;
   pointer-events: none;
+}
+.reward-toast-stack {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.reward-toast-chip {
+  background: rgba(12, 10, 4, 0.88);
+  border: 2px solid #f6d217;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+  color: #f6d217;
+  white-space: nowrap;
+  animation: rewardToastIn 0.25s ease, rewardToastOut 0.35s ease 2.3s forwards;
+}
+.reward-toast-chip.negative { border-color: #ff5a3c; color: #ff8a70; }
+@keyframes rewardToastIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rewardToastOut {
+  from { opacity: 1; }
+  to { opacity: 0; transform: translateY(-6px); }
 }
 .banner-npc-portrait {
   height: 56px;

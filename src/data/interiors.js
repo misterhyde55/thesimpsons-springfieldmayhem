@@ -14,7 +14,7 @@
 // interaction can instead set `special: 'shop'` or `special: 'abilityDraft'`
 // to hand off to an existing full-screen flow (systems/economy.js's shop
 // modal, or the ability draft) rather than resolving inline.
-import { shiftRelationship } from '../systems/relationships.js';
+import { shiftRelationship, moeDuffTerms } from '../systems/relationships.js';
 import { getRelicShopPool } from './relics.js';
 import { getEvent } from './events.js';
 import { ITEMS } from './items.js';
@@ -65,6 +65,9 @@ function sellItemInteraction() {
     id: 'sellItem',
     label: 'SELL AN ITEM',
     cost: 1,
+    visible(runState) {
+      return runState.world.locationStates.kwikEMart !== 'overrun';
+    },
     run(runState) {
       const entries = Object.entries(runState.consumables || {}).filter(([, qty]) => qty > 0);
       if (!entries.length) return { text: 'Apu: "You\'ve got nothing I\'ll buy off you."' };
@@ -237,6 +240,7 @@ export const INTERIORS = {
               };
             },
           },
+          { id: 'buySomething', label: 'BUY SOMETHING', cost: 1, special: 'shop' },
           {
             id: 'squisheeMachine',
             label: 'CHECK THE SQUISHEE MACHINE',
@@ -314,6 +318,50 @@ export const INTERIORS = {
           },
         ],
       },
+      // Triggered by systems/locationInvasions.js -- see moesTavern's
+      // underAttack state for how resolveInteriorStateId routes here.
+      underAttack: {
+        background: '🔥',
+        intro: 'The front window caves in. Apu is backed against the register, hockey stick raised. "HOMER! A LITTLE HELP!"',
+        interactions: [
+          {
+            id: 'helpApu',
+            label: 'HELP APU FIGHT THEM OFF',
+            cost: 1,
+            special: 'combat',
+            combatContent: { type: 'combat', enemyIds: ['zombieBarfly', 'zombieMobGuy'], resolvesInvasionId: 'kwikEMart' },
+          },
+          {
+            id: 'fleeStore',
+            label: 'RUN FOR IT',
+            cost: 1,
+            run(runState) {
+              delete runState.world.locationInvasions.kwikEMart;
+              runState.world.locationStates.kwikEMart = 'overrun';
+              return { text: 'You bolt. Behind you, the shelves go over one by one.' };
+            },
+          },
+        ],
+      },
+      overrun: {
+        background: '💀',
+        intro: 'The Kwik-E-Mart is dark, glass everywhere, shelves stripped bare. No sign of Apu.',
+        interactions: [
+          {
+            id: 'lookForSupplies',
+            label: 'LOOK FOR ANYTHING USEFUL',
+            cost: 1,
+            run(runState) {
+              if (runState.world.secretsFoundIds.includes('kwikEMartOverrunSearch')) {
+                return { text: 'You already picked this place clean.' };
+              }
+              runState.world.secretsFoundIds.push('kwikEMartOverrunSearch');
+              runState.donutsCurrency += 4;
+              return { text: 'SECRET FOUND! A few crumpled bills under a fallen shelf. +4 donuts. No sign of Apu.' };
+            },
+          },
+        ],
+      },
     },
   },
   moesTavern: {
@@ -333,13 +381,19 @@ export const INTERIORS = {
                 followUps: [
                   {
                     id: 'giveMeDuff',
-                    label: 'GIVE ME A DUFF. ($2)',
+                    // A followUp's label is fixed at menu-build time (it's a
+                    // dialogue reply, not its own interaction), so it can't
+                    // read relationship-scaled price live -- the flavor line
+                    // in the result text is where the discount actually shows.
+                    label: 'GIVE ME A DUFF.',
                     run(runState) {
-                      if (runState.donutsCurrency < 2) return { text: 'Moe: "No tab. Not for you, not after last time."' };
-                      runState.donutsCurrency -= 2;
-                      runState.hp = Math.min(runState.maxHp, runState.hp + 15);
+                      const { cost, heal } = moeDuffTerms(runState, 2, 15);
+                      if (runState.donutsCurrency < cost) return { text: 'Moe: "No tab. Not for you, not after last time."' };
+                      runState.donutsCurrency -= cost;
+                      runState.hp = Math.min(runState.maxHp, runState.hp + heal);
                       shiftRelationship(runState, 'moe', 1);
-                      return { text: 'Moe slides a Duff across the bar. (+15 HP, -2 donuts)' };
+                      const priceLine = cost === 0 ? 'On the house.' : `-${cost} donut${cost === 1 ? '' : 's'}.`;
+                      return { text: `Moe slides a Duff across the bar. (+${heal} HP, ${priceLine})` };
                     },
                   },
                   {
@@ -387,11 +441,13 @@ export const INTERIORS = {
             label: 'ORDER A DRINK',
             cost: 1,
             run(runState) {
-              if (runState.donutsCurrency < 1) return { text: "You're out of money. Moe doesn't do tabs." };
-              runState.donutsCurrency -= 1;
-              runState.hp = Math.min(runState.maxHp, runState.hp + 12);
+              const { cost, heal } = moeDuffTerms(runState, 1, 12);
+              if (runState.donutsCurrency < cost) return { text: "You're out of money. Moe doesn't do tabs." };
+              runState.donutsCurrency -= cost;
+              runState.hp = Math.min(runState.maxHp, runState.hp + heal);
               shiftRelationship(runState, 'moe', 1);
-              return { text: 'One Duff, coming right up. (+12 HP, -1 donut)' };
+              const priceLine = cost === 0 ? 'On the house.' : `-${cost} donut${cost === 1 ? '' : 's'}.`;
+              return { text: `One Duff, coming right up. (+${heal} HP, ${priceLine})` };
             },
           },
           { id: 'takeABreather', label: 'TAKE A BREATHER', cost: 1, special: 'abilityDraft' },
@@ -444,6 +500,20 @@ export const INTERIORS = {
             },
           },
           {
+            id: 'restAtBar',
+            label: 'REST AT THE BAR',
+            cost: 1,
+            run(runState) {
+              const { cost, heal } = moeDuffTerms(runState, 1, 18);
+              if (runState.donutsCurrency < cost) return { text: "You're out of money, and Moe's not in a charitable mood tonight." };
+              runState.donutsCurrency -= cost;
+              runState.hp = Math.min(runState.maxHp, runState.hp + heal);
+              const priceLine = cost === 0 ? 'On the house.' : `-${cost} donut${cost === 1 ? '' : 's'}.`;
+              return { text: `Moe keeps watch while you catch your breath behind the bar. (+${heal} HP, ${priceLine})` };
+            },
+          },
+          { id: 'takeABreatherZ', label: 'TAKE A BREATHER', cost: 1, special: 'abilityDraft' },
+          {
             id: 'investigateBlood',
             label: 'INVESTIGATE THE BLOOD',
             cost: 1,
@@ -485,6 +555,7 @@ export const INTERIORS = {
             label: 'THE REGULARS ARE MOVING WRONG',
             cost: 1,
             special: 'combat',
+            flagId: 'moesRegularsFought',
             combatContent: { type: 'combat', enemyIds: ['zombieLenny', 'zombieCarl', 'zombieBarney'] },
             visible(runState) {
               return !runState.world.locationFlags.moesRegularsFought;
@@ -543,6 +614,55 @@ export const INTERIORS = {
           },
         ],
       },
+      // Triggered by systems/locationInvasions.js, not a Horror Rule --
+      // resolveInteriorStateId checks runState.world.locationInvasions
+      // before falling through to the Horror Rule stack, so this shows up
+      // the moment the crisis fires regardless of segment/Horror Rule.
+      underAttack: {
+        background: '🔥',
+        intro: "GLASS SHATTERS. A horde is pouring through the front window. Moe's screaming your name over the noise.",
+        interactions: [
+          {
+            id: 'defendBar',
+            label: 'DEFEND THE BAR',
+            cost: 1,
+            special: 'combat',
+            combatContent: { type: 'combat', enemyIds: ['zombieBarfly', 'zombieBarfly', 'zombieMobGuy'], resolvesInvasionId: 'moesTavern' },
+          },
+          {
+            id: 'fleeBar',
+            label: 'RUN FOR IT',
+            cost: 1,
+            run(runState) {
+              delete runState.world.locationInvasions.moesTavern;
+              runState.world.locationStates.moesTavern = 'overrun';
+              return { text: "You bail. Moe's screams fade behind you as the window finally gives way." };
+            },
+          },
+        ],
+      },
+      // Permanent for the rest of the episode once set (locationStates
+      // override) -- no Duff, no rest, no ability draft. A bad decision the
+      // player can't take back.
+      overrun: {
+        background: '💀',
+        intro: "Moe's is a burnt-out shell. Broken stools, a shattered Duff sign swinging on one hinge. Whatever happened here, it's over now.",
+        interactions: [
+          {
+            id: 'lookForSurvivors',
+            label: 'LOOK FOR SURVIVORS',
+            cost: 1,
+            run(runState) {
+              if (runState.world.secretsFoundIds.includes('moesOverrunSearch')) {
+                return { text: 'Nothing left to find here.' };
+              }
+              runState.world.secretsFoundIds.push('moesOverrunSearch');
+              runState.donutsCurrency += 4;
+              return { text: 'SECRET FOUND! A cashbox someone never got to. +4 donuts. No sign of Moe.' };
+            },
+          },
+        ],
+      },
     },
   },
 };
@@ -568,6 +688,7 @@ export function resolveInteriorStateId(locationId, runState) {
   const interior = INTERIORS[locationId];
   const override = runState.world.locationStates[locationId];
   if (override && interior.states[override]) return override;
+  if (runState.world.locationInvasions[locationId] && interior.states.underAttack) return 'underAttack';
   const ruleIds = [...runState.activeHorrorRuleIds].reverse();
   for (const ruleId of ruleIds) {
     if (interior.states[ruleId]) return ruleId;
