@@ -325,6 +325,13 @@ body.full-bleed-active #top-bar { display: none; }
   -webkit-user-drag: none;
   pointer-events: none;
 }
+.map-fog {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 .map-roads {
   position: absolute;
   inset: 0;
