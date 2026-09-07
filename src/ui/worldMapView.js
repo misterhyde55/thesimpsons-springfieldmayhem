@@ -189,23 +189,148 @@ function buildRoads() {
   dom.roadsSvg.setAttribute('viewBox', `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
 }
 
+// Springfieldmap2.png has a whole fake mockup UI baked into its own pixels
+// (logo, legend, "SEGMENT/MAYHEM/EPISODE TIME" header, a Homer HP card, an
+// objective box) that collides with the real UI rendered on top of it --
+// see the html comment above #map-fog. Classical inpainting (tried first)
+// mangles this art style into worse-looking artifacts than the baked text
+// itself, so these are permanent fog patches instead: rectangles in the
+// SAME image-pixel coordinate space as the art (hand-measured against the
+// source file), living inside the zoom/pan-transformed .map-world so they
+// track the art exactly at every zoom level -- a fixed-width DOM panel
+// can't do that (it gets outgrown the moment you zoom in). Soft-edged and
+// tinted rather than flat black, so it reads as drifting horror fog, not
+// a visible patch.
+const FOG_PATCHES = [
+  { x: 0, y: 0, w: 345, h: 185 }, // baked game logo
+  { x: 0, y: 195, w: 200, h: 490 }, // baked legend column (real sidebar covers this too, but not past ~1.1x zoom)
+  { x: 1005, y: 0, w: 420, h: 100 }, // baked "SEGMENT I / MAYHEM" header
+  { x: 1410, y: 0, w: 184, h: 100 }, // baked "EPISODE TIME" box (not a real resource)
+  { x: 1525, y: 110, w: 69, h: 145 }, // baked zoom controls
+  { x: 0, y: 810, w: 285, h: 176 }, // baked Homer HP/cash card
+  { x: 1180, y: 875, w: 414, h: 111 }, // baked "CURRENT OBJECTIVE" box
+  // Every baked per-building name pill + status icon -- each collides with
+  // the real .map-hotspot-label ui/worldMapView.js already renders at its
+  // own (independently-tuned) position, so leaving these in produced
+  // visibly doubled text ("FLANDERS HOUSE" baked directly under "Flanders'
+  // House" real, etc.) rather than a one-off edge case.
+  // One combined patch per location (icon + label + any status badge
+  // together) rather than separate icon/label pairs -- a single generous
+  // ellipse is far more forgiving of hand-measurement error than several
+  // small tightly-fit ones, which left visible gaps between them.
+  { x: 685, y: 15, w: 200, h: 185 }, // Springfield Elementary label + ?/lock icons
+  { x: 880, y: 70, w: 65, h: 55 }, // quest "!" icon near Krusty Burger
+  { x: 915, y: 165, w: 215, h: 55 }, // Krusty Burger label
+  { x: 1320, y: 190, w: 220, h: 80 }, // Nuclear Power Plant + Boss Area + icon
+  { x: 390, y: 305, w: 175, h: 50 }, // Flanders House label
+  { x: 690, y: 280, w: 175, h: 80 }, // Kwik-E-Mart label + icon
+  { x: 900, y: 290, w: 205, h: 80 }, // Moe's Tavern label + icon
+  { x: 1125, y: 335, w: 200, h: 90 }, // Android's Dungeon label + icon
+  { x: 1390, y: 445, w: 195, h: 80 }, // Springfield Mall label + lock
+  { x: 270, y: 330, w: 200, h: 175 }, // baked "you are here" Homer sprite + Simpsons House callout
+  { x: 650, y: 480, w: 250, h: 135 }, // Lard Lad Donuts x2
+  { x: 190, y: 555, w: 205, h: 90 }, // Springfield Church label + lock
+  { x: 155, y: 685, w: 195, h: 135 }, // Springfield Cemetery + High Danger + icon
+  { x: 520, y: 735, w: 200, h: 85 }, // Sprawl-Mart label + icon
+  { x: 880, y: 490, w: 220, h: 85 }, // Bowlarama label + icon
+  { x: 785, y: 680, w: 175, h: 110 }, // Springfield Police Station label + icon
+  { x: 1370, y: 580, w: 200, h: 85 }, // Springfield Hospital label + icon
+  { x: 1140, y: 720, w: 195, h: 80 }, // Krustylu Studios label + icon
+  { x: 1015, y: 805, w: 195, h: 130 }, // Springfield Gorge label + icons
+  { x: 1400, y: 810, w: 175, h: 85 }, // Retirement Castle label + icon
+];
+
+function buildFog() {
+  const svg = dom.fogSvg;
+  svg.setAttribute('viewBox', `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
+  // Ellipses, not rectangles -- ellipses read as drifting mist, rectangles
+  // read as debug placeholder boxes. A tight, slightly-inset solid core
+  // (guarantees full coverage of the baked text/icon underneath) sits
+  // under a larger, heavily-blurred, lower-opacity halo that does the
+  // actual feathering, so the visible edge is soft even though the core
+  // itself is a hard shape.
+  const ellipses = (extraRx, extraRy) =>
+    FOG_PATCHES.map((p) => {
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      const rx = Math.max(4, p.w / 2 + extraRx);
+      const ry = Math.max(4, p.h / 2 + extraRy);
+      return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" />`;
+    }).join('');
+  svg.innerHTML = `
+    <defs>
+      <filter id="mapFogBlur" x="-100%" y="-100%" width="300%" height="300%">
+        <feGaussianBlur stdDeviation="18" />
+      </filter>
+    </defs>
+    <g filter="url(#mapFogBlur)" fill="#1a0f28" opacity="0.75">
+      ${ellipses(20, 16)}
+    </g>
+    <g fill="#0e0818" opacity="0.98">
+      ${ellipses(0, 0)}
+    </g>
+  `;
+}
+
 function renderRoads(runState) {
   const svg = dom.roadsSvg;
   svg.innerHTML = '';
+  const here = runState.world.currentLocationId || START_LOCATION_ID;
+  // Springfield's full road graph is dense (most locations connect to
+  // several others) -- lighting up every single one at equal weight was
+  // reported as "everything looks a mess," since it's a hash of crossing
+  // lines with no obvious "start here." Only the roads actually leaving
+  // Homer's current location are real decisions right now, so only THOSE
+  // get the bold glowing treatment; every other road renders as a faint
+  // reference line so the street grid still reads as connected without
+  // fighting for attention.
   for (const [a, b] of getAllRoads()) {
     const posA = WORLD_LOCATIONS[a];
     const posB = WORLD_LOCATIONS[b];
     const blocked = isRoadBlocked(runState, a, b);
+    const touchesHere = a === here || b === here;
+    const x1 = posA.x * MAP_WIDTH;
+    const y1 = posA.y * MAP_HEIGHT;
+    const x2 = posB.x * MAP_WIDTH;
+    const y2 = posB.y * MAP_HEIGHT;
+    if (!touchesHere) {
+      const faint = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      faint.setAttribute('x1', x1);
+      faint.setAttribute('y1', y1);
+      faint.setAttribute('x2', x2);
+      faint.setAttribute('y2', y2);
+      faint.setAttribute('stroke', blocked ? '#a83a3a' : '#c9c9d3');
+      faint.setAttribute('stroke-width', '2');
+      faint.setAttribute('stroke-linecap', 'round');
+      faint.setAttribute('stroke-dasharray', '1 12');
+      faint.setAttribute('opacity', '0.28');
+      svg.appendChild(faint);
+      continue;
+    }
+    // A wide, soft, low-opacity glow UNDER a bright, mostly-solid core --
+    // the glow is what makes the path readable against Springfieldmap2.png's
+    // own busy, high-contrast street art (a thin dashed line at 55% opacity,
+    // the old treatment, was reported as "hard to see" and got lost in it).
+    const glow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    glow.setAttribute('x1', x1);
+    glow.setAttribute('y1', y1);
+    glow.setAttribute('x2', x2);
+    glow.setAttribute('y2', y2);
+    glow.setAttribute('stroke', blocked ? '#d0021b' : '#f6d217');
+    glow.setAttribute('stroke-width', '16');
+    glow.setAttribute('stroke-linecap', 'round');
+    glow.setAttribute('opacity', '0.35');
+    svg.appendChild(glow);
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', posA.x * MAP_WIDTH);
-    line.setAttribute('y1', posA.y * MAP_HEIGHT);
-    line.setAttribute('x2', posB.x * MAP_WIDTH);
-    line.setAttribute('y2', posB.y * MAP_HEIGHT);
-    line.setAttribute('stroke', blocked ? '#d0021b' : '#f6d217');
-    line.setAttribute('stroke-width', '5');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    line.setAttribute('stroke', blocked ? '#ff4444' : '#ffe14d');
+    line.setAttribute('stroke-width', '6');
     line.setAttribute('stroke-linecap', 'round');
-    line.setAttribute('stroke-dasharray', blocked ? '10 14' : '2 18');
-    line.setAttribute('opacity', blocked ? '0.6' : '0.55');
+    line.setAttribute('stroke-dasharray', blocked ? '12 10' : '3 15');
+    line.setAttribute('opacity', blocked ? '0.9' : '0.95');
     svg.appendChild(line);
   }
 }
@@ -410,6 +535,7 @@ export function mountMapView(handlers) {
     viewport: document.getElementById('map-viewport'),
     world: document.getElementById('map-world'),
     image: document.getElementById('map-image'),
+    fogSvg: document.getElementById('map-fog'),
     roadsSvg: document.getElementById('map-roads'),
     hotspotsLayer: document.getElementById('map-hotspots'),
     homerMarker: document.getElementById('map-homer-marker'),
@@ -419,6 +545,7 @@ export function mountMapView(handlers) {
   clickHandler = handlers.onHotspotClick;
   cameraSettledHandler = handlers.onCameraSettled || null;
   dom.image.src = getAssetUrl('ui', 'springfieldMap') || '';
+  buildFog();
   buildRoads();
   buildHotspots({
     onHotspotHover: (locationId) => handlers.onHotspotHover(locationId),
