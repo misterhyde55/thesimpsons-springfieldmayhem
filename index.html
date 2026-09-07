@@ -353,6 +353,7 @@
     <div class="battle-topbar">
       <div id="battle-location-name" class="battle-location-name">Springfield</div>
       <div class="battle-topbar-right">
+        <div id="battle-horror-rule" class="battle-horror-rule hidden"></div>
         <div id="battle-mayhem-readout" class="mayhem-readout">MAYHEM: 0%</div>
       </div>
     </div>
@@ -386,6 +387,11 @@
          use actions separate from Homer's own ability deck. Empty/hidden
          for encounters with no environment set. -->
     <div id="battle-environment" class="battle-environment-row hidden"></div>
+
+    <!-- Held consumables (data/items.js runState.consumables) usable mid-
+         fight -- free, no card play, no Energy cost. Hidden when the bag
+         is empty. -->
+    <div id="battle-consumables" class="battle-consumables-row hidden"></div>
 
     <div class="battle-hand-bar">
       <div id="battle-energy-readout" class="energy-orb"><span id="battle-energy-value">3</span><small>/3</small></div>

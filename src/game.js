@@ -37,6 +37,7 @@ import { rollTravelEvent } from './data/travelEvents.js';
 import { pickTreehouseScene } from './data/treehouseScenes.js';
 import { DEVIL_DEALS } from './data/devilDeals.js';
 import { applyQuestResolution, getActiveQuestsSummary } from './data/quests.js';
+import { getLocationBattleEvent } from './data/locationBattleEvents.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
 import { getCurrentSegment, isFinalSegment, isSegmentComplete, isBossLocationUnlocked, markLocationVisited } from './systems/board.js';
@@ -44,6 +45,7 @@ import {
   createBattle,
   playAbility,
   playEnvironmentAction,
+  useConsumableInBattle,
   endPlayerTurn,
   canPlayAbility,
   getAliveEnemies,
@@ -969,9 +971,20 @@ export class Game {
       onAbilityClick: (abilityId) => this.onAbilityClick(abilityId),
       onTargetEnemy: (enemyInstanceId) => this.onTargetEnemy(enemyInstanceId),
       onEnvironmentClick: (actionId) => this.onEnvironmentClick(actionId),
+      onConsumableClick: (itemId) => this.onConsumableClick(itemId),
       onEndTurn: () => this.endTurn(),
       onInspectPile: (which) => this.onInspectPile(which),
     });
+
+    // A location battlefield event is active for this fight (REDESIGN
+    // COMBAT GAMEPLAY: "sometimes the ENVIRONMENT should matter" -- see
+    // data/locationBattleEvents.js). A toast rather than the shared
+    // narrative banner below, so it never competes with the boss
+    // intro/elite/flavor line for the same on-screen space.
+    const locationEvent = getLocationBattleEvent(locationId);
+    if (locationEvent) {
+      screens.showRewardToasts(`BATTLEFIELD EVENT -- ${locationEvent.label}: ${locationEvent.description}`);
+    }
 
     if (isBoss) {
       screens.showNpcBanner(content.bossId, BOSSES[content.bossId].intro, 2400);
@@ -1101,6 +1114,25 @@ export class Game {
     this.afterPlayerAction();
   }
 
+  // ---------- BATTLE: CONSUMABLES (data/items.js runState.consumables) ----------
+  // Free: no Energy cost, doesn't touch the hand, doesn't end the turn --
+  // REDESIGN COMBAT GAMEPLAY: "Consumables should NOT count as normal
+  // cards." this.battle isn't cleared by using one, so this stays available
+  // right up until victory/defeat.
+  onConsumableClick(itemId) {
+    if (!this.battle || this.battle.outcome) return;
+    const result = useConsumableInBattle(this.battle, this.runState, itemId);
+    if (!result.ok) return;
+    playMenuSelect();
+    screens.playCombatantAnimation(null, 'heal');
+    if (result.healed > 0) screens.showFloatingNumber(null, `+${result.healed}`, 'heal');
+    screens.appendBattleLog(`You used ${result.item.name}. ${result.item.description}`);
+    screens.renderBattle(this.battle, this.runState);
+    saveActiveRun(this.runState);
+
+    this.afterPlayerAction();
+  }
+
   animateAbilityEvents(events) {
     for (const ev of events) {
       if (ev.kind === 'damage') {
@@ -1125,6 +1157,12 @@ export class Game {
         screens.playCombatantAnimation(ev.targetId, 'phase');
         screens.shakeBattleStage();
         screens.appendBattleLog(`${this.enemyName(ev.targetId)} enters a new phase${ev.phaseName ? `: ${ev.phaseName}` : ''}!`);
+      } else if (ev.kind === 'locationRevive') {
+        screens.showFloatingNumber(ev.targetId, 'REVIVED!', 'phase');
+        screens.playCombatantAnimation(ev.targetId, 'phase');
+        screens.appendBattleLog(`${this.enemyName(ev.targetId)} claws back up! (${ev.label})`);
+      } else if (ev.kind === 'locationEvent' && ev.message) {
+        screens.appendBattleLog(ev.message);
       }
     }
   }
@@ -1199,6 +1237,15 @@ export class Game {
 
     const result = endPlayerTurn(this.battle, this.runState);
     this.animateEnemyActions(result.enemyActions);
+    // A location battlefield event's periodic tick landed this turn (Nuclear
+    // Plant radiation, Kwik-E-Mart Squishee malfunction -- see
+    // data/locationBattleEvents.js). Rare (most turns this is null), so a
+    // banner is the right amount of ceremony -- not a full modal.
+    if (result.locationEvent) {
+      this.animateAbilityEvents(result.locationEvent.events);
+      screens.appendBattleLog(`${result.locationEvent.label}: ${result.locationEvent.message}`);
+      screens.showBanner(`${result.locationEvent.label}: ${result.locationEvent.message}`, 2600);
+    }
     screens.renderBattle(this.battle, this.runState);
     syncRunStateFromBattle(this.runState, this.battle);
     saveActiveRun(this.runState);

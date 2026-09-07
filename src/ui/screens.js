@@ -594,6 +594,15 @@ export function populateBattle(battle, runState, handlers) {
   $('screen-battle').style.backgroundImage = bg ? `url('${bg}')` : 'none';
   $('battle-location-name').textContent = (LOCATIONS[battle.locationId]?.name || 'Springfield').toUpperCase();
 
+  // A persistent reminder of whichever Horror Rule(s) are active this
+  // segment (REDESIGN COMBAT GAMEPLAY: "Horror Rules appear during combat")
+  // -- shown as a small always-visible badge rather than a one-off banner,
+  // since the rule keeps mattering for the whole fight, not just its start.
+  const activeRules = (runState.activeHorrorRuleIds || []).map((id) => HORROR_RULES[id]).filter(Boolean);
+  const ruleBadge = $('battle-horror-rule');
+  ruleBadge.classList.toggle('hidden', activeRules.length === 0);
+  ruleBadge.innerHTML = activeRules.map((r) => `<span title="${r.description || ''}">${r.icon} ${r.name}</span>`).join('');
+
   const playerPortrait = getAssetUrl('characters', runState.character.id);
   const pImg = $('battle-player-portrait');
   const pFallback = $('battle-player-portrait-fallback');
@@ -676,6 +685,31 @@ export function populateBattle(battle, runState, handlers) {
     envContainer.appendChild(btn);
   }
 
+  // Held consumables (data/items.js runState.consumables) usable mid-fight
+  // (REDESIGN COMBAT GAMEPLAY: "show a few inventory slots... player can
+  // use consumables during battle"). Rebuilt here (buttons per owned item
+  // id) since the bag's contents only change between battles, not turn to
+  // turn -- renderBattle just updates quantity text/disabled state below.
+  const consumableContainer = $('battle-consumables');
+  consumableContainer.innerHTML = '';
+  const ownedItemIds = Object.keys(runState.consumables || {}).filter((id) => runState.consumables[id] > 0);
+  consumableContainer.classList.toggle('hidden', ownedItemIds.length === 0);
+  for (const itemId of ownedItemIds) {
+    const item = ITEMS[itemId];
+    if (!item) continue;
+    const btn = document.createElement('button');
+    btn.className = 'consumable-action-btn';
+    btn.dataset.itemId = itemId;
+    btn.title = item.description;
+    btn.innerHTML = `
+      <span class="consumable-action-icon">${item.emoji}</span>
+      <span class="consumable-action-name">${item.name.toUpperCase()}</span>
+      <span class="consumable-action-qty"></span>
+    `;
+    btn.addEventListener('click', () => handlers.onConsumableClick(itemId));
+    consumableContainer.appendChild(btn);
+  }
+
   renderBattle(battle, runState);
 }
 
@@ -729,6 +763,13 @@ export function renderBattle(battle, runState) {
     btn.disabled = battle.outcome !== null || action.usesLeft <= 0;
     btn.classList.toggle('targeting', action.id === targetingAbilityId);
     btn.querySelector('.env-action-uses').textContent = `x${action.usesLeft}`;
+  }
+
+  const consumableContainer = $('battle-consumables');
+  for (const btn of consumableContainer.children) {
+    const qty = (runState.consumables || {})[btn.dataset.itemId] || 0;
+    btn.disabled = battle.outcome !== null || qty <= 0;
+    btn.querySelector('.consumable-action-qty').textContent = `x${qty}`;
   }
 }
 

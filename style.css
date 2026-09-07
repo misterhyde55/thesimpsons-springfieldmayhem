@@ -882,6 +882,21 @@ body:not(.header-hidden) .location-interior-screen {
   padding: 4px 10px;
   border-radius: 8px;
 }
+/* Persistent Horror Rule reminder (REDESIGN COMBAT GAMEPLAY: "Horror Rules
+   appear during combat") -- stays up for the whole fight rather than a
+   one-off banner, since the rule keeps mattering turn to turn. */
+.battle-horror-rule {
+  display: flex;
+  gap: 6px;
+  color: #d9b3ff;
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.4px;
+  background: rgba(60, 20, 80, 0.5);
+  border: 1px solid rgba(217, 179, 255, 0.5);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
 
 /* ---- The battlefield: Homer left, enemy right, empty space between ---- */
 .battle-stage {
@@ -1023,6 +1038,27 @@ body:not(.header-hidden) .location-interior-screen {
 .env-action-icon { font-size: 1.2rem; line-height: 1; }
 .env-action-name { font-weight: 800; font-size: 0.68rem; letter-spacing: 0.3px; }
 .env-action-uses { font-size: 0.65rem; color: #6fd0ff; font-weight: 800; }
+
+/* Held consumables (data/items.js), usable mid-fight -- amber accent so
+   they read as "your bag" next to the blue battlefield-object row above. */
+.battle-consumables-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 0 20px; position: relative; z-index: 1; }
+.consumable-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(20, 20, 26, 0.75);
+  border: 2px solid #f6d217;
+  border-radius: 20px;
+  padding: 5px 12px 5px 8px;
+  color: #fff8ea;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.consumable-action-btn:hover:not(:disabled) { border-color: #ff9f43; transform: translateY(-2px); }
+.consumable-action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.consumable-action-icon { font-size: 1.2rem; line-height: 1; }
+.consumable-action-name { font-weight: 800; font-size: 0.68rem; letter-spacing: 0.3px; }
+.consumable-action-qty { font-size: 0.65rem; color: #f6d217; font-weight: 800; }
 
 .energy-orb {
   flex: 0 0 auto;
