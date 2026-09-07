@@ -46,6 +46,11 @@ export const ICON_MANIFEST = {
     fear: `${BASE}/status/fear.png`,
     possession: `${BASE}/status/possession.png`,
     mutation: `${BASE}/status/mutation.png`,
+    confused: `${BASE}/status/confused.png`,
+    exhausted: `${BASE}/status/exhausted.png`,
+    slimed: `${BASE}/status/slimed.png`,
+    cursed: `${BASE}/status/cursed.png`,
+    soaked: `${BASE}/status/soaked.png`,
   },
   resources: {
     donut: `${BASE}/resources/donut.png`,
@@ -71,6 +76,9 @@ export const ICON_MANIFEST = {
     transform: `${BASE}/intent/transform.png`,
     phase: `${BASE}/intent/phase.png`,
     bossSpecial: `${BASE}/intent/boss-special.png`,
+    prayer: `${BASE}/intent/prayer.png`,
+    distract: `${BASE}/intent/distract.png`,
+    environment: `${BASE}/intent/environment.png`,
     unknown: `${BASE}/intent/unknown.png`,
   },
   // Ability-specific action artwork (data/abilities.js `icon` field) --

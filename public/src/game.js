@@ -3,7 +3,7 @@ import { pickRandom, clamp } from './engine/collision.js';
 
 import { CHARACTERS } from './data/characters.js';
 import { ENEMIES } from './data/enemies.js';
-import { BOSSES } from './data/bosses.js';
+import { BOSSES, ZOMBIE_NED_REWARD } from './data/bosses.js';
 import { LOCATIONS } from './data/locations.js';
 import { getEvent } from './data/events.js';
 import { ABILITIES, STARTER_ABILITY_IDS } from './data/abilities.js';
@@ -26,6 +26,7 @@ import { getCurrentSegment, isFinalSegment, isSegmentComplete, isBossLocationUnl
 import {
   createBattle,
   playAbility,
+  playEnvironmentAction,
   endPlayerTurn,
   canPlayAbility,
   getAliveEnemies,
@@ -764,7 +765,7 @@ export class Game {
       this.runState.hp = Math.min(this.runState.maxHp, this.runState.hp + 30);
     }
 
-    this.battle = createBattle(this.runState, enemyTemplates, locationId, isBoss);
+    this.battle = createBattle(this.runState, enemyTemplates, locationId, isBoss, content.environmentId);
     this.pendingLocationContent = content;
 
     // CALLBACK! An earlier choice (see data/callbacks.js buttonActivates)
@@ -788,6 +789,7 @@ export class Game {
     screens.populateBattle(this.battle, this.runState, {
       onAbilityClick: (abilityId) => this.onAbilityClick(abilityId),
       onTargetEnemy: (enemyInstanceId) => this.onTargetEnemy(enemyInstanceId),
+      onEnvironmentClick: (actionId) => this.onEnvironmentClick(actionId),
       onEndTurn: () => this.endTurn(),
     });
 
@@ -826,12 +828,23 @@ export class Game {
     this.resolveAbilityPlay(abilityId, null);
   }
 
+  // Shared by ability and environment-action targeting -- both stash their
+  // pending id the same way (only one is ever set at a time) and route
+  // through this one click handler on the enemy slot.
   onTargetEnemy(enemyInstanceId) {
-    if (!this.pendingAbilityId) return;
-    const abilityId = this.pendingAbilityId;
-    this.pendingAbilityId = null;
-    screens.setBattleTargetingAbility(null);
-    this.resolveAbilityPlay(abilityId, enemyInstanceId);
+    if (this.pendingAbilityId) {
+      const abilityId = this.pendingAbilityId;
+      this.pendingAbilityId = null;
+      screens.setBattleTargetingAbility(null);
+      this.resolveAbilityPlay(abilityId, enemyInstanceId);
+      return;
+    }
+    if (this.pendingEnvironmentActionId) {
+      const actionId = this.pendingEnvironmentActionId;
+      this.pendingEnvironmentActionId = null;
+      screens.setBattleTargetingAbility(null);
+      this.resolveEnvironmentPlay(actionId, enemyInstanceId);
+    }
   }
 
   resolveAbilityPlay(abilityId, targetInstanceId) {
@@ -845,13 +858,42 @@ export class Game {
     screens.renderBattle(this.battle, this.runState);
     syncRunStateFromBattle(this.runState, this.battle);
 
-    if (this.battle.outcome === 'victory') {
-      setTimeout(() => this.onBattleVictory(), 700);
+    this.afterPlayerAction();
+  }
+
+  // ---------- BATTLE: ENVIRONMENT ACTIONS (data/battleEnvironments.js) ----------
+  onEnvironmentClick(actionId) {
+    if (!this.battle || this.battle.outcome) return;
+    const action = this.battle.environment.find((a) => a.id === actionId);
+    if (!action || action.usesLeft <= 0) return;
+
+    if (action.target === 'enemy') {
+      const alive = getAliveEnemies(this.battle);
+      if (alive.length === 1) {
+        this.resolveEnvironmentPlay(actionId, alive[0].instanceId);
+      } else {
+        this.pendingEnvironmentActionId = actionId;
+        screens.setBattleTargetingAbility(actionId);
+        screens.renderBattle(this.battle, this.runState);
+      }
       return;
     }
+    this.resolveEnvironmentPlay(actionId, null);
+  }
 
-    const anyPlayable = getPlayableAbilities(this.runState).some((a) => canPlayAbility(this.battle, this.runState, a.id));
-    if (!anyPlayable) setTimeout(() => this.endTurn(), 500);
+  resolveEnvironmentPlay(actionId, targetInstanceId) {
+    playMenuSelect();
+    const action = this.battle.environment.find((a) => a.id === actionId);
+    const result = playEnvironmentAction(this.battle, this.runState, actionId, targetInstanceId);
+    if (!result.ok) return;
+
+    screens.playCombatantAnimation(null, 'cast');
+    this.animateAbilityEvents(result.events);
+    screens.appendBattleLog(`You used ${action.label}.`);
+    screens.renderBattle(this.battle, this.runState);
+    syncRunStateFromBattle(this.runState, this.battle);
+
+    this.afterPlayerAction();
   }
 
   animateAbilityEvents(events) {
@@ -866,8 +908,69 @@ export class Game {
       } else if (ev.kind === 'heal' && ev.amount > 0) {
         screens.showFloatingNumber(null, `+${ev.amount}`, 'heal');
         screens.playCombatantAnimation(null, 'heal');
+      } else if (ev.kind === 'breakDamage' && ev.amount > 0) {
+        screens.showFloatingNumber(ev.targetId, `-${ev.amount} BREAK`, 'break');
+      } else if (ev.kind === 'break') {
+        screens.showFloatingNumber(ev.targetId, 'BROKEN!', 'break');
+        screens.playCombatantAnimation(ev.targetId, 'break');
+        screens.shakeBattleStage();
+        screens.appendBattleLog(`${this.enemyName(ev.targetId)} is BROKEN! Stunned and Vulnerable.`);
+      } else if (ev.kind === 'phaseChange') {
+        screens.showFloatingNumber(ev.targetId, ev.phaseName || 'PHASE SHIFT', 'phase');
+        screens.playCombatantAnimation(ev.targetId, 'phase');
+        screens.shakeBattleStage();
+        screens.appendBattleLog(`${this.enemyName(ev.targetId)} enters a new phase${ev.phaseName ? `: ${ev.phaseName}` : ''}!`);
       }
     }
+  }
+
+  // Runs after every player-initiated play (ability or environment action):
+  // resolve the outcome, then check for a per-enemy mid-fight event (e.g.
+  // Zombie Ned's Rod & Todd rescue) before letting the turn continue.
+  afterPlayerAction() {
+    if (this.battle.outcome === 'victory') {
+      setTimeout(() => this.onBattleVictory(), 700);
+      return;
+    }
+    if (this.battle.outcome === 'defeat') {
+      setTimeout(() => this.onBattleDefeat(), 700);
+      return;
+    }
+    const midFightEvent = this.checkMidFightEvent();
+    if (midFightEvent) {
+      this.showMidFightEvent(midFightEvent);
+      return;
+    }
+    const anyPlayable = getPlayableAbilities(this.runState).some((a) => canPlayAbility(this.battle, this.runState, a.id));
+    const anyEnvironment = this.battle.environment.some((a) => a.usesLeft > 0);
+    if (!anyPlayable && !anyEnvironment) setTimeout(() => this.endTurn(), 500);
+  }
+
+  checkMidFightEvent() {
+    for (const enemy of getAliveEnemies(this.battle)) {
+      if (enemy.template.checkMidFightEvent) {
+        const event = enemy.template.checkMidFightEvent(this.battle, this.runState, enemy);
+        if (event) return event;
+      }
+    }
+    return null;
+  }
+
+  // A per-enemy mid-fight decision (e.g. Zombie Ned's Rod & Todd) --
+  // reuses the exact same generic choice modal Devil Ned's 'deal' intents
+  // use, just triggered by battle state (an HP threshold) rather than an
+  // intent roll, and resumes the SAME player turn afterward instead of
+  // waiting for a fresh one.
+  showMidFightEvent(event) {
+    screens.showChoiceModal(event, (choice) => {
+      const resultText = choice.apply(this.runState, this.battle);
+      screens.hideChoiceModal();
+      syncRunStateFromBattle(this.runState, this.battle);
+      saveActiveRun(this.runState);
+      screens.renderBattle(this.battle, this.runState);
+      screens.showBanner(resultText, 3200);
+      this.afterPlayerAction();
+    });
   }
 
   // ---------- BATTLE: ENEMY TURN ----------
@@ -939,6 +1042,20 @@ export class Game {
         } else if (r.dodged) {
           screens.showFloatingNumber(null, 'DODGE', 'heal');
         }
+      } else if (r && r.type === 'prayer') {
+        if (r.interrupted) {
+          this.battle.flags.interruptsLanded = (this.battle.flags.interruptsLanded || 0) + 1;
+          screens.showFloatingNumber(action.enemyId, 'INTERRUPTED!', 'break');
+          screens.playCombatantAnimation(action.enemyId, 'break');
+          screens.showRewardToasts('PERFECT INTERRUPT!');
+          screens.appendBattleLog(`${name}'s Prayer is INTERRUPTED! Perfect Interrupt!`);
+        } else if (r.value > 0) {
+          screens.showFloatingNumber(action.enemyId, `+${r.value}`, 'heal');
+          screens.playCombatantAnimation(action.enemyId, 'heal');
+        }
+      } else if (r && r.type === 'distract' && r.distractedAbilityId) {
+        const locked = ABILITIES[r.distractedAbilityId];
+        screens.showBanner(`${locked ? locked.name.toUpperCase() : 'AN ABILITY'} IS LOCKED THIS TURN!`, 2200);
       }
       screens.appendBattleLog(`${name}: ${action.intent.label}`);
     }
@@ -957,6 +1074,19 @@ export class Game {
     // HP-depleted Devil Ned win from the Contract's "GIVE UP MOE" instant
     // win, which already grants its own reward (see data/devilDeals.js).
     const gaveUpMoeWin = this.battle.flags.dealWinReason === 'gaveUpMoe';
+    // Also read before this.battle is cleared -- Zombie Ned's ENCOUNTER
+    // COMPLETE performance summary (see showEncounterSummary below) needs
+    // these battle.flags counters once battle state is gone.
+    const zombieNedStats =
+      content.bossId === 'zombieNed'
+        ? {
+            turns: this.battle.turnNumber,
+            damageTaken: this.battle.flags.playerDamageTakenThisBattle || 0,
+            interrupts: this.battle.flags.interruptsLanded || 0,
+            environmentActionsUsed: this.battle.flags.environmentActionsUsed || 0,
+            rodAndToddSaved: this.battle.flags.rodAndToddSaved,
+          }
+        : null;
     this.runState.stats.enemiesDefeated += this.battle.enemies.length;
     if (content.elite) this.runState.stats.elitesDefeated += 1;
     this.increaseMayhem(content.type === 'boss' ? 0 : content.elite ? 15 : 8);
@@ -967,6 +1097,14 @@ export class Game {
     if (content.questResolution) applyQuestResolution(this.runState, content.questResolution);
     if (content.resolvesInvasionId) this.resolveLocationInvasionVictory(content.resolvesInvasionId);
     saveActiveRun(this.runState);
+
+    // Zombie Ned (combat-redesign prototype, Flanders House) gets a graded
+    // ENCOUNTER COMPLETE performance summary before his reward choice,
+    // instead of going straight into the ordinary ability draft.
+    if (content.bossId === 'zombieNed') {
+      this.showEncounterSummary(zombieNedStats, () => this.showZombieNedReward());
+      return;
+    }
 
     // Devil Ned (optional boss, never a segment's real bossLocationId) has
     // his own reward flow instead of the ordinary ability draft. A normal
@@ -1017,6 +1155,61 @@ export class Game {
     else amount = 3 + Math.floor(Math.random() * 5) + (enemyCount - 1) * 3;
     this.runState.donutsCurrency += amount;
     screens.showRewardToasts(`+${amount} 🍩 SPRINGFIELD CASH`);
+  }
+
+  // ---------- ENCOUNTER COMPLETE (combat-redesign performance summary) ----------
+  // Generous on purpose -- "primarily a bonus," never a punishment for a
+  // casual clear. Floors at a D rather than an F, and rewards the SYSTEMS
+  // this fight is built around (interrupts, environment use, the Rod &
+  // Todd decision) more than raw speed.
+  gradeZombieNedEncounter(stats) {
+    let score = 100;
+    if (stats.turns > 8) score -= (stats.turns - 8) * 4;
+    score -= Math.round(stats.damageTaken * 0.4);
+    score += stats.interrupts * 12;
+    score += stats.environmentActionsUsed * 5;
+    if (stats.rodAndToddSaved) score += 10;
+    score = Math.max(35, Math.min(100, score));
+    if (score >= 90) return 'S';
+    if (score >= 75) return 'A';
+    if (score >= 60) return 'B';
+    if (score >= 45) return 'C';
+    return 'D';
+  }
+
+  showEncounterSummary(stats, onContinue) {
+    const grade = this.gradeZombieNedEncounter(stats);
+    const rows = [
+      ['Turns Taken', stats.turns],
+      ['Damage Taken', stats.damageTaken],
+      ['Perfect Interrupts', stats.interrupts],
+      ['Environment Objects Used', stats.environmentActionsUsed],
+    ];
+    if (stats.rodAndToddSaved !== undefined) {
+      rows.push(['Rod & Todd', stats.rodAndToddSaved ? 'SAVED' : 'IGNORED']);
+    }
+    const bodyHtml =
+      `<div class="encounter-grade">${grade}</div>` +
+      `<ul class="encounter-stats-list">${rows.map(([label, value]) => `<li><span>${label}</span><span>${value}</span></li>`).join('')}</ul>`;
+    screens.showChoiceModal(
+      { title: 'ENCOUNTER COMPLETE', bodyHtml, choiceA: { label: 'CONTINUE' } },
+      () => {
+        screens.hideChoiceModal();
+        onContinue();
+      }
+    );
+  }
+
+  showZombieNedReward() {
+    screens.showChoiceModal(ZOMBIE_NED_REWARD, (choice) => {
+      const resultText = choice.apply(this.runState);
+      recordDiscoveries(this.meta, ['leftHandedUppercut', 'neighborlyShield', 'flandersFirstAidKit']);
+      saveMeta(this.meta);
+      screens.hideChoiceModal();
+      saveActiveRun(this.runState);
+      screens.showBanner(resultText, 3200);
+      this.showBoard();
+    });
   }
 
   // Winning a "DEFEND THE BAR"/"HELP APU" fight clears the crisis for good

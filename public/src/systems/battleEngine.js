@@ -1,6 +1,7 @@
 import { ABILITIES } from '../data/abilities.js';
 import { ENEMIES } from '../data/enemies.js';
 import { STATUS } from '../data/statusEffects.js';
+import { getBattleEnvironment } from '../data/battleEnvironments.js';
 import {
   getStatus,
   addStatus,
@@ -8,10 +9,12 @@ import {
   computeOutgoingDamage,
   applyIncomingDamage,
   heal as healCombatant,
+  gainArmor,
+  effectiveMaxEnergy,
   tickTurnStart,
   tickTurnEnd,
 } from './statusEngine.js';
-import { rollIntent, resolveEnemyIntent } from './enemyAI.js';
+import { rollIntent, resolveEnemyIntent, currentPhaseIndex } from './enemyAI.js';
 import { fireHooks } from './passiveHooks.js';
 
 const PLAYER_MAX_ENERGY = 3;
@@ -29,6 +32,15 @@ function freshCombatantStatuses() {
     [STATUS.RADIATION]: 0,
     [STATUS.POISON]: 0,
     [STATUS.TIPSY]: 0,
+    [STATUS.BURNING]: 0,
+    [STATUS.BLEEDING]: 0,
+    [STATUS.CONFUSED]: 0,
+    [STATUS.TERRIFIED]: 0,
+    [STATUS.EXHAUSTED]: 0,
+    [STATUS.ANGRY]: 0,
+    [STATUS.SLIMED]: 0,
+    [STATUS.CURSED]: 0,
+    [STATUS.SOAKED]: 0,
   };
 }
 
@@ -57,6 +69,42 @@ function checkVictory(battle) {
   if (getAliveEnemies(battle).length === 0) battle.outcome = 'victory';
 }
 
+// A stronger enemy's second resource (data/bosses.js `breakMax`), separate
+// from HP -- certain abilities/environment actions chip it via
+// api.reduceBreak instead of (or alongside) HP damage. Depleting it stuns
+// the enemy's next turn and leaves them Vulnerable, reusing the existing
+// Stun/Vulnerable statuses rather than inventing a bespoke "broken" state,
+// then resets so it can be broken again in a longer fight.
+function applyBreakDamage(battle, runState, enemy, amount, events) {
+  if (!enemy.breakMax || amount <= 0 || enemy.hp <= 0) return;
+  enemy.break = Math.max(0, enemy.break - amount);
+  events.push({ kind: 'breakDamage', targetId: enemy.instanceId, amount, break: enemy.break, breakMax: enemy.breakMax });
+  if (enemy.break <= 0 && !enemy.brokenThisCycle) {
+    enemy.brokenThisCycle = true;
+    addStatus(enemy, STATUS.STUN, 1);
+    addStatus(enemy, STATUS.VULNERABLE, 2);
+    enemy.break = enemy.breakMax;
+    events.push({ kind: 'break', targetId: enemy.instanceId });
+    if (enemy.template.onBreak) enemy.template.onBreak(battle, runState, enemy);
+  }
+}
+
+// Detects an HP-threshold phase change (data/bosses.js `phases`) right
+// after damage lands, pushes a UI event for it, and fires the enemy's own
+// onPhaseChange hook -- e.g. Zombie Ned losing composure and gaining
+// Vulnerable the moment he "snaps." Purely derived from current HP each
+// call (see enemyAI.js currentPhaseIndex), matching how intent selection
+// itself already works -- this just also announces the moment it happens.
+function checkPhaseTransition(battle, runState, enemy, events) {
+  if (!enemy.template.phases || enemy.hp <= 0) return;
+  const idx = currentPhaseIndex(enemy);
+  if (idx === enemy.lastPhaseIndex) return;
+  enemy.lastPhaseIndex = idx;
+  const phase = enemy.template.phases[idx];
+  events.push({ kind: 'phaseChange', targetId: enemy.instanceId, phaseIndex: idx, phaseName: phase.name || null });
+  if (enemy.template.onPhaseChange) enemy.template.onPhaseChange(battle, runState, enemy, idx);
+}
+
 function instantiateEnemy(template) {
   return {
     instanceId: `e${nextEnemyInstanceId++}`,
@@ -71,10 +119,17 @@ function instantiateEnemy(template) {
     hasResurrected: false,
     comboApplied: false,
     intent: null,
+    // Combat-redesign additions (see applyBreakDamage/checkPhaseTransition
+    // above and enemyAI.js's interruptible-intent handling below).
+    damageTakenThisTurn: 0,
+    breakMax: template.breakMax || 0,
+    break: template.breakMax || 0,
+    brokenThisCycle: false,
+    lastPhaseIndex: 0,
   };
 }
 
-export function createBattle(runState, enemyTemplates, locationId, isBoss) {
+export function createBattle(runState, enemyTemplates, locationId, isBoss, environmentId) {
   const battle = {
     player: {
       hp: runState.hp,
@@ -90,6 +145,13 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss) {
     locationId,
     isBoss: !!isBoss,
     outcome: null,
+    // Battlefield objects the player can interact with outside their
+    // normal ability deck (see playEnvironmentAction below and
+    // data/battleEnvironments.js) -- free, no Energy cost, limited uses.
+    environment: getBattleEnvironment(environmentId).map((def) => ({ ...def, usesLeft: def.uses })),
+    // A single ability id disabled for the current player turn (Zombie
+    // Ned's Ski Nightmare/'distract' intent) -- cleared every new round.
+    distractedAbilityId: null,
   };
   for (const enemy of battle.enemies) {
     fireHooks(runState, 'onEnemySpawn', enemy);
@@ -117,6 +179,10 @@ export function getPlayableAbilities(runState) {
 
 export function abilityCost(battle, runState, ability) {
   let cost = ability.cost;
+  // Confused makes everything harder to think through, flatly -- applied
+  // before the hook overrides below so a discount relic still reduces off
+  // of the confused price, not the base one.
+  if (getStatus(battle.player, STATUS.CONFUSED) > 0) cost += 1;
   for (const override of fireHooks(runState, 'onAbilityCost', battle, ability)) {
     if (typeof override === 'number') cost = Math.min(cost, override);
   }
@@ -125,47 +191,41 @@ export function abilityCost(battle, runState, ability) {
 
 export function canPlayAbility(battle, runState, abilityId) {
   if (battle.outcome) return false;
+  if (battle.distractedAbilityId === abilityId) return false;
   const ability = ABILITIES[abilityId];
   if (!ability) return false;
   return battle.player.energy >= abilityCost(battle, runState, ability);
 }
 
-// Resolves one ability play. `targetInstanceId` is required for
-// target:'enemy' abilities and ignored otherwise. Returns a small event log
-// the UI can turn into damage numbers / heal numbers / status pips.
-export function playAbility(battle, runState, abilityId, targetInstanceId) {
-  const ability = ABILITIES[abilityId];
-  if (!ability || !canPlayAbility(battle, runState, abilityId)) return { ok: false };
-
-  const cost = abilityCost(battle, runState, ability);
-  battle.player.energy -= cost;
-
-  const targetEnemy = ability.target === 'enemy' ? battle.enemies.find((e) => e.instanceId === targetInstanceId && e.hp > 0) : null;
-  if (ability.target === 'enemy' && !targetEnemy) return { ok: false };
-
-  const events = [];
-
+// Shared by playAbility and playEnvironmentAction so an environment object
+// (a thrown garden gnome, a kicked-over grill) can do everything a card
+// can -- damage, status, break, heal -- through the exact same rules
+// (Strength/Weak on the way out, Vulnerable/Soaked/Armor on the way in),
+// rather than a second, drifting copy of this math.
+function buildBattleApi(battle, runState, targetEnemy, events) {
   function resolveWho(who) {
     if (who === 'self') return battle.player;
     if (who === 'target') return targetEnemy;
     return null;
   }
-
-  const api = {
+  return {
     self: () => battle.player,
+    target: () => targetEnemy,
     getStatus: (id, who) => getStatus(resolveWho(who), id),
     clearStatus: (id, who) => clearStatus(resolveWho(who), id),
     status(id, amount, who) {
       if (who === 'allEnemies') {
         for (const enemy of getAliveEnemies(battle)) {
-          addStatus(enemy, id, amount);
+          if (id === STATUS.ARMOR && amount > 0) gainArmor(enemy, amount);
+          else addStatus(enemy, id, amount);
           fireHooks(runState, 'onStatusApplied', battle, enemy, id, getStatus(enemy, id));
         }
         events.push({ kind: 'status', who: 'allEnemies', statusId: id, amount });
         return;
       }
       const target = resolveWho(who);
-      addStatus(target, id, amount);
+      if (id === STATUS.ARMOR && amount > 0) gainArmor(target, amount);
+      else addStatus(target, id, amount);
       fireHooks(runState, 'onStatusApplied', battle, target, id, getStatus(target, id));
       events.push({ kind: 'status', who, statusId: id, amount });
     },
@@ -181,10 +241,18 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
         dmg = Math.round(dmg * (1 + battle.flags.nextAttackBonusPct));
         battle.flags.nextAttackBonusPct = 0;
       }
+      // Angry is a consumed "next Attack hits harder" buff, not a stacking
+      // multiplier like Strength -- it's spent the moment it's used.
+      if (getStatus(battle.player, STATUS.ANGRY) > 0) {
+        dmg = Math.round(dmg * 1.5);
+        clearStatus(battle.player, STATUS.ANGRY);
+      }
       const outgoing = computeOutgoingDamage(battle.player, dmg);
       const { dealt, dodged } = applyIncomingDamage(targetEnemy, outgoing);
+      targetEnemy.damageTakenThisTurn += dealt;
       events.push({ kind: 'damage', targetId: targetEnemy.instanceId, amount: dealt, dodged });
       resolveDefeatOrResurrect(battle, runState, targetEnemy);
+      checkPhaseTransition(battle, runState, targetEnemy, events);
       checkVictory(battle);
       return dealt;
     },
@@ -194,13 +262,25 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
         dmg = Math.round(dmg * (1 + battle.flags.nextAttackBonusPct));
         battle.flags.nextAttackBonusPct = 0;
       }
+      if (getStatus(battle.player, STATUS.ANGRY) > 0) {
+        dmg = Math.round(dmg * 1.5);
+        clearStatus(battle.player, STATUS.ANGRY);
+      }
       for (const enemy of getAliveEnemies(battle)) {
         const outgoing = computeOutgoingDamage(battle.player, dmg);
         const { dealt, dodged } = applyIncomingDamage(enemy, outgoing);
+        enemy.damageTakenThisTurn += dealt;
         events.push({ kind: 'damage', targetId: enemy.instanceId, amount: dealt, dodged });
         resolveDefeatOrResurrect(battle, runState, enemy);
+        checkPhaseTransition(battle, runState, enemy, events);
       }
       checkVictory(battle);
+    },
+    // A second resource some enemies have (data/bosses.js breakMax) --
+    // independent of HP/Armor, see applyBreakDamage above.
+    reduceBreak(amount, who = 'target') {
+      const target = resolveWho(who);
+      if (target) applyBreakDamage(battle, runState, target, amount, events);
     },
     heal(amount, who) {
       let amt = amount;
@@ -222,10 +302,59 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
     },
     damageTakenThisBattle: () => battle.flags.playerDamageTakenThisBattle || 0,
   };
+}
+
+// Resolves one ability play. `targetInstanceId` is required for
+// target:'enemy' abilities and ignored otherwise. Returns a small event log
+// the UI can turn into damage numbers / heal numbers / status pips.
+export function playAbility(battle, runState, abilityId, targetInstanceId) {
+  const ability = ABILITIES[abilityId];
+  if (!ability || !canPlayAbility(battle, runState, abilityId)) return { ok: false };
+
+  const cost = abilityCost(battle, runState, ability);
+  battle.player.energy -= cost;
+
+  const targetEnemy = ability.target === 'enemy' ? battle.enemies.find((e) => e.instanceId === targetInstanceId && e.hp > 0) : null;
+  if (ability.target === 'enemy' && !targetEnemy) return { ok: false };
+
+  const events = [];
+  const api = buildBattleApi(battle, runState, targetEnemy, events);
 
   ability.effect(api);
   fireHooks(runState, 'onAbilityPlayed', battle, ability, targetEnemy);
+  // A per-enemy reaction to HOW Homer just fought (not a run-wide hook) --
+  // e.g. Zombie Ned's Forgiveness counting attacks against him specifically.
+  // Fires for every alive enemy, not just the one targeted, so an enemy can
+  // react to being ignored too.
+  for (const enemy of getAliveEnemies(battle)) {
+    if (enemy.template.onPlayerAbility) enemy.template.onPlayerAbility(battle, runState, enemy, ability, targetEnemy);
+  }
   battle.log.push({ turn: battle.turnNumber, actor: 'player', abilityId, events });
+
+  return { ok: true, events };
+}
+
+// Environment objects (data/battleEnvironments.js) work like abilities but
+// cost no Energy, don't end the turn, and are limited by uses rather than
+// affordability -- a separate resource entirely from Homer's own deck.
+export function playEnvironmentAction(battle, runState, actionId, targetInstanceId) {
+  if (battle.outcome) return { ok: false };
+  const action = battle.environment.find((a) => a.id === actionId);
+  if (!action || action.usesLeft <= 0) return { ok: false };
+
+  const targetEnemy = action.target === 'enemy' ? battle.enemies.find((e) => e.instanceId === targetInstanceId && e.hp > 0) : null;
+  if (action.target === 'enemy' && !targetEnemy) return { ok: false };
+
+  const events = [];
+  const api = buildBattleApi(battle, runState, targetEnemy, events);
+
+  action.usesLeft -= 1;
+  action.effect(api);
+  battle.flags.environmentActionsUsed = (battle.flags.environmentActionsUsed || 0) + 1;
+  for (const enemy of getAliveEnemies(battle)) {
+    if (enemy.template.onPlayerAbility) enemy.template.onPlayerAbility(battle, runState, enemy, action, targetEnemy);
+  }
+  battle.log.push({ turn: battle.turnNumber, actor: 'environment', actionId, events });
 
   return { ok: true, events };
 }
@@ -274,6 +403,16 @@ export function endPlayerTurn(battle, runState) {
           result.summonedName = summoned.name;
         }
       }
+      // Needs runState.abilityDeck (Zombie Ned's Ski Nightmare) -- same
+      // reason steal/summon are resolved here rather than in enemyAI.js.
+      if (result.type === 'distract') {
+        const candidates = runState.abilityDeck.filter((id) => id !== battle.distractedAbilityId);
+        if (candidates.length) {
+          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          battle.distractedAbilityId = pick;
+          result.distractedAbilityId = pick;
+        }
+      }
       // Some of the reactive hooks above (heal/friendlyFire/buffAlly targets,
       // or a friendly-fire kill) can resolve/kill an ally mid-intent -- run
       // the same defeat check the player's own damage goes through.
@@ -293,11 +432,21 @@ export function endPlayerTurn(battle, runState) {
 
   if (battle.outcome) return { enemyActions };
 
-  for (const enemy of getAliveEnemies(battle)) rollIntent(enemy);
+  for (const enemy of getAliveEnemies(battle)) {
+    rollIntent(enemy);
+    // Per-round trackers reset for the player's upcoming turn: how much
+    // damage lands on this enemy this turn (interrupt checks) and whether
+    // it's eligible to Break again (applyBreakDamage above).
+    enemy.damageTakenThisTurn = 0;
+    enemy.brokenThisCycle = false;
+  }
+  // Ski Nightmare only locks one card for the turn it's cast -- cleared the
+  // instant a fresh player turn begins, whether or not it was ever hit.
+  battle.distractedAbilityId = null;
 
   battle.turnNumber += 1;
   const { stunned } = tickTurnStart(battle.player);
-  battle.player.energy = battle.player.maxEnergy;
+  battle.player.energy = effectiveMaxEnergy(battle.player, battle.player.maxEnergy);
   fireHooks(runState, 'onPlayerTurnStart', battle);
 
   return { enemyActions, playerStunned: stunned };

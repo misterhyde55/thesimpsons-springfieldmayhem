@@ -122,6 +122,22 @@ export const RELICS = {
       },
     },
   },
+  // Zombie Ned's reward pool (data/bosses.js zombieNed / game.js's
+  // encounter-reward screen for that fight). battle.flags resets fresh
+  // every createBattle, so the "used" flag needs no explicit reset hook.
+  neighborlyShield: {
+    id: 'neighborlyShield',
+    name: 'Neighborly Shield',
+    emoji: '🛡️',
+    description: 'The first Armor you gain each combat is +4 stronger.',
+    hooks: {
+      onStatusApplied(runState, battle, target, statusId, newValue) {
+        if (target !== battle.player || statusId !== STATUS.ARMOR || battle.flags.neighborlyShieldUsed) return;
+        battle.flags.neighborlyShieldUsed = true;
+        addStatus(battle.player, STATUS.ARMOR, 4);
+      },
+    },
+  },
 };
 
 export function getRelicShopPool() {

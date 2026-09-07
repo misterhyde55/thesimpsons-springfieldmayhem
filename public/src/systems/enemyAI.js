@@ -20,12 +20,19 @@ import { addStatus, computeOutgoingDamage, applyIncomingDamage, heal as healComb
 // themselves here -- the actual currency/roster mutation needs runState or
 // the enemy-instance factory, so battleEngine.js's endPlayerTurn special-
 // cases those two the same way it already does 'infect'.
+// The active phase index for an enemy with a `phases` table, purely
+// derived from current HP -- shared by intentsForEnemy below and
+// battleEngine.js's checkPhaseTransition (which compares this against the
+// last value it saw to announce the moment a boss changes phase).
+export function currentPhaseIndex(enemy) {
+  if (!enemy.template.phases) return 0;
+  const hpPct = enemy.hp / enemy.maxHp;
+  const idx = enemy.template.phases.findIndex((p) => hpPct > p.minHpPct);
+  return idx === -1 ? enemy.template.phases.length - 1 : idx;
+}
+
 function intentsForEnemy(enemy) {
-  if (enemy.template.phases) {
-    const hpPct = enemy.hp / enemy.maxHp;
-    const phase = enemy.template.phases.find((p) => hpPct > p.minHpPct) || enemy.template.phases[enemy.template.phases.length - 1];
-    return phase.intents;
-  }
+  if (enemy.template.phases) return enemy.template.phases[currentPhaseIndex(enemy)].intents;
   return enemy.template.intents;
 }
 
@@ -54,6 +61,9 @@ const INTENT_ICON_IDS = {
   steal: 'debuff',
   summon: 'summon',
   deal: 'bossSpecial',
+  prayer: 'prayer',
+  distract: 'distract',
+  bewilder: 'debuff',
 };
 
 export function intentIconId(type) {
@@ -94,6 +104,14 @@ export function describeIntent(enemyName, intent) {
       return `${enemyName} will call for backup.`;
     case 'deal':
       return `${enemyName} is about to make you an offer.`;
+    case 'prayer':
+      return intent.interruptible
+        ? `${enemyName} will recover ${intent.value} HP next turn. Interrupt: deal ${intent.interruptThreshold}+ damage this turn, or Stun them.`
+        : `${enemyName} will recover ${intent.value} HP.`;
+    case 'distract':
+      return `${enemyName} will lock one of your abilities for a turn.`;
+    case 'bewilder':
+      return `${enemyName} will make you Confused (abilities cost +1 Energy).`;
     default:
       return `${enemyName}'s next move is unknown.`;
   }
@@ -182,6 +200,30 @@ export function resolveEnemyIntent(battle, enemy) {
   // an animation for anything else in this list.
   if (intent.type === 'deal') {
     return { type: 'deal', deal: intent.deal };
+  }
+  // Telegraphed self-heal (Zombie Ned's Prayer): the intent itself carries
+  // `interruptible`/`interruptThreshold`. A Stun already skips this whole
+  // turn upstream in battleEngine.js's tickTurnStart check before this ever
+  // runs, so the only extra rule to encode here is "enough damage landed
+  // on ME specifically THIS turn" -- tracked on the enemy instance itself
+  // (battleEngine.js resets it every round) rather than threaded through
+  // extra function args.
+  if (intent.type === 'prayer') {
+    if (intent.interruptible && (enemy.damageTakenThisTurn || 0) >= intent.interruptThreshold) {
+      return { type: 'prayer', interrupted: true, value: 0 };
+    }
+    const healed = healCombatant(enemy, intent.value);
+    return { type: 'prayer', interrupted: false, value: healed };
+  }
+  // 'distract' (Zombie Ned's Ski Nightmare) needs runState.abilityDeck to
+  // pick which ability to lock -- resolved in battleEngine.js's
+  // endPlayerTurn the same way 'steal'/'summon' are. This just tags itself.
+  if (intent.type === 'distract') {
+    return { type: 'distract', value: intent.value };
+  }
+  if (intent.type === 'bewilder') {
+    addStatus(battle.player, STATUS.CONFUSED, intent.value);
+    return { type: 'bewilder', value: intent.value };
   }
   return { type: 'none' };
 }
