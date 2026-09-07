@@ -10,6 +10,15 @@
 import { blockRoad } from './worldMap.js';
 import { getRelicShopPool } from './relics.js';
 
+// Shared by both ambush tiers below -- low-HP, no-name zombies (the same
+// sprites the board's generic mob encounters use), appropriate for a fast
+// "something jumped out of the dark" fight rather than a scripted one.
+const AMBUSH_ENEMY_POOL = ['zombieBarfly', 'zombieMobGuy', 'shamblingIntern', 'undeadCafeteriaLady', 'zombieGroundskeeper'];
+
+function randomAmbushEnemyIds(count) {
+  return Array.from({ length: count }, () => AMBUSH_ENEMY_POOL[Math.floor(Math.random() * AMBUSH_ENEMY_POOL.length)]);
+}
+
 export const TRAVEL_EVENTS = {
   nothing: {
     id: 'nothing',
@@ -20,6 +29,35 @@ export const TRAVEL_EVENTS = {
     condition: () => true,
     apply() {
       return null;
+    },
+  },
+  // `ambushCombat` on the returned outcome is a signal game.js's travelTo
+  // specifically looks for -- it detours into a real fight before the
+  // player actually arrives, then continues on to the original
+  // destination's own content after victory (see game.js enterAmbushBattle).
+  zombieAmbush: {
+    id: 'zombieAmbush',
+    weight: 4,
+    condition: (runState) => runState.activeHorrorRuleIds.includes('zombieOutbreak'),
+    apply() {
+      return {
+        text: 'SCREAMING. Something lunges out of the dark before you can react.',
+        ambushCombat: { enemyIds: randomAmbushEnemyIds(1) },
+      };
+    },
+  },
+  // Segment II+ only -- a real 3-4 enemy horde, not the single beefy
+  // "Zombie Horde" elite unit some locations use. Bigger risk, bigger
+  // payout (grantVictoryCash already scales cash by enemy count).
+  zombieHordeAmbush: {
+    id: 'zombieHordeAmbush',
+    weight: 2,
+    condition: (runState) => runState.activeHorrorRuleIds.includes('zombieOutbreak') && runState.segmentIndex >= 1,
+    apply() {
+      return {
+        text: '⚠ HORDE! A whole pack shambles out of the shadows, all at once, cutting off the road ahead.',
+        ambushCombat: { enemyIds: randomAmbushEnemyIds(3 + Math.floor(Math.random() * 2)) },
+      };
     },
   },
   zombieRoadblock: {
