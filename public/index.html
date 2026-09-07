@@ -119,6 +119,12 @@
   <section id="screen-settings" class="screen">
     <h1>Settings</h1>
     <p class="flavor">Springfield Mayhem is a prototype. Options are limited on purpose.</p>
+    <h2 class="settings-section-title">AUDIO</h2>
+    <div class="settings-row">
+      <span class="settings-label">MASTER VOLUME</span>
+      <input id="settings-master-volume" type="range" min="0" max="100" step="1" value="100" class="settings-slider" />
+      <span id="settings-master-volume-label" class="settings-value">100%</span>
+    </div>
     <div class="settings-row">
       <span class="settings-label">MUSIC</span>
       <button id="btn-settings-music-toggle" class="menu-link-button settings-toggle">ON</button>
@@ -127,6 +133,19 @@
       <span class="settings-label">MUSIC VOLUME</span>
       <input id="settings-music-volume" type="range" min="0" max="100" step="1" value="100" class="settings-slider" />
       <span id="settings-music-volume-label" class="settings-value">100%</span>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">SFX</span>
+      <button id="btn-settings-sfx-toggle" class="menu-link-button settings-toggle">ON</button>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">SFX VOLUME</span>
+      <input id="settings-sfx-volume" type="range" min="0" max="100" step="1" value="100" class="settings-slider" />
+      <span id="settings-sfx-volume-label" class="settings-value">100%</span>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">MUTE ALL</span>
+      <button id="btn-settings-mute-toggle" class="menu-link-button settings-toggle">OFF</button>
     </div>
     <button id="btn-settings-reset" class="big-button secondary-button">RESET SAVE DATA</button>
     <br />
@@ -328,6 +347,23 @@
        active (board, battle, ...). -->
   <div id="banner-text" class="hidden"></div>
   <div id="reward-toast-stack" class="reward-toast-stack"></div>
+
+  <!-- Global sound control -- one persistent button, outside any .screen
+       section so it survives every screen transition instead of needing
+       to be wired into each one. Two real SVG icon states (never emoji);
+       CSS toggles which is visible via .is-muted on the button itself. -->
+  <button id="btn-sound-toggle" type="button" class="sound-toggle-btn" aria-pressed="false" title="Mute sound">
+    <svg class="sound-icon sound-icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+    </svg>
+    <svg class="sound-icon sound-icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+      <line x1="23" y1="9" x2="17" y2="15"></line>
+      <line x1="17" y1="9" x2="23" y2="15"></line>
+    </svg>
+  </button>
 
   <!-- Modals: overlay whatever screen is active, so they live outside any
        .screen section that showScreen() might hide out from under them. -->

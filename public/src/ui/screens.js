@@ -243,24 +243,38 @@ export function populateCollectionInfo(meta, onBack) {
   freshButton('btn-collection-info-back').addEventListener('click', onBack);
 }
 
-export function populateSettings(meta, handlers) {
-  const toggleBtn = freshButton('btn-settings-music-toggle');
-  const musicOn = meta.settings.musicOn;
-  toggleBtn.textContent = musicOn ? 'ON' : 'OFF';
-  toggleBtn.addEventListener('click', () => {
-    const next = toggleBtn.textContent !== 'ON';
-    toggleBtn.textContent = next ? 'ON' : 'OFF';
-    handlers.onMusicToggle(next);
+// A small ON/OFF toggle button bound the same way in three places below
+// (Music/SFX/Mute All) -- one helper instead of three near-identical
+// click handlers.
+function bindOnOffToggle(id, initialOn, onLabel, offLabel, onChange) {
+  const btn = freshButton(id);
+  btn.textContent = initialOn ? onLabel : offLabel;
+  btn.addEventListener('click', () => {
+    const next = btn.textContent !== onLabel;
+    btn.textContent = next ? onLabel : offLabel;
+    onChange(next);
   });
+  return btn;
+}
 
-  const volumeSlider = freshButton('settings-music-volume');
-  const volumeLabel = $('settings-music-volume-label');
-  volumeSlider.value = Math.round((meta.settings.musicVolume ?? 1) * 100);
-  volumeLabel.textContent = `${volumeSlider.value}%`;
-  volumeSlider.addEventListener('input', () => {
-    volumeLabel.textContent = `${volumeSlider.value}%`;
-    handlers.onVolumeChange(Number(volumeSlider.value) / 100);
+function bindVolumeSlider(sliderId, labelId, initialVolume01, onChange) {
+  const slider = freshButton(sliderId);
+  const label = $(labelId);
+  slider.value = Math.round((initialVolume01 ?? 1) * 100);
+  label.textContent = `${slider.value}%`;
+  slider.addEventListener('input', () => {
+    label.textContent = `${slider.value}%`;
+    onChange(Number(slider.value) / 100);
   });
+}
+
+export function populateSettings(meta, handlers) {
+  bindVolumeSlider('settings-master-volume', 'settings-master-volume-label', meta.settings.masterVolume ?? 1, handlers.onMasterVolumeChange);
+  bindOnOffToggle('btn-settings-music-toggle', meta.settings.musicOn, 'ON', 'OFF', handlers.onMusicToggle);
+  bindVolumeSlider('settings-music-volume', 'settings-music-volume-label', meta.settings.musicVolume, handlers.onVolumeChange);
+  bindOnOffToggle('btn-settings-sfx-toggle', meta.settings.sfxOn, 'ON', 'OFF', handlers.onSfxToggle);
+  bindVolumeSlider('settings-sfx-volume', 'settings-sfx-volume-label', meta.settings.sfxVolume, handlers.onSfxVolumeChange);
+  bindOnOffToggle('btn-settings-mute-toggle', handlers.muted, 'ON', 'OFF', handlers.onMuteToggle);
 
   freshButton('btn-settings-reset').addEventListener('click', handlers.onReset);
   freshButton('btn-settings-back').addEventListener('click', handlers.onBack);
@@ -765,6 +779,19 @@ export function showRewardToasts(entries) {
       setTimeout(() => chip.remove(), 2700);
     }, i * 220);
   });
+}
+
+// ---------- GLOBAL SOUND CONTROL ----------
+// Reflects the master-mute flag on the one persistent HUD button (see
+// index.html) -- toggles which of its two real SVG icons shows, its
+// pressed state, and its tooltip. game.js is the only caller; it's the
+// single source of truth for whether audio is actually muted.
+export function updateSoundButtons(muted) {
+  const btn = $('btn-sound-toggle');
+  if (!btn) return;
+  btn.classList.toggle('is-muted', muted);
+  btn.setAttribute('aria-pressed', String(muted));
+  btn.title = muted ? 'Sound muted -- click to unmute' : 'Sound on -- click to mute';
 }
 
 // ---------- SHOP ----------
