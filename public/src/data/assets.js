@@ -143,6 +143,10 @@ export const ASSET_MANIFEST = {
     // environment art at the exact same building layout/positions, so
     // every WORLD_LOCATIONS coordinate still lines up with no recalibration.
     springfieldMap: `${BASE}/ui/SpringfieldMap_Clean.png`,
+    // The uploaded Moe's Tavern scene photo (Moe behind the bar, mug in
+    // hand) -- the visual centerpiece of the Moe's Tavern interior screen
+    // (data/interiors.js moesTavern.image), not a portrait crop.
+    moeChat: `${BASE}/ui/moechat.jfif`,
   },
   // Full-screen cinematic "story panel" artwork for major story beats (see
   // data/treehouseScenes.js) -- illustrated Treehouse of Horror scenes, not
