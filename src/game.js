@@ -1,4 +1,4 @@
-import { playMenuMove, playMenuSelect, playEpisodeStart, playMusic, stopMusic, setMusicEnabled, setMusicVolume } from './engine/audio.js';
+import { playMenuMove, playMenuSelect, playEpisodeStart, playMusic, setMusicEnabled, setMusicVolume } from './engine/audio.js';
 import { pickRandom, clamp } from './engine/collision.js';
 
 import { CHARACTERS } from './data/characters.js';
@@ -227,7 +227,10 @@ export class Game {
 
   confirmNewEpisode() {
     playEpisodeStart();
-    stopMusic({ fadeOutMs: 700 });
+    // No dedicated in-run track exists yet -- the menu theme now plays
+    // continuously as the site's ambiance rather than cutting out the
+    // instant a game starts (see engine/audio.js playMusic's own no-op
+    // guard against restarting a track that's already playing).
     const character = CHARACTERS[this.pendingCharacterId];
     this.runState = createRunState(character);
     this.runState.episode = this.pendingEpisode;
@@ -242,7 +245,6 @@ export class Game {
       this.showMainMenu();
       return;
     }
-    stopMusic({ fadeOutMs: 700 });
     this.runState = runState;
     this.enterBoardScreen();
   }
@@ -341,6 +343,7 @@ export class Game {
     screens.populateQuestTrackerToggle(getActiveQuestsSummary(this.runState), () => {
       screens.showQuestTrackerModal(getActiveQuestsSummary(this.runState));
     });
+    screens.freshButton('btn-board-pause').addEventListener('click', () => this.openPauseMenu());
     mapView.mountMapView({
       onHotspotClick: (locationId) => this.handleHotspotClick(locationId),
       onHotspotHover: (locationId) => mapView.showHoverPanel(locationId, this.runState),
@@ -364,6 +367,21 @@ export class Game {
       mapView.focusCameraOnStart();
     }
     mapView.renderMap(this.runState);
+  }
+
+  // Available mid-run from the board and interior headers. runState is
+  // already saved continuously (saveActiveRun runs after nearly every
+  // mutation elsewhere in this file) -- the explicit save here is mostly
+  // reassurance before leaving for the main menu, not new persistence.
+  openPauseMenu() {
+    screens.showPauseMenu(
+      () => screens.hidePauseMenu(),
+      () => {
+        saveActiveRun(this.runState);
+        screens.hidePauseMenu();
+        this.showMainMenu();
+      }
+    );
   }
 
   saveMapCamera() {
@@ -567,6 +585,7 @@ export class Game {
     this.interiorState = state;
     this.interiorActionsRemaining = INTERIOR_STARTING_ACTIONS;
     screens.showScreen('screen-location-interior');
+    screens.freshButton('btn-interior-pause').addEventListener('click', () => this.openPauseMenu());
     this.refreshInteriorScreen();
   }
 

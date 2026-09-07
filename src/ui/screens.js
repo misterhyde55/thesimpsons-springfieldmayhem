@@ -52,7 +52,7 @@ const FULL_BLEED_SCREEN_IDS = new Set([
 
 const $ = (id) => document.getElementById(id);
 
-function freshButton(id) {
+export function freshButton(id) {
   const btn = $(id);
   const fresh = btn.cloneNode(true);
   btn.replaceWith(fresh);
@@ -289,6 +289,17 @@ export function populateBoardInfo(runState, segment, reachableCount) {
         : `<span title="${info.name}">🧑</span>`;
     })
     .join('');
+}
+
+// ---------- PAUSE MENU ----------
+export function showPauseMenu(onResume, onSaveExit) {
+  $('pause-menu-modal').classList.remove('hidden');
+  freshButton('btn-pause-resume').addEventListener('click', onResume);
+  freshButton('btn-pause-save-exit').addEventListener('click', onSaveExit);
+}
+
+export function hidePauseMenu() {
+  $('pause-menu-modal').classList.add('hidden');
 }
 
 // ---------- QUEST TRACKER ----------

@@ -1189,9 +1189,21 @@ body.full-bleed-active #top-bar { display: none; }
   padding: 16px 20px 24px;
   overflow-y: auto;
 }
-.interior-header { width: 100%; max-width: 560px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.interior-header { width: 100%; max-width: 560px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 10px; }
 .interior-location-name { font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif; color: #f6d217; font-size: 1.1rem; }
 .interior-actions-readout { color: #c9c9d3; font-size: 0.85rem; font-weight: 700; }
+.pause-menu-toggle {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: #3a3a44;
+  color: #f6d217;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.pause-menu-toggle:hover { background: #4a4a56; }
 .interior-stage {
   width: 100%;
   max-width: 560px;

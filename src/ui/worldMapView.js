@@ -39,8 +39,37 @@ function pct(n) {
   return `${(n * 100).toFixed(3)}%`;
 }
 
+// The map must never show a gap around the art (no blank gutters) --
+// so the effective minimum zoom is whatever "covers" the current
+// viewport in both dimensions (like CSS background-size:cover), not a
+// fixed constant. A phone-sized viewport and an ultrawide monitor need
+// different minimums; this recomputes it from the real viewport every
+// time instead of guessing one number that only works for one screen.
+function minZoomForViewport() {
+  if (!dom) return MIN_ZOOM;
+  const rect = dom.viewport.getBoundingClientRect();
+  if (!rect.width || !rect.height) return MIN_ZOOM;
+  return Math.max(MIN_ZOOM, rect.width / MAP_WIDTH, rect.height / MAP_HEIGHT);
+}
+
 function clampZoom(z) {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+  return Math.min(MAX_ZOOM, Math.max(minZoomForViewport(), z));
+}
+
+// Keeps the scaled image's edges at or beyond the viewport's edges on
+// every side, at the current zoom -- the general fix for the "blank
+// black bar" bug: any pan/zoom that would reveal the raw viewport
+// background past the art's edge gets pulled back in instead.
+function clampCameraPosition(cam) {
+  if (!dom) return cam;
+  const rect = dom.viewport.getBoundingClientRect();
+  const scaledW = MAP_WIDTH * cam.zoom;
+  const scaledH = MAP_HEIGHT * cam.zoom;
+  const minX = Math.min(0, rect.width - scaledW);
+  const minY = Math.min(0, rect.height - scaledH);
+  const x = scaledW <= rect.width ? (rect.width - scaledW) / 2 : Math.min(0, Math.max(minX, cam.x));
+  const y = scaledH <= rect.height ? (rect.height - scaledH) / 2 : Math.min(0, Math.max(minY, cam.y));
+  return { zoom: cam.zoom, x, y };
 }
 
 function applyCameraTransform() {
@@ -53,7 +82,8 @@ export function getCameraState() {
 
 export function setCameraState(state) {
   if (!state) return;
-  camera = { x: state.x ?? camera.x, y: state.y ?? camera.y, zoom: clampZoom(state.zoom ?? camera.zoom) };
+  const zoom = clampZoom(state.zoom ?? camera.zoom);
+  camera = clampCameraPosition({ x: state.x ?? camera.x, y: state.y ?? camera.y, zoom });
   if (dom) applyCameraTransform();
 }
 
@@ -63,11 +93,11 @@ function centerCameraOn(locationId, zoom) {
   const targetZoom = clampZoom(zoom ?? camera.zoom);
   const worldX = loc.x * MAP_WIDTH;
   const worldY = loc.y * MAP_HEIGHT;
-  camera = {
+  camera = clampCameraPosition({
     zoom: targetZoom,
     x: rect.width / 2 - worldX * targetZoom,
     y: rect.height / 2 - worldY * targetZoom,
-  };
+  });
   applyCameraTransform();
 }
 
@@ -90,11 +120,11 @@ function zoomAtPoint(clientX, clientY, factor) {
   if (newZoom === camera.zoom) return;
   const worldX = (px - camera.x) / camera.zoom;
   const worldY = (py - camera.y) / camera.zoom;
-  camera = {
+  camera = clampCameraPosition({
     zoom: newZoom,
     x: px - worldX * newZoom,
     y: py - worldY * newZoom,
-  };
+  });
   applyCameraTransform();
 }
 
@@ -115,7 +145,7 @@ function onPointerMove(e) {
   const dx = e.clientX - dragState.startX;
   const dy = e.clientY - dragState.startY;
   if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragState.moved = true;
-  camera = { ...camera, x: dragState.camX + dx, y: dragState.camY + dy };
+  camera = clampCameraPosition({ ...camera, x: dragState.camX + dx, y: dragState.camY + dy });
   applyCameraTransform();
 }
 
@@ -256,6 +286,11 @@ export function mountMapView(handlers) {
   document.getElementById('btn-map-zoom-in').addEventListener('click', () => zoomIn());
   document.getElementById('btn-map-zoom-out').addEventListener('click', () => zoomOut());
   document.getElementById('btn-map-zoom-reset').addEventListener('click', () => handlers.onZoomReset());
+  // A resize can shrink minZoomForViewport's "cover" floor out from under
+  // an already-set camera (e.g. rotating a tablet, or the browser window
+  // itself resizing) -- re-clamp against the new viewport rather than
+  // waiting for the next manual pan/zoom to fix it.
+  window.addEventListener('resize', () => setCameraState(camera));
 }
 
 // Refreshes every hotspot's visible state, the road layer, and Homer's

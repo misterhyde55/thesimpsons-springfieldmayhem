@@ -90,6 +90,11 @@ export const ASSET_MANIFEST = {
     zombieKrustyDeluxe: `${BASE}/characters/krusty.png`,
     zombieGrandpa: `${BASE}/characters/grampa.png`,
     zombieSkinnerZombie: `${BASE}/enemies/Principal%20Skinner%20Zombie.png`,
+    // Segment II: Alien Invasion. alienEnforcer's own "Ray Blast" intent is
+    // a literal match for alien2's raygun-and-tentacles art; alien1's
+    // feral clawed look fits the lesser, more common alienProbe instead.
+    alienProbe: `${BASE}/enemies/alien1.png`,
+    alienEnforcer: `${BASE}/enemies/alien2.png`,
   },
   // data/bosses.js entries, keyed by boss id. Chief Wiggum and Mr. Burns reuse
   // their characters/ portrait here for the in-arena boss sprite -- one image
