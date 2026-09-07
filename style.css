@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Titan+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Creepster&family=Luckiest+Guy&family=Titan+One&display=swap');
 
 * { box-sizing: border-box; }
 body {
@@ -88,31 +88,54 @@ body.full-bleed-active #top-bar { display: none; }
   background-repeat: no-repeat;
 }
 
+/* The source art (menu screen.png) has its own baked-in "RESUME GAME"
+   title + arrow icons across the top -- this fades it into the room's
+   dark ceiling so only the real DOM title/menu below are read as the UI. */
+.console-menu-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 34vh;
+  background: linear-gradient(to bottom, rgba(6, 5, 13, 0.99) 0%, rgba(6, 5, 13, 0.99) 40%, rgba(6, 5, 13, 0.85) 60%, rgba(6, 5, 13, 0) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 .console-title {
   position: absolute;
   top: 6vh;
   left: 5vw;
   text-align: left;
-  /* Titan One's thick, rounded bubble letterforms are the closest
-     Google-Fonts stand-in for the show's iconic logo look -- the real
-     typeface is a proprietary, custom-drawn font we can't legally embed.
-     The black stroke + red offset + soft glow evoke that logo's black
-     keyline and red echo without a licensed asset. */
-  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
-  color: #fddb1a;
-  -webkit-text-stroke: 2px #170f00;
-  text-shadow: 4px 4px 0 #d0021b, 0 0 26px rgba(0, 0, 0, 0.6);
+  z-index: 1;
+  /* Creepster is the classic dripping-slime horror lettering used across
+     Halloween title cards -- the closest Google-Fonts stand-in for the
+     show's own "Treehouse of Horror" title-card typeface, which is a
+     proprietary, custom-drawn font we can't legally embed. The sickly
+     green glow + oozing double-shadow evoke that dripping title-card
+     look without a licensed asset. */
+  font-family: 'Creepster', 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #e9fdd0;
+  -webkit-text-stroke: 1.5px #170f00;
+  text-shadow:
+    0 3px 0 #4a7a1e,
+    0 6px 0 #2c4d10,
+    0 2px 10px rgba(139, 214, 40, 0.75),
+    0 0 26px rgba(0, 0, 0, 0.7);
   animation: titleBob 4s ease-in-out infinite;
   pointer-events: none;
 }
-.console-title-line1 { font-size: clamp(1.6rem, 4vw, 2.6rem); letter-spacing: 1px; }
-.console-title-line2 { font-size: clamp(1.9rem, 5.5vw, 3.6rem); letter-spacing: 1px; margin-top: -2px; }
+.console-title-line1 { font-size: clamp(1.8rem, 4.6vw, 2.9rem); letter-spacing: 2px; }
+.console-title-line2 { font-size: clamp(2.2rem, 6.2vw, 4rem); letter-spacing: 2px; margin-top: 2px; color: #d0021b; text-shadow: 0 3px 0 #6e0410, 0 6px 0 #400208, 0 2px 10px rgba(255, 60, 60, 0.6), 0 0 26px rgba(0, 0, 0, 0.7); }
 @keyframes titleBob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
 
 .console-menu {
+  position: relative;
+  z-index: 1;
   list-style: none;
   margin: 0 0 10vh;
   padding: 0;
