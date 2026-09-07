@@ -1259,7 +1259,7 @@ body:not(.header-hidden) .location-interior-screen {
   max-height: 88vh;
   overflow-y: auto;
 }
-.modal-box button {
+.modal-box button:not(.decision-card) {
   display: block;
   width: 100%;
   margin-top: 10px;
@@ -1270,7 +1270,7 @@ body:not(.header-hidden) .location-interior-screen {
   cursor: pointer;
   background: #f6d217;
 }
-.modal-box button:hover { background: #ffe14d; }
+.modal-box button:not(.decision-card):hover { background: #ffe14d; }
 #shop-items { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 .shop-item-btn { background: #0e63a8 !important; color: white; }
 .shop-item-btn:disabled { background: #555 !important; cursor: not-allowed; }
@@ -1322,15 +1322,89 @@ body:not(.header-hidden) .location-interior-screen {
 .quest-tracker-reward { font-size: 0.78rem; color: #8fd18a; }
 .quest-tracker-empty { color: #ccc; font-style: italic; }
 
+/* ---- StoryEventModal / CombatDecisionEvent (REDESIGN ALL STORY / MID-
+   COMBAT DECISION POPUPS): a torn comic-panel card instead of a flat SaaS
+   dialog. .modal's own translucent scrim (rgba(0,0,0,0.6), see above)
+   already keeps combat visible behind it -- this only restyles the box
+   itself. Choices render through decisionCardHtml/.decision-card, same
+   system the Treehouse Scenes use, so every event popup in the game shares
+   one visual language. ---- */
+.choice-modal-box {
+  position: relative;
+  max-width: 640px;
+  text-align: left;
+  background: linear-gradient(160deg, #221f24 0%, #17151a 100%);
+  border: 2px solid #f6d217;
+  border-radius: 4px;
+  clip-path: polygon(0% 1.5%, 1.5% 0%, 98.5% 0%, 100% 1.5%, 100% 98.5%, 98.5% 100%, 1.5% 100%, 0% 98.5%);
+  box-shadow: 0 0 0 1px rgba(208, 2, 27, 0.25), 0 10px 40px rgba(0, 0, 0, 0.6);
+  overflow: visible;
+}
+.choice-modal-box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 5px);
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+.choice-modal-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #ff8a70;
+  border: 1px solid rgba(208, 2, 27, 0.5);
+  border-radius: 3px;
+  padding: 2px 8px;
+  margin-bottom: 8px;
+}
+.choice-modal-eyebrow-icon { width: 14px; height: 14px; }
+.choice-modal-eyebrow-icon.icon-fallback { border-radius: 3px; font-size: 0.5rem; }
 .choice-modal-title {
   font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
   color: #d0021b;
   font-size: 1.2rem;
   margin: 0 0 10px;
+  text-shadow: 0 0 10px rgba(208, 2, 27, 0.3);
+  position: relative;
+  padding-bottom: 12px;
 }
-.choice-modal-options { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-.choice-modal-btn { background: #d0021b !important; color: #fff; }
-.choice-modal-btn:hover { background: #f6414d !important; }
+.choice-modal-title::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(246, 210, 23, 0.7), transparent 70%);
+}
+.choice-modal-prompt { color: #d6d6de; font-size: 0.88rem; line-height: 1.45; }
+.choice-modal-speaker { color: #f6d217; font-weight: 800; }
+.choice-modal-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.choice-modal-options .decision-card:only-child { grid-column: 1 / -1; }
+@media (max-width: 560px) {
+  .choice-modal-options { grid-template-columns: 1fr; }
+}
+.choice-modal-result-text { color: #fff8ea; font-size: 0.9rem; line-height: 1.45; margin: 4px 0 10px; }
+.choice-modal-result-effects { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.choice-modal-result-effects li {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #f6d217;
+  padding: 4px 10px;
+  background: rgba(246, 210, 23, 0.08);
+  border-left: 2px solid #f6d217;
+}
+.choice-modal-result-continue { width: 100%; margin-top: 0; }
 
 /* ---- ENCOUNTER COMPLETE summary (Zombie Ned and future graded fights) --
    reuses the choice modal shell via bodyHtml, styled as a report card
