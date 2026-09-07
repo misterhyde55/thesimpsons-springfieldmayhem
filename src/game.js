@@ -129,6 +129,15 @@ export class Game {
     // it's wired once here rather than re-bound on each screen transition.
     document.getElementById('btn-sound-toggle').addEventListener('click', () => this.toggleGlobalMuted());
     this.updateSoundButtons();
+
+    // Header (Treehouse Broadcast HUD) Season/Episode -> Episode Guide.
+    // No-ops mid-battle: there's no safe "leave and resume" path for an
+    // in-progress fight yet (the pause menu itself isn't wired on the
+    // battle screen either -- see openPauseMenu's call sites).
+    document.getElementById('header-season-episode').addEventListener('click', () => {
+      if (this.battle) return;
+      this.showSeasonsInfo();
+    });
   }
 
   init() {
@@ -168,6 +177,7 @@ export class Game {
   showMainMenu() {
     playMusicForScene(SCENE.MAIN_MENU, { fadeInMs: 700 });
     screens.showScreen('screen-main-menu');
+    screens.updateHeaderRunInfo(null);
     this.mainMenuNav = screens.populateMainMenu(this.meta, hasActiveRun(), {
       'new-episode': () => this.beginNewEpisode(),
       continue: () => this.resumeActiveRun(),
@@ -720,6 +730,7 @@ export class Game {
     this.interiorState = state;
     this.interiorActionsRemaining = INTERIOR_STARTING_ACTIONS;
     screens.showScreen('screen-location-interior');
+    screens.updateHeaderRunInfo(this.runState);
     screens.freshButton('btn-interior-pause').addEventListener('click', () => this.openPauseMenu());
     this.refreshInteriorScreen();
   }

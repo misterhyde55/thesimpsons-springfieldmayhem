@@ -9,17 +9,87 @@ body {
 }
 #app { max-width: 940px; margin: 0 auto; padding: 0 0 40px; }
 
+:root { --header-h: 56px; }
+
+/* ---------------- Treehouse Broadcast HUD (#top-bar) ----------------
+   Compact dark HUD bar, not a website navbar: near-black gradient, thin
+   yellow accent line, subtle red horror accent, faint scanline texture.
+   Stays visible on Map/Combat/Shop/Location screens (see body.header-hidden
+   below), unlike the old #top-bar which every full-bleed screen hid. */
 #top-bar {
   position: relative;
   z-index: 20;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
-  background: #0e63a8;
-  border-bottom: 4px solid #f6d217;
+  gap: 12px;
+  height: var(--header-h);
+  padding: 0 16px;
+  background: linear-gradient(180deg, #18151a 0%, #0b0a0d 100%);
+  border-bottom: 2px solid #f6d217;
+  box-shadow: 0 1px 0 rgba(192, 57, 43, 0.35), 0 6px 14px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
 }
-.logo { font-weight: 800; letter-spacing: 1px; }
+#top-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0px, rgba(255, 255, 255, 0.035) 1px, transparent 1px, transparent 3px);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.broadcast-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 0; }
+.broadcast-icon { width: 22px; height: 22px; color: #f6d217; flex-shrink: 0; }
+.broadcast-dot { animation: broadcastPulse 2.6s ease-in-out infinite; }
+@keyframes broadcastPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.broadcast-title-block { display: flex; flex-direction: column; line-height: 1.08; min-width: 0; }
+.broadcast-title {
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  font-size: 0.92rem;
+  letter-spacing: 0.5px;
+  color: #fff8ea;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.broadcast-subtitle {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #c0392b;
+  text-transform: uppercase;
+}
+.broadcast-center {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.5px;
+  color: #f6d217;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 8px rgba(246, 210, 23, 0.25);
+}
+.broadcast-right { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.broadcast-segment { font-size: 0.66rem; font-weight: 700; letter-spacing: 1px; color: #c9c9d3; white-space: nowrap; }
+.broadcast-mayhem-btn,
+.broadcast-meta-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff8ea;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.broadcast-meta-btn:hover { border-color: #f6d217; color: #f6d217; }
+.broadcast-mayhem-btn { border-color: rgba(192, 57, 43, 0.5); color: #ff8a70; }
+.broadcast-mayhem-btn:hover { border-color: #c0392b; }
 
 .screen { padding: 24px 20px; text-align: center; }
 .hidden { display: none !important; }
@@ -68,7 +138,15 @@ body {
    screens.js -- never hardcode an asset path here, so new art can be
    swapped in from one place. position:fixed takes this screen out of
    #app's max-width flow so it always fills the real viewport. */
-body.full-bleed-active #top-bar { display: none; }
+/* Cinematic-only screens still hide the header; Map/Combat/Location/Shop
+   screens keep it visible (see FULL_BLEED_SCREEN_IDS vs. HEADER_HIDDEN_
+   SCREEN_IDS split in ui/screens.js) and instead get pushed down below it. */
+body.header-hidden #top-bar { display: none; }
+body:not(.header-hidden) .map-screen,
+body:not(.header-hidden) .battle-screen,
+body:not(.header-hidden) .location-interior-screen {
+  top: var(--header-h);
+}
 
 .console-menu-screen {
   position: fixed;
