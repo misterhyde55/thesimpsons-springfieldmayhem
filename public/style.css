@@ -981,6 +981,83 @@ body:not(.header-hidden) .location-interior-screen {
 }
 .energy-orb small { font-size: 0.7rem; font-weight: 700; margin-left: 1px; }
 
+/* ---- Draw/discard piles (REDESIGN COMBAT GAMEPLAY: "small clickable
+   indicators... clicking one allows inspect") -- deliberately plain text
+   badges, not full cards, so they read as pile counters, not more hand. ---- */
+.battle-piles { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+.pile-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  background: rgba(20, 20, 26, 0.75);
+  border: 1.5px solid #6fd0ff;
+  border-radius: 8px;
+  padding: 3px 8px;
+  color: #fff8ea;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+.pile-badge:hover { border-color: #f6d217; }
+.pile-badge span { font-size: 0.85rem; }
+.pile-inspect-box { max-width: 420px; text-align: left; }
+.pile-inspect-title { color: #f6d217; font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif; font-size: 1rem; margin: 0 0 10px; text-align: center; }
+.pile-inspect-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; margin-bottom: 12px; }
+.pile-inspect-row { display: flex; align-items: center; gap: 8px; background: #1b1b22; border-radius: 8px; padding: 6px 10px; }
+.pile-inspect-row .action-icon-wrap { width: 26px; height: 26px; flex-shrink: 0; margin-top: 0; }
+.pile-inspect-name { flex: 1; font-weight: 700; font-size: 0.8rem; }
+.pile-inspect-cost { color: #38b6ff; font-weight: 800; font-size: 0.78rem; }
+.pile-inspect-empty { color: #8c8c99; font-style: italic; text-align: center; }
+
+/* ---- Large card preview (rare+ abilities only) -- fades a dark vignette
+   in behind a big version of the card, same archetype styling as the hand,
+   scaled up. Reserved for signature plays, never a basic attack. ---- */
+.large-card-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  pointer-events: none;
+  transition: background 0.25s ease;
+}
+.large-card-preview.showing { background: rgba(0, 0, 0, 0.72); }
+.large-card-preview-card {
+  --action-accent: #8c8c99;
+  --action-bg-a: #33333c;
+  --action-bg-b: #26262e;
+  position: relative;
+  width: 220px;
+  background: linear-gradient(160deg, var(--action-bg-a), var(--action-bg-b));
+  border: 3px solid var(--action-accent);
+  border-radius: 20px 20px 12px 12px;
+  padding: 20px 16px 16px;
+  color: #fff8ea;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 0 40px var(--action-accent), 0 20px 40px rgba(0, 0, 0, 0.7);
+  transform: scale(0.5);
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.2, 1.4, 0.4, 1), opacity 0.25s ease;
+}
+.large-card-preview.showing .large-card-preview-card { transform: scale(1); opacity: 1; }
+.action-cost.large { position: absolute; top: -14px; left: -14px; width: 36px; height: 36px; font-size: 1.05rem; }
+.action-icon-wrap.large { width: 84px; height: 84px; margin-top: 6px; }
+.action-name.large { font-size: 1.1rem; }
+.action-desc.large { font-size: 0.82rem; min-height: 0; }
+.large-card-preview-card.archetype-universal { --action-accent: #b7b7c0; }
+.large-card-preview-card.archetype-food { --action-accent: #ff5a3c; --action-bg-a: #4a2a20; --action-bg-b: #2e1a16; }
+.large-card-preview-card.archetype-duff { --action-accent: #f6d217; --action-bg-a: #4a3c14; --action-bg-b: #2e2610; }
+.large-card-preview-card.archetype-nuclear { --action-accent: #7cff3a; --action-bg-a: #1f3018; --action-bg-b: #161d12; }
+.large-card-preview-card.archetype-bowling { --action-accent: #38b6ff; --action-bg-a: #1a2c38; --action-bg-b: #141f28; }
+.large-card-preview-card.archetype-rage { --action-accent: #d0021b; --action-bg-a: #3a1414; --action-bg-b: #240d0d; }
+
 /* ================= ACTIONS (ability hand) =================
    Called "Actions" in the UI, not cards -- Springfield Mayhem's own object,
    not a Slay the Spire card frame. Each archetype gets a distinct visual
@@ -1027,6 +1104,19 @@ body:not(.header-hidden) .location-interior-screen {
   color: #fff;
   font-weight: 800;
   z-index: 1;
+}
+/* A card's rarity (data/abilities.js RARITY_COLOR) as a small corner dot --
+   separate signal from the archetype border/background, so a build's
+   flavor (archetype) and a card's power tier (rarity) both read at a
+   glance without fighting over the same color. */
+.action-rarity {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #17151a;
 }
 .action-icon-wrap {
   width: 46px;

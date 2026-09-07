@@ -351,10 +351,29 @@
 
     <div class="battle-hand-bar">
       <div id="battle-energy-readout" class="energy-orb"><span id="battle-energy-value">3</span><small>/3</small></div>
+      <div class="battle-piles">
+        <button id="btn-battle-draw-pile" type="button" class="pile-badge" title="Draw pile -- click to inspect">DRAW<span id="battle-draw-count">0</span></button>
+        <button id="btn-battle-discard-pile" type="button" class="pile-badge" title="Discard pile -- click to inspect">DISCARD<span id="battle-discard-count">0</span></button>
+      </div>
       <div id="battle-abilities" class="battle-abilities"></div>
       <button id="btn-battle-end-turn" class="end-turn-btn">End<br />Turn</button>
     </div>
   </section>
+
+  <!-- Draw/discard pile inspect (see ui/screens.js showPileInspect) -->
+  <div id="pile-inspect-modal" class="modal hidden">
+    <div class="modal-box pile-inspect-box">
+      <h2 id="pile-inspect-title" class="pile-inspect-title">DRAW PILE</h2>
+      <div id="pile-inspect-list" class="pile-inspect-list"></div>
+      <button id="btn-pile-inspect-close" class="menu-link-button">CLOSE</button>
+    </div>
+  </div>
+
+  <!-- Rare/Epic ability play (see ui/screens.js showLargeCardPreview) --
+       reserved for signature cards only, never a basic attack. -->
+  <div id="large-card-preview" class="large-card-preview hidden">
+    <div id="large-card-preview-card" class="large-card-preview-card"></div>
+  </div>
 
   <!-- Floating toast for shop pickups / NPC lines / relationship shifts --
        lives outside any .screen section so it can overlay whichever one is
