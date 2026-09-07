@@ -129,6 +129,39 @@ export function missingOfficersReportContent() {
   };
 }
 
+// ---------- QUEST TRACKER (player-facing) ----------
+// runState.quests only ever stores a bare status string ('active',
+// 'resolved', or an outcome like 'saved'/'killed') -- this is the display
+// metadata layer so the board HUD can show WHY a quest matters without the
+// player having to remember dialogue from ten minutes ago.
+export const QUEST_DISPLAY = {
+  wheresBarney: {
+    title: "WHERE'S BARNEY?",
+    hint: 'Last seen: Springfield Cemetery.',
+    reward: 'Moe Relationship • ???',
+  },
+  helpApu: {
+    title: "APU'S FAVOR",
+    hint: 'Search Springfield Elementary, then report back to Apu at the Kwik-E-Mart.',
+    reward: 'Apu Relationship • Cash',
+  },
+  missingOfficers: {
+    title: 'THE MISSING OFFICERS',
+    hint: 'Search Burns Manor, then report to the Police Station.',
+    reward: 'Cash • Relic • Safer Police Station',
+  },
+};
+
+// Only 'active' quests show -- once resolved, the reward toast/banner at
+// the resolution point already told the player what happened, so the
+// tracker doesn't need a second "completed" list cluttering it up.
+export function getActiveQuestsSummary(runState) {
+  return Object.entries(runState.quests)
+    .filter(([, status]) => status === 'active')
+    .map(([id]) => QUEST_DISPLAY[id])
+    .filter(Boolean);
+}
+
 // Applies a battle-victory quest resolution (see game.js onBattleVictory) --
 // a no-op if the relevant quest isn't actually active, so this is always
 // safe to check even outside the quest.

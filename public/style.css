@@ -956,6 +956,28 @@ body.full-bleed-active #top-bar { display: none; }
 .shop-item-btn em { font-style: normal; opacity: 0.75; font-size: 0.85em; }
 .shop-empty-note { color: #ccc; font-style: italic; text-align: center; }
 
+.quest-tracker-toggle {
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  background: rgba(246, 210, 23, 0.15);
+  color: #f6d217;
+  border: 1px solid #f6d217;
+  border-radius: 14px;
+  cursor: pointer;
+  pointer-events: all;
+}
+.quest-tracker-toggle:hover { background: rgba(246, 210, 23, 0.3); }
+#quest-tracker-count { color: #ff8a70; }
+.quest-tracker-list { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; text-align: left; }
+.quest-tracker-card { background: #1b1b22; border: 2px solid #3a3a44; border-radius: 8px; padding: 10px 12px; }
+.quest-tracker-title { font-weight: 800; color: #f6d217; font-size: 0.95rem; }
+.quest-tracker-hint { font-size: 0.85rem; color: #d6d6de; margin: 4px 0; }
+.quest-tracker-reward { font-size: 0.78rem; color: #8fd18a; }
+.quest-tracker-empty { color: #ccc; font-style: italic; }
+
 .choice-modal-title {
   font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
   color: #d0021b;
