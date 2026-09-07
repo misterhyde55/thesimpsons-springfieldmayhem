@@ -14,12 +14,110 @@
 // interaction can instead set `special: 'shop'` or `special: 'abilityDraft'`
 // to hand off to an existing full-screen flow (systems/economy.js's shop
 // modal, or the ability draft) rather than resolving inline.
-import { shiftRelationship, moeDuffTerms } from '../systems/relationships.js';
+import { shiftRelationship, moeDuffTerms, moeGreeting } from '../systems/relationships.js';
 import { getRelicShopPool } from './relics.js';
 import { getEvent } from './events.js';
 import { ITEMS } from './items.js';
 import { sellPriceFor } from '../systems/economy.js';
 import { helpApuReportInteraction } from './quests.js';
+
+// Moe's "WHAT'VE YOU GOT?" -- three priced services shown as the dialogue's
+// followUps (see game.js onInteriorFollowUp, which now spends a followUp's
+// own `cost` rather than treating every reply as free). HAVE A DUFF goes
+// through moeDuffTerms so Moe's Favor (runState.relationships.moe) actually
+// moves the price/heal, same discount system Duff orders already used.
+function moeServiceFollowUps(runState) {
+  const duff = moeDuffTerms(runState, 3, 10);
+  const duffPriceLabel = duff.cost === 0 ? 'FREE' : `${duff.cost} donut${duff.cost === 1 ? '' : 's'}`;
+  return [
+    {
+      id: 'serviceDuff',
+      label: `HAVE A DUFF (${duffPriceLabel})`,
+      cost: 1,
+      run(rs) {
+        if (rs.donutsCurrency < duff.cost) return { text: 'Moe: "No tab, Homer."' };
+        rs.donutsCurrency -= duff.cost;
+        rs.hp = Math.min(rs.maxHp, rs.hp + duff.heal);
+        shiftRelationship(rs, 'moe', 1);
+        const priceLine = duff.cost === 0 ? 'On the house.' : `-${duff.cost} donut${duff.cost === 1 ? '' : 's'}.`;
+        return { text: `Moe slides a cold Duff across the bar. (+${duff.heal} HP, ${priceLine})` };
+      },
+    },
+    {
+      id: 'serviceSnacks',
+      label: 'BAR SNACKS (2 donuts, once per visit)',
+      cost: 1,
+      run(rs) {
+        if (rs.world.locationFlags.moeSnacksThisVisit) return { text: 'Moe: "You ate the whole bowl already, Homer."' };
+        if (rs.donutsCurrency < 2) return { text: "You're a little short." };
+        rs.donutsCurrency -= 2;
+        rs.hp = Math.min(rs.maxHp, rs.hp + 10);
+        rs.world.locationFlags.moeSnacksThisVisit = true;
+        return { text: 'Stale pretzels never tasted so good. (+10 HP, -2 donuts)' };
+      },
+    },
+    {
+      id: 'serviceMystery',
+      label: "MOE'S MYSTERY SHOT (4 donuts, ??? risk)",
+      cost: 1,
+      run(rs) {
+        if (rs.donutsCurrency < 4) return { text: "You're a little short." };
+        rs.donutsCurrency -= 4;
+        const roll = Math.random();
+        if (roll < 0.35) {
+          rs.hp = Math.min(rs.maxHp, rs.hp + 30);
+          return { text: 'Whatever that was, you feel AMAZING. (+30 HP, -4 donuts)' };
+        }
+        if (roll < 0.7) {
+          rs.hp = Math.min(rs.maxHp, rs.hp + 12);
+          return { text: 'Tastes like regret and lime. (+12 HP, -4 donuts)' };
+        }
+        rs.hp = Math.max(1, rs.hp - 10);
+        return { text: 'Your whole body goes numb for a second. That was a mistake. (-10 HP, -4 donuts)' };
+      },
+    },
+  ];
+}
+
+// Moe's "HEARD ANYTHING?" -- reveals one real, previously-unknown piece of
+// map information as the same locationFlags-string "rumor" convention the
+// old TALK TO MOE followup already used (see mapIntel.js's RUMOR filter,
+// which reads these same flags), instead of inventing a new info system.
+const RUMOR_POOL = [
+  { locationId: 'springfieldElementary', flag: 'Possible Infection', text: 'Moe: "Barney swears he saw somethin\' shufflin\' around the school. I told him to lay off the tap."' },
+  { locationId: 'policeStation', flag: 'Officers Missing', text: 'Moe: "Wiggum\'s boys went quiet on the radio. Nobody\'s heard from the station all night."' },
+  { locationId: 'burnsManor', flag: 'Something Big', text: 'Moe: "Guy came in ramblin\' about lights on at the Manor. Old man Burns don\'t leave lights on for nobody."' },
+  { locationId: 'springfieldCemetery', flag: 'Ground Disturbed', text: 'Moe: "Groundskeeper quit on the spot. Said the dirt out at the cemetery ain\'t layin\' right anymore."' },
+];
+
+function moeRumor(runState) {
+  const candidates = RUMOR_POOL.filter((r) => runState.world.locationFlags[r.locationId] !== r.flag);
+  if (!candidates.length) return 'Moe: "Told you everything I know, Homer. You\'re on your own now."';
+  const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  runState.world.locationFlags[pick.locationId] = pick.flag;
+  return `${pick.text} (NEW MAP INFORMATION)`;
+}
+
+// Moe's "I NEED A MINUTE." -- the one clear rest action (25% Max HP, once
+// per visit, exact before/after numbers shown), shared by every Moe's
+// Tavern state instead of each repeating its own HP-percentage math.
+function moeRestInteraction() {
+  return {
+    id: 'needAMinute',
+    label: 'I NEED A MINUTE.',
+    cost: 1,
+    run(runState) {
+      if (runState.world.locationFlags.moeRestedThisVisit) {
+        return { text: 'Moe: "You already had your minute, Homer. Bar\'s not a hotel."' };
+      }
+      const before = Math.round(runState.hp);
+      const healAmt = Math.round(runState.maxHp * 0.25);
+      runState.hp = Math.min(runState.maxHp, runState.hp + healAmt);
+      runState.world.locationFlags.moeRestedThisVisit = true;
+      return { text: `You put your head down on the bar for a minute. CURRENT HP ${before}/${runState.maxHp} -> AFTER REST ${Math.round(runState.hp)}/${runState.maxHp}.` };
+    },
+  };
+}
 
 function grantUndiscoveredRelic(runState) {
   const pool = getRelicShopPool().filter((r) => !runState.relics.includes(r.id));
@@ -366,66 +464,62 @@ export const INTERIORS = {
   },
   moesTavern: {
     npcId: 'moe',
+    // The uploaded Moe's Tavern scene photo (Moe behind the bar) -- the
+    // visual centerpiece of this interior (see ui/screens.js
+    // populateLocationInterior), used across every state below rather than
+    // the small emoji `background` glyph other interiors still use.
+    image: 'moeChat',
     states: {
+      // REDESIGN: Moe's Tavern as a real rest/social/rumor room, not a menu
+      // page. The five top-level buttons are a free dialogue tree (cost: 0
+      // -- talking to Moe never spends an action); the ACTIONS that
+      // dialogue leads to (a paid service, a rest, a rumor) carry their own
+      // cost on the followUp instead (see game.js onInteriorFollowUp).
       normal: {
         background: '🍺',
         intro: "Moe wipes a glass that was already dirty before he started. Barney's asleep sitting up at the bar.",
         interactions: [
           {
-            id: 'talkMoe',
-            label: 'TALK TO MOE',
-            cost: 1,
-            run() {
+            id: 'whatveYouGot',
+            label: "WHAT'VE YOU GOT?",
+            cost: 0,
+            run(runState) {
               return {
-                text: 'Moe: "Homer! What the hell happened to you?"',
-                followUps: [
-                  {
-                    id: 'giveMeDuff',
-                    // A followUp's label is fixed at menu-build time (it's a
-                    // dialogue reply, not its own interaction), so it can't
-                    // read relationship-scaled price live -- the flavor line
-                    // in the result text is where the discount actually shows.
-                    label: 'GIVE ME A DUFF.',
-                    run(runState) {
-                      const { cost, heal } = moeDuffTerms(runState, 2, 15);
-                      if (runState.donutsCurrency < cost) return { text: 'Moe: "No tab. Not for you, not after last time."' };
-                      runState.donutsCurrency -= cost;
-                      runState.hp = Math.min(runState.maxHp, runState.hp + heal);
-                      shiftRelationship(runState, 'moe', 1);
-                      const priceLine = cost === 0 ? 'On the house.' : `-${cost} donut${cost === 1 ? '' : 's'}.`;
-                      return { text: `Moe slides a Duff across the bar. (+${heal} HP, ${priceLine})` };
-                    },
-                  },
-                  {
-                    id: 'heardWeird',
-                    label: 'HEARD ANYTHING WEIRD LATELY?',
-                    run(runState) {
-                      runState.world.locationFlags.springfieldElementary = 'Possible Infection';
-                      return { text: 'Moe: "Barney swears he saw somethin\' shufflin\' around the school. I told him to lay off the tap." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
-                    },
-                  },
-                  {
-                    id: 'comeWithMe',
-                    label: 'WANT TO COME WITH ME?',
-                    run(runState) {
-                      if (runState.cast.includes('moe')) return { text: 'Moe: "I\'m already comin\', ain\'t I?"' };
-                      const level = runState.relationships.moe;
-                      if (level === 'friendly' || level === 'bestFriend') {
-                        runState.cast.push('moe');
-                        return { text: 'Moe: "Eh, why not? Business is dead anyway." MOE JOINED THE CAST.' };
-                      }
-                      return { text: 'Moe: "Get lost, Homer."' };
-                    },
-                  },
-                  {
-                    id: 'backRoomQ',
-                    label: "WHAT'S IN THE BACK ROOM?",
-                    run() {
-                      return { text: 'Moe: "...nothing." He will not make eye contact.' };
-                    },
-                  },
-                ],
+                text: `${moeGreeting(runState)} He slides a few things across the bar.`,
+                followUps: moeServiceFollowUps(runState),
               };
+            },
+          },
+          {
+            id: 'heardAnything',
+            label: 'HEARD ANYTHING?',
+            cost: 1,
+            run(runState) {
+              return { text: moeRumor(runState) };
+            },
+          },
+          {
+            id: 'wheresBarney',
+            label: "WHERE'S BARNEY?",
+            cost: 0,
+            run(runState) {
+              if (runState.quests.wheresBarney === 'active') {
+                return { text: 'Moe: "Still no sign of him. Guy owes me for three Duffs, too."' };
+              }
+              if (runState.quests.wheresBarney === 'complete') {
+                return { text: 'Moe: "Barney\'s fine. Or as fine as Barney gets."' };
+              }
+              runState.quests.wheresBarney = 'active';
+              return { text: 'Moe: "Now that you mention it, ain\'t seen him all night... Actually, go check on him, would ya? Somethin\' about it\'s buggin\' me." (QUEST STARTED: WHERE\'S BARNEY?)' };
+            },
+          },
+          moeRestInteraction(),
+          {
+            id: 'leaveDialogue',
+            label: 'LEAVE',
+            cost: 0,
+            run() {
+              return { text: 'Moe: "Yeah, yeah, get outta here."' };
             },
           },
           {
@@ -436,21 +530,10 @@ export const INTERIORS = {
               return { text: 'Barney (waking up): "Ohhh, is it Tuesday? *BURRRP* Homer! Buy a guy a drink?"' };
             },
           },
-          {
-            id: 'orderDrink',
-            label: 'ORDER A DRINK',
-            cost: 1,
-            run(runState) {
-              const { cost, heal } = moeDuffTerms(runState, 1, 12);
-              if (runState.donutsCurrency < cost) return { text: "You're out of money. Moe doesn't do tabs." };
-              runState.donutsCurrency -= cost;
-              runState.hp = Math.min(runState.maxHp, runState.hp + heal);
-              shiftRelationship(runState, 'moe', 1);
-              const priceLine = cost === 0 ? 'On the house.' : `-${cost} donut${cost === 1 ? '' : 's'}.`;
-              return { text: `One Duff, coming right up. (+${heal} HP, ${priceLine})` };
-            },
-          },
-          { id: 'takeABreather', label: 'TAKE A BREATHER', cost: 1, special: 'abilityDraft' },
+          // Not the HP rest above -- this is Moe's-flavored ability drafting
+          // (the old rest-node "LEARN ABILITY" mechanic), kept as its own
+          // option so it isn't lost in the "I NEED A MINUTE." rework.
+          { id: 'oldTimersTrick', label: "PICK UP AN OLD TIMER'S TRICK", cost: 1, special: 'abilityDraft' },
           {
             id: 'backRoom',
             label: 'CHECK THE BACK ROOM',
@@ -467,6 +550,14 @@ export const INTERIORS = {
           },
         ],
       },
+      // This is the state actually showing during Segment I ("Night of the
+      // Living Flanders" stacks the zombieOutbreak Horror Rule immediately),
+      // so it gets the same dialogue-tree redesign as `normal` above, plus
+      // three specific fixes the old version needed: BARRICADE and
+      // INVESTIGATE THE BLOOD move from standing buttons into TALK TO MOE's
+      // dialogue, REST AT THE BAR is retired as a duplicate of I NEED A
+      // MINUTE., and THE REGULARS ARE MOVING WRONG becomes a real 3-choice
+      // event (CONFRONT/LOCK THE DOORS/PRETEND) instead of an instant fight.
       zombieOutbreak: {
         background: '🩸',
         intro: 'The lights flicker. Bar stools lie overturned. A blood trail leads toward the back room. Moe is holding a shotgun. Barney is nowhere in sight.',
@@ -480,14 +571,6 @@ export const INTERIORS = {
                 text: 'Moe (not lowering the shotgun): "One of \'em got in. I handled it. Mostly."',
                 followUps: [
                   {
-                    id: 'whereBarney',
-                    label: 'WHAT HAPPENED TO BARNEY?',
-                    run(runState) {
-                      if (!runState.quests.wheresBarney) runState.quests.wheresBarney = 'active';
-                      return { text: 'Moe: "He went to the back for a keg. That was an hour ago." (You should go looking for him.)' };
-                    },
-                  },
-                  {
                     id: 'itsOkayMoe',
                     label: "IT'S OKAY, MOE.",
                     run(runState) {
@@ -495,70 +578,127 @@ export const INTERIORS = {
                       return { text: 'Moe lowers the shotgun an inch. "...Thanks, Homer."' };
                     },
                   },
+                  {
+                    id: 'askBlood',
+                    label: 'WHAT HAPPENED TO THE BLOOD TRAIL?',
+                    run() {
+                      return { text: 'Moe: "Leads straight to the back room door. I ain\'t opened it." It\'s now very firmly closed.' };
+                    },
+                  },
+                  {
+                    id: 'offerBarricade',
+                    label: 'LET ME BARRICADE THAT DOOR.',
+                    run(runState) {
+                      if (runState.world.locationFlags.moesTavern === 'Barricaded') {
+                        return { text: 'Moe: "Already done, Homer. Keep up."' };
+                      }
+                      runState.world.locationFlags.moesTavern = 'Barricaded';
+                      shiftRelationship(runState, 'moe', 1);
+                      return { text: 'You wedge a pool table against the front door. Moe nods. "...Yeah. Okay. That helps." (MOE\'S TAVERN: BARRICADED)' };
+                    },
+                  },
                 ],
               };
             },
           },
           {
-            id: 'restAtBar',
-            label: 'REST AT THE BAR',
-            cost: 1,
+            id: 'whatveYouGot',
+            label: "WHAT'VE YOU GOT?",
+            cost: 0,
             run(runState) {
-              const { cost, heal } = moeDuffTerms(runState, 1, 18);
-              if (runState.donutsCurrency < cost) return { text: "You're out of money, and Moe's not in a charitable mood tonight." };
-              runState.donutsCurrency -= cost;
-              runState.hp = Math.min(runState.maxHp, runState.hp + heal);
-              const priceLine = cost === 0 ? 'On the house.' : `-${cost} donut${cost === 1 ? '' : 's'}.`;
-              return { text: `Moe keeps watch while you catch your breath behind the bar. (+${heal} HP, ${priceLine})` };
-            },
-          },
-          { id: 'takeABreatherZ', label: 'TAKE A BREATHER', cost: 1, special: 'abilityDraft' },
-          {
-            id: 'investigateBlood',
-            label: 'INVESTIGATE THE BLOOD',
-            cost: 1,
-            run() {
-              return { text: 'It leads straight to the back room door, which is now very firmly closed.' };
+              return {
+                text: 'Moe keeps the shotgun in one hand and pours with the other. "Still open for business. Barely."',
+                followUps: moeServiceFollowUps(runState),
+              };
             },
           },
           {
-            id: 'barricade',
-            label: 'BARRICADE THE DOOR',
+            id: 'heardAnything',
+            label: 'HEARD ANYTHING?',
             cost: 1,
             run(runState) {
-              runState.world.locationFlags.moesTavern = 'Barricaded';
-              return { text: 'You wedge a pool table against the front door. Should buy some time.' };
+              return { text: moeRumor(runState) };
             },
           },
+          {
+            id: 'wheresBarney',
+            label: "WHERE'S BARNEY?",
+            cost: 0,
+            run(runState) {
+              if (runState.quests.wheresBarney === 'active') {
+                return { text: 'Moe: "Still lookin\'? Back room, probably. If you\'re brave."' };
+              }
+              if (runState.quests.wheresBarney === 'complete') {
+                return { text: 'Moe: "Barney\'s fine. Or as fine as Barney gets."' };
+              }
+              runState.quests.wheresBarney = 'active';
+              return { text: 'Moe: "He went to the back for a keg. That was an hour ago." (QUEST STARTED: WHERE\'S BARNEY?)' };
+            },
+          },
+          moeRestInteraction(),
+          { id: 'oldTimersTrickZ', label: "PICK UP AN OLD TIMER'S TRICK", cost: 1, special: 'abilityDraft' },
           {
             id: 'searchBarney',
             label: 'SEARCH FOR BARNEY',
             cost: 1,
+            visible(runState) {
+              return runState.quests.wheresBarney === 'active';
+            },
             run(runState) {
               if (runState.world.secretsFoundIds.includes('moesBackRoom')) {
                 return { text: 'Still no sign of him back here.' };
               }
               runState.world.secretsFoundIds.push('moesBackRoom');
               if (Math.random() < 0.5) {
-                return { text: 'SECRET FOUND! Barney, alive, hiding in the walk-in fridge. "Is it over? Is the keg okay?" He stumbles out, rattled but fine.' };
+                runState.quests.wheresBarney = 'complete';
+                return { text: 'SECRET FOUND! Barney, alive, hiding in the walk-in fridge. "Is it over? Is the keg okay?" He stumbles out, rattled but fine. (WHERE\'S BARNEY?: COMPLETE)' };
               }
               runState.hp = Math.max(1, runState.hp - 15);
               return { text: "SECRET FOUND! It's not Barney anymore. It lunges before you slam the door shut. (-15 HP)" };
             },
           },
-          // Hands off to a real fight (see game.js onInteriorInteract's
-          // `special: 'combat'` case) instead of resolving inline -- the
-          // "Moe's" encounter combo: Lenny and Carl buff each other for
-          // fighting side by side, and Barney's just built like a tank.
+          // A real 3-choice horror event instead of an instant fight --
+          // CONFRONT LENNY hands off to a real battle the same way a
+          // top-level `special: 'combat'` interaction always has (see
+          // game.js onInteriorFollowUp's matching case).
           {
             id: 'regularsWrong',
             label: 'THE REGULARS ARE MOVING WRONG',
             cost: 1,
-            special: 'combat',
-            flagId: 'moesRegularsFought',
-            combatContent: { type: 'combat', enemyIds: ['zombieLenny', 'zombieCarl', 'zombieBarney'] },
             visible(runState) {
               return !runState.world.locationFlags.moesRegularsFought;
+            },
+            run() {
+              return {
+                text: "Lenny, Carl, and Barney haven't moved from the corner booth in a while. Haven't blinked either.",
+                followUps: [
+                  {
+                    id: 'confrontLenny',
+                    label: 'CONFRONT LENNY',
+                    special: 'combat',
+                    flagId: 'moesRegularsFought',
+                    combatContent: { type: 'combat', enemyIds: ['zombieLenny', 'zombieCarl', 'zombieBarney'] },
+                  },
+                  {
+                    id: 'lockDoors',
+                    label: 'TELL MOE TO LOCK THE DOORS',
+                    run(runState) {
+                      shiftRelationship(runState, 'moe', 1);
+                      runState.mayhem = Math.min(100, runState.mayhem + 5);
+                      runState.world.locationFlags.moesRegularsFought = true;
+                      return { text: 'Moe locks the doors without asking why. The three of them just... sit there. Nobody sleeps tonight. (MOE FAVOR UP, MAYHEM +5%)' };
+                    },
+                  },
+                  {
+                    id: 'pretendDidntNotice',
+                    label: "PRETEND YOU DIDN'T NOTICE",
+                    run(runState) {
+                      runState.world.locationFlags.moesRegularsFought = true;
+                      return { text: "You look away. Nothing happens. Yet." };
+                    },
+                  },
+                ],
+              };
             },
           },
         ],

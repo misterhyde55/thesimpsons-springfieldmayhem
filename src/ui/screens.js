@@ -1099,10 +1099,27 @@ export function populateTravelScreen(scene, sceneLine, destinationName, travelOu
 }
 
 // ---------- LOCATION INTERIOR (enterable Springfield buildings) ----------
-export function populateLocationInterior(locationName, state, actionsRemaining, onInteract, onLeave) {
+// `imageAssetId` (data/interiors.js's per-interior `image` field, e.g.
+// moesTavern's 'moeChat') swaps the small emoji glyph for a real, large,
+// aspect-ratio-preserved scene photo -- the visual centerpiece the
+// interaction list sits below, not a tiny generic rectangle. Falls back to
+// the emoji for every interior that doesn't have art yet.
+export function populateLocationInterior(locationName, state, actionsRemaining, onInteract, onLeave, imageAssetId) {
   $('interior-location-name').textContent = locationName.toUpperCase();
   $('interior-actions-readout').textContent = `ACTIONS REMAINING: ${actionsRemaining}`;
-  $('interior-background-emoji').textContent = state.background;
+  const stage = $('interior-stage');
+  const imageUrl = imageAssetId ? getAssetUrl('ui', imageAssetId) : null;
+  const imageEl = $('interior-image');
+  stage.classList.toggle('has-image', !!imageUrl);
+  if (imageUrl) {
+    imageEl.src = imageUrl;
+    imageEl.classList.remove('hidden');
+    $('interior-background-emoji').classList.add('hidden');
+  } else {
+    imageEl.classList.add('hidden');
+    $('interior-background-emoji').classList.remove('hidden');
+    $('interior-background-emoji').textContent = state.background;
+  }
   $('interior-intro-text').textContent = state.intro;
   $('interior-result-panel').classList.add('hidden');
 
@@ -1110,10 +1127,11 @@ export function populateLocationInterior(locationName, state, actionsRemaining, 
   container.innerHTML = '';
   container.classList.remove('hidden');
   for (const interaction of state.interactions) {
+    const cost = interaction.cost ?? 1;
     const btn = document.createElement('button');
     btn.className = 'big-button interior-interaction-btn';
-    btn.disabled = actionsRemaining <= 0;
-    btn.innerHTML = `${interaction.label} <small>-${interaction.cost} action${interaction.cost === 1 ? '' : 's'}</small>`;
+    btn.disabled = actionsRemaining < cost;
+    btn.innerHTML = cost > 0 ? `${interaction.label} <small>-${cost} action${cost === 1 ? '' : 's'}</small>` : interaction.label;
     btn.addEventListener('click', () => onInteract(interaction));
     container.appendChild(btn);
   }

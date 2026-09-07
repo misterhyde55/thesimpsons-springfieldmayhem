@@ -729,6 +729,12 @@ export class Game {
     this.interiorStateId = stateId;
     this.interiorState = state;
     this.interiorActionsRemaining = INTERIOR_STARTING_ACTIONS;
+    // "Once per visit" services (Moe's BAR SNACKS/I NEED A MINUTE.) reset
+    // fresh every time Homer actually walks back in, not once per episode.
+    if (locationId === 'moesTavern') {
+      delete this.runState.world.locationFlags.moeSnacksThisVisit;
+      delete this.runState.world.locationFlags.moeRestedThisVisit;
+    }
     screens.showScreen('screen-location-interior');
     screens.updateHeaderRunInfo(this.runState);
     screens.freshButton('btn-interior-pause').addEventListener('click', () => this.openPauseMenu());
@@ -745,7 +751,8 @@ export class Game {
       visibleState,
       this.interiorActionsRemaining,
       (interaction) => this.onInteriorInteract(interaction),
-      () => this.leaveInterior()
+      () => this.leaveInterior(),
+      INTERIORS[this.interiorLocationId].image
     );
     if (this.interiorActionsRemaining === 1) {
       screens.showBanner('☠ SOMETHING IS APPROACHING. Make this one count.', 2000);
@@ -755,7 +762,10 @@ export class Game {
   }
 
   onInteriorInteract(interaction) {
-    if (this.interiorActionsRemaining <= 0) return;
+    // Cost-aware guard: a free dialogue branch (cost: 0, e.g. Moe's
+    // WHAT'VE YOU GOT?/LEAVE) stays available even with zero actions left,
+    // since talking itself was never the thing spending them.
+    if (this.interiorActionsRemaining < (interaction.cost ?? 1)) return;
 
     if (interaction.special === 'shop') {
       this.interiorActionsRemaining -= 1;
@@ -794,7 +804,7 @@ export class Game {
       return;
     }
 
-    this.interiorActionsRemaining -= 1;
+    this.interiorActionsRemaining -= interaction.cost ?? 1;
     const result = interaction.run(this.runState);
     saveActiveRun(this.runState);
     screens.showInteriorResult(
@@ -806,6 +816,28 @@ export class Game {
   }
 
   onInteriorFollowUp(followUp) {
+    // Most followUps are still a free dialogue reply (cost undefined -> 0,
+    // the original behavior); Moe's WHAT'VE YOU GOT? services are the
+    // first followUps to carry their own real cost.
+    if (this.interiorActionsRemaining < (followUp.cost || 0)) {
+      screens.showInteriorResult("You're out of time for that right now.", null, null, () => this.afterInteriorResult());
+      return;
+    }
+    // Mirrors onInteriorInteract's top-level `special: 'combat'` case --
+    // a followUp (e.g. Moe's "THE REGULARS ARE MOVING WRONG" event's
+    // CONFRONT LENNY choice) can hand off to a real fight too, not just a
+    // top-level interaction.
+    if (followUp.special === 'combat') {
+      this.interiorActionsRemaining -= followUp.cost || 0;
+      if (followUp.flagId) this.runState.world.locationFlags[followUp.flagId] = true;
+      markLocationVisited(this.runState, this.interiorLocationId);
+      this.currentLocationId = this.interiorLocationId;
+      this.currentLocation = LOCATIONS[this.interiorLocationId];
+      saveActiveRun(this.runState);
+      this.enterBattleForLocationContent(this.interiorLocationId, followUp.combatContent);
+      return;
+    }
+    this.interiorActionsRemaining -= followUp.cost || 0;
     const result = followUp.run(this.runState);
     saveActiveRun(this.runState);
     screens.showInteriorResult(result.text, null, null, () => this.afterInteriorResult());

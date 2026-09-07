@@ -1635,8 +1635,22 @@ body:not(.header-hidden) .location-interior-screen {
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
+  overflow: hidden;
 }
 .interior-background-emoji { font-size: 5rem; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5)); }
+/* A real interior photo (data/interiors.js `image`, e.g. Moe's Tavern's
+   moechat.jfif) is the visual centerpiece, not a tiny generic rectangle --
+   sized to the artwork's own aspect ratio and shown at real scale, never
+   stretched/cropped by a fixed box. */
+.interior-stage.has-image {
+  max-width: 720px;
+  height: auto;
+  aspect-ratio: 736 / 375;
+  flex-shrink: 0;
+  border: 3px solid #f6d217;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.interior-image { width: 100%; height: 100%; object-fit: contain; background: #000; }
 .interior-intro-text { max-width: 560px; color: #e2e2ea; font-style: italic; text-align: center; margin-bottom: 14px; }
 .interior-interactions { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .interior-interaction-btn small { display: block; font-weight: 400; opacity: 0.75; font-size: 0.7rem; margin-top: 2px; }
