@@ -640,7 +640,7 @@ export function populateBattle(battle, runState, handlers) {
       <div class="combatant-footer">
         <div class="combatant-name">${enemy.name}</div>
         ${battle.isBoss ? `<div class="boss-phase-label">${bossPhaseLabelText(enemy)}</div>` : ''}
-        <div class="hp-bar-outer"><div class="hp-bar-inner"></div><span class="hp-bar-label"></span></div>
+        <div class="hp-bar-outer"><div class="hp-bar-ghost"></div><div class="hp-bar-inner"></div><span class="hp-bar-label"></span></div>
         ${
           enemy.breakMax
             ? '<div class="break-bar-outer"><div class="break-bar-inner"></div><span class="break-bar-label"></span></div>'
@@ -717,8 +717,10 @@ export function populateBattle(battle, runState, handlers) {
 // intents/ability affordability). Called after every action.
 export function renderBattle(battle, runState) {
   const p = battle.player;
-  $('battle-player-hp-bar').style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
+  const playerHpPct = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
+  $('battle-player-hp-bar').style.width = playerHpPct;
   $('battle-player-hp-bar').style.background = p.hp / p.maxHp < 0.3 ? '#d0021b' : '#3ec24c';
+  $('battle-player-hp-bar-ghost').style.width = playerHpPct;
   $('battle-player-hp-text').textContent = `${Math.max(0, Math.round(p.hp))} / ${p.maxHp}`;
   $('battle-player-statuses').innerHTML = statusPipsHtml(p.statuses);
   $('battle-energy-value').textContent = p.energy;
@@ -732,7 +734,9 @@ export function renderBattle(battle, runState) {
     if (!slot) continue;
     const dead = enemy.hp <= 0;
     slot.classList.toggle('dead', dead);
-    slot.querySelector('.hp-bar-inner').style.width = `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%`;
+    const enemyHpPct = `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%`;
+    slot.querySelector('.hp-bar-inner').style.width = enemyHpPct;
+    slot.querySelector('.hp-bar-ghost').style.width = enemyHpPct;
     slot.querySelector('.hp-bar-label').textContent = `${Math.max(0, Math.round(enemy.hp))} / ${enemy.maxHp}`;
     slot.querySelector('.status-row').innerHTML = statusPipsHtml(enemy.statuses);
     const breakOuter = slot.querySelector('.break-bar-outer');
@@ -886,6 +890,14 @@ export function shakeBattleStage() {
   // Force reflow so re-adding the class restarts the animation.
   void stage.offsetWidth;
   stage.classList.add('shake');
+}
+
+// A brief dramatic pause for a boss phase transition (data/bosses.js
+// `transitionLine`, e.g. Zombie Ned's "Okie dokie...") -- darkens the
+// battlefield for the duration game.js holds it, distinct from the ordinary
+// per-hit shake/flash.
+export function setBattleDarkened(on) {
+  document.querySelector('.battle-stage')?.classList.toggle('battle-darkened', on);
 }
 
 export function appendBattleLog(text) {

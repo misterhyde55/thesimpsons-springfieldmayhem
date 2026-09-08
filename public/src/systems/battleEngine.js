@@ -150,8 +150,12 @@ function checkPhaseTransition(battle, runState, enemy, events) {
   const idx = currentPhaseIndex(enemy);
   if (idx === enemy.lastPhaseIndex) return;
   enemy.lastPhaseIndex = idx;
+  // A fixed-pattern phase (see enemyAI.js rollIntent) always opens on step 0
+  // of its own pattern -- never picks up wherever the PREVIOUS phase's
+  // pattern/weighted-roll count happened to leave off.
+  enemy.turnsInPhase = 0;
   const phase = enemy.template.phases[idx];
-  events.push({ kind: 'phaseChange', targetId: enemy.instanceId, phaseIndex: idx, phaseName: phase.name || null });
+  events.push({ kind: 'phaseChange', targetId: enemy.instanceId, phaseIndex: idx, phaseName: phase.name || null, transitionLine: phase.transitionLine || null });
   if (enemy.template.onPhaseChange) enemy.template.onPhaseChange(battle, runState, enemy, idx);
 }
 
@@ -176,6 +180,10 @@ function instantiateEnemy(template) {
     break: template.breakMax || 0,
     brokenThisCycle: false,
     lastPhaseIndex: 0,
+    // How many of ITS OWN turns this enemy has taken since entering its
+    // current phase -- only meaningful for a phase with a fixed `pattern`
+    // (enemyAI.js rollIntent); reset to 0 by checkPhaseTransition above.
+    turnsInPhase: 0,
   };
 }
 
