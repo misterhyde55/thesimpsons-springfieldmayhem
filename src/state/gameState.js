@@ -128,7 +128,11 @@ export function createRunState(character) {
     stats: {
       enemiesDefeated: 0,
       elitesDefeated: 0,
+      bossesDefeated: 0,
       peakMayhem: 0,
+      // Wall-clock start (episode reveal confirm), for the Episode Results
+      // screen's RUN TIME -- see game.js finalizeRun.
+      startedAt: Date.now(),
     },
     relationships: {
       moe: 'neutral',

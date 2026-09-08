@@ -1120,7 +1120,14 @@ export function hideLocationInspect() {
 }
 
 // ---------- ABILITY DRAFT (post-battle reward) ----------
-export function populateAbilityDraft(summary, abilities, onPick, options = {}) {
+// REWARD SCREEN CLARITY: every ordinary victory (by far the most common
+// reward moment in the game) now gets the exact same full explanation as a
+// boss reward -- effect text, keyword tooltips, and archetype synergy --
+// via the same buildRewardCardContent/rewardCardHtml/scanKeywordsIn used by
+// populateBossReward, instead of a bare name+description card. Non-milestone
+// picks also get the same select-then-confirm double-click protection
+// (a stray click no longer permanently locks in a deck choice).
+export function populateAbilityDraft(summary, abilities, runState, onPick, options = {}) {
   const milestone = !!options.milestone;
   $('ability-draft-heading').textContent = milestone ? '\u{1F31F} NEW ABILITY UNLOCKED \u{1F31F}' : 'VICTORY';
   $('ability-draft-location').textContent = summary.locationName;
@@ -1136,20 +1143,33 @@ export function populateAbilityDraft(summary, abilities, onPick, options = {}) {
   container.classList.toggle('milestone-reveal', milestone);
   if (abilities.length === 0) {
     container.innerHTML = '<p class="flavor">No new abilities available. Onward!</p>';
+    freshButton('btn-ability-draft-skip').classList.add('hidden');
+    return;
   }
-  for (const ability of abilities) {
-    const card = document.createElement('div');
-    card.className = 'upgrade-card' + (milestone ? ' upgrade-card-milestone' : '');
-    card.style.borderColor = RARITY_COLOR[ability.rarity];
-    card.innerHTML = `
-      <div class="upgrade-rarity" style="color:${RARITY_COLOR[ability.rarity]}">${ability.rarity.toUpperCase()} · ⚡${ability.cost}</div>
-      <div class="emoji">${ability.emoji}</div>
-      <div class="upgrade-name">${ability.name}</div>
-      <div class="upgrade-desc">${ability.description}</div>
-    `;
-    if (!milestone) card.addEventListener('click', () => onPick(ability));
-    container.appendChild(card);
+
+  const contents = abilities.map((ability) => buildRewardCardContent({ kind: 'ability', id: ability.id }, runState));
+  if (milestone) {
+    // Single guaranteed pickup -- show the full card, no select/take-button
+    // gating (there's nothing to choose between).
+    container.innerHTML = rewardCardHtml(contents[0], 0);
+    container.querySelector('.reward-card-take-btn')?.classList.add('hidden');
+  } else {
+    container.innerHTML = contents.map((c, i) => rewardCardHtml(c, i)).join('');
+    const cards = Array.from(container.querySelectorAll('.reward-card'));
+    for (const card of cards) {
+      const idx = Number(card.dataset.index);
+      const takeBtn = card.querySelector('.reward-card-take-btn');
+      card.addEventListener('click', (e) => {
+        if (e.target === takeBtn) return;
+        for (const other of cards) {
+          other.classList.toggle('selected', other === card);
+          other.querySelector('.reward-card-take-btn').classList.toggle('hidden', other !== card);
+        }
+      });
+      takeBtn.addEventListener('click', () => onPick(abilities[idx]));
+    }
   }
+
   const skipBtn = freshButton('btn-ability-draft-skip');
   if (milestone) {
     skipBtn.textContent = 'CONTINUE';
@@ -1157,7 +1177,7 @@ export function populateAbilityDraft(summary, abilities, onPick, options = {}) {
     skipBtn.addEventListener('click', () => onPick(abilities[0]));
   } else {
     skipBtn.textContent = 'SKIP';
-    skipBtn.classList.toggle('hidden', abilities.length === 0);
+    skipBtn.classList.remove('hidden');
     skipBtn.addEventListener('click', () => onPick(null));
   }
 }
@@ -1510,11 +1530,16 @@ export function showInteriorResult(text, followUps, onPickFollowUp, onContinue) 
 // ---------- RUN END ----------
 function statsListHtml(result) {
   return `
+    <li><span>Locations Visited</span><span>${result.nodesCleared}</span></li>
     <li><span>Enemies Defeated</span><span>${result.stats.enemiesDefeated}</span></li>
     <li><span>Elites Defeated</span><span>${result.stats.elitesDefeated}</span></li>
+    <li><span>Bosses Defeated</span><span>${result.stats.bossesDefeated || 0}</span></li>
+    <li><span>Side Quests Completed</span><span>${result.questsCompleted}</span></li>
     <li><span>Peak Mayhem</span><span>${result.stats.peakMayhem}%</span></li>
     <li><span>Abilities Learned</span><span>${result.abilitiesLearned}</span></li>
     <li><span>Relics Collected</span><span>${result.relicsCollected}</span></li>
+    <li><span>Build</span><span>${result.buildType}</span></li>
+    <li><span>Run Time</span><span>${result.runTimeText}</span></li>
   `;
 }
 
