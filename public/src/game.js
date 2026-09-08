@@ -84,6 +84,40 @@ const CORRUPTION_MAYHEM_THRESHOLD = 50;
 // player can't investigate everything" is the point, see data/interiors.js.
 const INTERIOR_STARTING_ACTIONS = 3;
 
+// EPISODE RESULTS: "BUILD TYPE" -- a purely cosmetic read of the deck's
+// dominant non-universal archetype (data/abilities.js `archetype`), shown
+// on the run-complete/run-failure screen so a player can recognize "I beat
+// this with a Bowling Homer build" the way the playtest spec asks for,
+// without inventing a whole new build-archetype mechanic.
+const BUILD_TYPE_LABELS = {
+  duff: 'DUFF HOMER',
+  food: 'DONUT HOMER',
+  bowling: 'BOWLING HOMER',
+  nuclear: 'NUCLEAR HOMER',
+  rage: 'ANGRY HOMER',
+};
+function describeBuildType(abilityDeck) {
+  const counts = {};
+  for (const id of abilityDeck) {
+    const archetype = ABILITIES[id]?.archetype;
+    if (archetype && archetype !== 'universal') counts[archetype] = (counts[archetype] || 0) + 1;
+  }
+  const [topArchetype, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || [];
+  if (!topArchetype || topCount < 2) return 'BALANCED HOMER';
+  return BUILD_TYPE_LABELS[topArchetype] || 'BALANCED HOMER';
+}
+
+// EPISODE RESULTS: "RUN TIME" -- wall-clock since the episode reveal was
+// confirmed (runState.stats.startedAt), formatted MM:SS or H:MM:SS.
+function formatRunTime(ms) {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
+}
+
 function shopFlavorForApu(runState) {
   const level = runState.relationships.apu;
   if (runState.mayhem >= 70 && level === 'enemy') return 'Apu: "...just take what you need. No charge tonight."';
@@ -1485,6 +1519,7 @@ export class Game {
         : null;
     this.runState.stats.enemiesDefeated += this.battle.enemies.length;
     if (content.elite) this.runState.stats.elitesDefeated += 1;
+    if (content.type === 'boss') this.runState.stats.bossesDefeated = (this.runState.stats.bossesDefeated || 0) + 1;
     this.increaseMayhem(content.type === 'boss' ? 0 : content.elite ? 15 : 8);
     if (!gaveUpMoeWin) this.grantVictoryCash(content);
     if (content.bonusConsumableChance && Math.random() < content.bonusConsumableChance) this.grantBonusConsumable();
@@ -1664,6 +1699,7 @@ export class Game {
         mayhem: this.runState.mayhem,
       },
       choices,
+      this.runState,
       (ability) => {
         if (ability) {
           learnAbility(this.runState, ability);
@@ -1718,6 +1754,13 @@ export class Game {
 
     const castNames = this.runState.cast.map((id) => getCharacterInfo(id)?.name || id);
     const horrorRuleNames = this.runState.activeHorrorRuleIds.map((id) => HORROR_RULES[id]?.name).filter(Boolean);
+    // A quest is "done" once it's anything other than 'active' (see
+    // data/quests.js -- 'resolved'/'complete'/a specific outcome string like
+    // 'killed'/'saved' all count; an absent key means never started).
+    const questsCompleted = Object.values(this.runState.quests).filter((v) => v && v !== 'active').length;
+    const runTimeMs = Date.now() - (stats.startedAt || Date.now());
+    const runTimeText = formatRunTime(runTimeMs);
+    const buildType = describeBuildType(this.runState.abilityDeck);
 
     const result = {
       season: this.meta.season,
@@ -1733,6 +1776,9 @@ export class Game {
       rating,
       viewers: (Math.random() * 8 + rating * 2).toFixed(1),
       nodesCleared,
+      questsCompleted,
+      runTimeText,
+      buildType,
       lastLocationName: this.currentLocation ? this.currentLocation.name : '???',
       stats: { ...stats },
       abilitiesLearned: this.runState.abilityDeck.length - STARTER_ABILITY_IDS.length,
