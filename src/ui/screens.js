@@ -1412,7 +1412,17 @@ export function populateTravelScreen(scene, sceneLine, destinationName, travelOu
 // aspect-ratio-preserved scene photo -- the visual centerpiece the
 // interaction list sits below, not a tiny generic rectangle. Falls back to
 // the emoji for every interior that doesn't have art yet.
-export function populateLocationInterior(locationName, state, actionsRemaining, onInteract, onLeave, imageAssetId) {
+// REDESIGN MOE'S TAVERN + KWIK-E-MART: a "fast pit stop" reads two large,
+// obvious buttons (the actual reason to visit -- a heal, the store) plus a
+// row of small utility chips underneath for everything else the location
+// still offers (talk/rumors/quests/secrets/upgrades, all now folded behind
+// a single TALK TO X chip's dialogue tree -- see data/interiors.js), rather
+// than one long vertical stack of a dozen equally-sized buttons. An
+// interaction opts into the small row with `secondary: true`; an interaction
+// with `isUsed(runState)` returning true renders disabled with its
+// `usedLabel` instead of the normal cost caption (e.g. Moe's HAVE A BEER ->
+// "ALREADY HAD ONE" once spent this visit).
+export function populateLocationInterior(locationName, state, actionsRemaining, onInteract, onLeave, imageAssetId, runState) {
   $('interior-location-name').textContent = locationName.toUpperCase();
   $('interior-actions-readout').textContent = `ACTIONS REMAINING: ${actionsRemaining}`;
   const stage = $('interior-stage');
@@ -1431,17 +1441,32 @@ export function populateLocationInterior(locationName, state, actionsRemaining, 
   $('interior-intro-text').textContent = state.intro;
   $('interior-result-panel').classList.add('hidden');
 
-  const container = $('interior-interactions');
-  container.innerHTML = '';
-  container.classList.remove('hidden');
+  if (runState) {
+    $('interior-hp-readout').textContent = `HP ${Math.max(0, Math.round(runState.hp))}/${runState.maxHp}`;
+    $('interior-cash-readout').textContent = `🍩 ${runState.donutsCurrency}`;
+  }
+
+  const primaryContainer = $('interior-interactions-primary');
+  const secondaryContainer = $('interior-interactions-secondary');
+  primaryContainer.classList.remove('hidden');
+  secondaryContainer.classList.remove('hidden');
+  primaryContainer.innerHTML = '';
+  secondaryContainer.innerHTML = '';
   for (const interaction of state.interactions) {
     const cost = interaction.cost ?? 1;
+    const used = runState && interaction.isUsed ? interaction.isUsed(runState) : false;
     const btn = document.createElement('button');
-    btn.className = 'big-button interior-interaction-btn';
-    btn.disabled = actionsRemaining < cost;
-    btn.innerHTML = cost > 0 ? `${interaction.label} <small>-${cost} action${cost === 1 ? '' : 's'}</small>` : interaction.label;
+    btn.className = interaction.secondary
+      ? 'interior-interaction-btn interior-interaction-btn--secondary'
+      : 'big-button interior-interaction-btn interior-interaction-btn--primary';
+    btn.disabled = used || actionsRemaining < cost;
+    if (used) {
+      btn.textContent = interaction.usedLabel || interaction.label;
+    } else {
+      btn.innerHTML = cost > 0 ? `${interaction.label} <small>-${cost} action${cost === 1 ? '' : 's'}</small>` : interaction.label;
+    }
     btn.addEventListener('click', () => onInteract(interaction));
-    container.appendChild(btn);
+    (interaction.secondary ? secondaryContainer : primaryContainer).appendChild(btn);
   }
   freshButton('btn-interior-leave').addEventListener('click', onLeave);
 }
@@ -1450,7 +1475,8 @@ export function populateLocationInterior(locationName, state, actionsRemaining, 
 // its free follow-up replies) in the result panel, hiding the interaction
 // list underneath until the player hits Continue.
 export function showInteriorResult(text, followUps, onPickFollowUp, onContinue) {
-  $('interior-interactions').classList.add('hidden');
+  $('interior-interactions-primary').classList.add('hidden');
+  $('interior-interactions-secondary').classList.add('hidden');
   const panel = $('interior-result-panel');
   panel.classList.remove('hidden');
   $('interior-result-text').textContent = text;

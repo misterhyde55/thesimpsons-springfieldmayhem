@@ -2056,9 +2056,62 @@ body:not(.header-hidden) .location-interior-screen {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .interior-image { width: 100%; height: 100%; object-fit: contain; background: #000; }
-.interior-intro-text { max-width: 560px; color: #e2e2ea; font-style: italic; text-align: center; margin-bottom: 14px; }
-.interior-interactions { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.interior-intro-text { max-width: 560px; color: #e2e2ea; font-style: italic; text-align: center; margin-bottom: 8px; }
+
+/* Current HP/Cash at a glance -- the fast-decision numbers ("do I need
+   this heal?") that used to only show up buried in result text. */
+.interior-status-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.interior-status-chip {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #3a3a44;
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff8ea;
+}
+
+/* Two large, obvious buttons for the actual reason to be here (a heal, the
+   store) -- side by side so the whole primary decision reads in one glance,
+   no scrolling. Secondary interactions (TALK TO X, USE AN ITEM, UPGRADE A
+   CARD, and other rarer/quest-gated finds) render smaller underneath. */
+.interior-interactions-primary {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.interior-interactions-primary .interior-interaction-btn--primary { flex: 1 1 200px; margin: 0; }
 .interior-interaction-btn small { display: block; font-weight: 400; opacity: 0.75; font-size: 0.7rem; margin-top: 2px; }
+
+.interior-interactions-secondary {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.interior-interaction-btn--secondary {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 8px 16px;
+  border: 2px solid #444;
+  border-radius: 20px;
+  background: none;
+  color: #fff8ea;
+  cursor: pointer;
+}
+.interior-interaction-btn--secondary:hover { border-color: #f6d217; color: #f6d217; }
+.interior-interaction-btn--secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.interior-interaction-btn--secondary small { opacity: 0.7; font-size: 0.65rem; margin-left: 4px; }
+
+.interior-leave-btn { margin-top: 0; }
+
 .interior-result-panel {
   width: 100%;
   max-width: 480px;
