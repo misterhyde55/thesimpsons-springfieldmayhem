@@ -1726,6 +1726,140 @@ body:not(.header-hidden) .location-interior-screen {
   50% { box-shadow: 0 0 36px 10px rgba(246, 210, 23, 0.6); }
 }
 
+/* ---- REDESIGN REWARD CHOICE SCREEN: fully-explained boss reward cards --
+   every card always shows its full detail (type, rarity, real numbers,
+   permanence, keywords, synergy, "good for"); selecting one just enlarges
+   it and reveals its own TAKE button, it doesn't reveal hidden info. ---- */
+.boss-reward-screen { padding: 24px 16px 40px; text-align: center; }
+.boss-reward-headline {
+  font-family: 'Titan One', 'Impact', 'Arial Black', sans-serif;
+  color: #ff5a3c;
+  font-size: 1.1rem;
+  letter-spacing: 1.5px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+.boss-reward-title { color: #f6d217; font-size: 1.5rem; margin: 4px 0 6px; }
+.boss-reward-prompt { color: #d6d6de; font-size: 0.9rem; max-width: 520px; margin: 0 auto 6px; }
+.boss-reward-choose-line {
+  color: #ff8a70;
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 1px;
+  margin-bottom: 18px;
+}
+.boss-reward-cards { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+.reward-card {
+  position: relative;
+  background: #1b1b22;
+  border: 3px solid var(--reward-rarity-color, #444);
+  border-radius: 14px;
+  padding: 16px;
+  width: 240px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.reward-card:hover { transform: translateY(-3px); }
+.reward-card.selected {
+  transform: scale(1.05) translateY(-4px);
+  box-shadow: 0 0 0 3px var(--reward-rarity-color, #f6d217), 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+.reward-card-new-tag {
+  position: absolute;
+  top: -10px;
+  right: 12px;
+  background: #f6d217;
+  color: #1b1b1f;
+  font-weight: 900;
+  font-size: 0.65rem;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+.reward-card-icon { font-size: 2.4rem; text-align: center; }
+.reward-card-name { font-weight: 800; font-size: 1.05rem; text-align: center; margin: 4px 0 8px; color: #fff8ea; }
+.reward-card-badges { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; }
+.reward-card-type-badge {
+  background: rgba(56, 182, 255, 0.18);
+  border: 1px solid #38b6ff;
+  color: #38b6ff;
+  font-weight: 800;
+  font-size: 0.62rem;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+.reward-card-rarity-badge {
+  background: color-mix(in srgb, var(--reward-rarity-color, #b7b7c0) 20%, transparent);
+  border: 1px solid var(--reward-rarity-color, #b7b7c0);
+  color: var(--reward-rarity-color, #b7b7c0);
+  font-weight: 800;
+  font-size: 0.62rem;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+.reward-card-meta { font-size: 0.74rem; color: #9d9da8; text-align: center; }
+.reward-card-effect {
+  font-size: 0.85rem;
+  color: #fff8ea;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  line-height: 1.35;
+}
+.reward-card-keywords { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.reward-card-keyword {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #c9c9d3;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  cursor: help;
+}
+.reward-card-permanence {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(62, 194, 76, 0.1);
+  border: 1px solid rgba(62, 194, 76, 0.4);
+  border-radius: 8px;
+  padding: 6px 9px;
+  margin-bottom: 8px;
+}
+.reward-card-permanence-label { font-weight: 800; font-size: 0.68rem; letter-spacing: 0.4px; color: #8fd18a; }
+.reward-card-permanence-detail { font-size: 0.7rem; color: #c9c9d3; }
+.reward-card-synergy { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.reward-card-synergy-label { font-weight: 800; font-size: 0.68rem; letter-spacing: 0.4px; }
+.reward-card-synergy-label.synergy-high { color: #3ec24c; }
+.reward-card-synergy-label.synergy-medium { color: #f6d217; }
+.reward-card-synergy-label.synergy-low { color: #9d9da8; }
+.reward-card-synergy-detail { font-size: 0.7rem; color: #9d9da8; }
+.reward-card-good-for { font-size: 0.72rem; color: #d6d6de; font-style: italic; margin-bottom: 10px; }
+.reward-card-good-for span { font-style: normal; font-weight: 800; color: #ff8a70; margin-right: 4px; }
+.reward-card-take-btn {
+  display: block;
+  width: 100%;
+  background: #f6d217;
+  color: #1b1b1f;
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  border: none;
+  border-radius: 8px;
+  padding: 9px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #b89b0f;
+}
+.reward-card-take-btn:hover { background: #ffe14d; }
+.reward-card-take-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b89b0f; }
+
 .event-npc-portrait { height: 88px; width: auto; object-fit: contain; }
 .event-options { display: flex; flex-direction: column; align-items: center; }
 .event-option-btn { width: 100%; max-width: 320px; }

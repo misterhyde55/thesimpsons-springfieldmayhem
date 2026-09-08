@@ -1,8 +1,6 @@
 import { DEVIL_DEALS } from './devilDeals.js';
 import { STATUS } from './statusEffects.js';
 import { gainArmor, addStatus, applyIncomingDamage } from '../systems/statusEngine.js';
-import { RELICS } from './relics.js';
-import { ITEMS } from './items.js';
 
 // Turn-based bosses. `phases` swap the enemy's intent pool at HP thresholds
 // (see systems/enemyAI.js) so a fight visibly escalates. `intro` is shown on
@@ -274,33 +272,49 @@ export const BOSSES = {
   },
 };
 
-// Zombie Ned's post-victory reward choice (game.js's onBattleVictory,
-// after the ENCOUNTER COMPLETE summary). Same shape as DEVIL_DEALS --
-// {title, prompt, choiceA/choiceB, each {label, apply(runState) => resultText}}
-// -- so it goes through the same generic ui/screens.js showChoiceModal.
+// Zombie Ned's post-victory reward choice (game.js's onBattleVictory, after
+// the ENCOUNTER COMPLETE summary) -- REDESIGN REWARD CHOICE SCREEN: goes
+// through ui/screens.js's dedicated populateBossReward, not the generic
+// showChoiceModal DEVIL_DEALS/story choices use, since a reward needs a
+// much richer card (type/rarity/effect/permanence/keywords/synergy) than a
+// plain narrative choice does. `options[].kind` picks which real data table
+// (ABILITIES/RELICS/ITEMS) screens.js pulls the actual name/numbers from --
+// `goodFor` is the only hand-written flavor text; everything else is
+// derived live so it can never drift out of sync with the real ability/
+// relic/item definitions.
 export const ZOMBIE_NED_REWARD = {
   id: 'zombieNedReward',
-  title: 'A NEIGHBORLY SPOILS',
-  prompt: 'Ned finally falls still. Something of his is worth taking. Pick one, Homer.',
-  choiceA: {
-    label: '🥊 LEFT-HANDED UPPERCUT (New Ability)',
-    apply(runState) {
-      if (!runState.abilityDeck.includes('leftHandedUppercut')) runState.abilityDeck.push('leftHandedUppercut');
-      return 'You learn a dirty trick. LEFT-HANDED UPPERCUT JOINS YOUR ABILITIES.';
+  headline: 'ZOMBIE NED DEFEATED',
+  title: 'THE NEIGHBORLY SPOILS',
+  prompt: "Ned finally falls still. Something of his is worth taking.",
+  options: [
+    {
+      kind: 'ability',
+      id: 'leftHandedUppercut',
+      goodFor: 'Reliable single-target damage with real Break control.',
+      apply(runState) {
+        if (!runState.abilityDeck.includes('leftHandedUppercut')) runState.abilityDeck.push('leftHandedUppercut');
+        return "You learn a dirty trick.";
+      },
     },
-  },
-  choiceB: {
-    label: `${RELICS.neighborlyShield.emoji} ${RELICS.neighborlyShield.name.toUpperCase()} (Relic)`,
-    apply(runState) {
-      if (!runState.relics.includes('neighborlyShield')) runState.relics.push('neighborlyShield');
-      return `You take Ned's garden shield off the fence. ${RELICS.neighborlyShield.name.toUpperCase()} JOINS YOUR RELICS.`;
+    {
+      kind: 'relic',
+      id: 'neighborlyShield',
+      rarityLabel: 'RARE',
+      goodFor: 'Any build that leans on Armor to soak up early hits.',
+      apply(runState) {
+        if (!runState.relics.includes('neighborlyShield')) runState.relics.push('neighborlyShield');
+        return "You take Ned's garden shield off the fence.";
+      },
     },
-  },
-  choiceC: {
-    label: `${ITEMS.flandersFirstAidKit.emoji} ${ITEMS.flandersFirstAidKit.name.toUpperCase()} (Item)`,
-    apply(runState) {
-      runState.consumables.flandersFirstAidKit = (runState.consumables.flandersFirstAidKit || 0) + 1;
-      return `You grab a first aid kit off his shelf. ${ITEMS.flandersFirstAidKit.name.toUpperCase()} JOINS YOUR ITEMS.`;
+    {
+      kind: 'item',
+      id: 'flandersFirstAidKit',
+      goodFor: 'Topping off HP right before a fight you know will hurt.',
+      apply(runState) {
+        runState.consumables.flandersFirstAidKit = (runState.consumables.flandersFirstAidKit || 0) + 1;
+        return 'You grab a first aid kit off his shelf.';
+      },
     },
-  },
+  ],
 };
