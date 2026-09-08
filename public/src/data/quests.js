@@ -82,6 +82,7 @@ export function helpApuReportInteraction() {
     id: 'reportToApu',
     label: 'TELL APU WHAT YOU FOUND',
     cost: 1,
+    secondary: true,
     visible(runState) {
       return runState.quests.helpApu === 'active' && runState.world.visitedLocationIds.includes('springfieldElementary');
     },
@@ -89,7 +90,7 @@ export function helpApuReportInteraction() {
       runState.quests.helpApu = 'resolved';
       runState.relationships.apu = 'bestFriend';
       runState.donutsCurrency += 3;
-      return 'Apu: "You went and checked, for me? Homer, you are a true friend of this store." (Apu considers you his best customer from now on. +3 donuts.)';
+      return { text: 'Apu: "You went and checked, for me? Homer, you are a true friend of this store." (Apu considers you his best customer from now on. +3 donuts.)' };
     },
   };
 }

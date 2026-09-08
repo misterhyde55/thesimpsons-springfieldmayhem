@@ -149,6 +149,10 @@ export const ASSET_MANIFEST = {
     // hand) -- the visual centerpiece of the Moe's Tavern interior screen
     // (data/interiors.js moesTavern.image), not a portrait crop.
     moeChat: `${BASE}/ui/moechat.jfif`,
+    // The uploaded Kwik-E-Mart scene photo (Apu behind the counter) --
+    // same role as moeChat above, for the Kwik-E-Mart interior screen
+    // (data/interiors.js kwikEMart.image).
+    apuChat: `${BASE}/ui/Apuchat.avif`,
   },
   // Full-screen cinematic "story panel" artwork for major story beats (see
   // data/treehouseScenes.js) -- illustrated Treehouse of Horror scenes, not

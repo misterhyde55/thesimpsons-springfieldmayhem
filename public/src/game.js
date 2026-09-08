@@ -766,11 +766,11 @@ export class Game {
     this.interiorStateId = stateId;
     this.interiorState = state;
     this.interiorActionsRemaining = INTERIOR_STARTING_ACTIONS;
-    // "Once per visit" services (Moe's BAR SNACKS/I NEED A MINUTE.) reset
-    // fresh every time Homer actually walks back in, not once per episode.
+    // "Once per visit" services (Moe's BAR SNACKS/HAVE A BEER) reset fresh
+    // every time Homer actually walks back in, not once per episode.
     if (locationId === 'moesTavern') {
       delete this.runState.world.locationFlags.moeSnacksThisVisit;
-      delete this.runState.world.locationFlags.moeRestedThisVisit;
+      delete this.runState.world.locationFlags.moeBeerThisVisit;
     }
     screens.showScreen('screen-location-interior');
     screens.updateHeaderRunInfo(this.runState);
@@ -789,7 +789,8 @@ export class Game {
       this.interiorActionsRemaining,
       (interaction) => this.onInteriorInteract(interaction),
       () => this.leaveInterior(),
-      INTERIORS[this.interiorLocationId].image
+      INTERIORS[this.interiorLocationId].image,
+      this.runState
     );
     if (this.interiorActionsRemaining === 1) {
       screens.showBanner('☠ SOMETHING IS APPROACHING. Make this one count.', 2000);
@@ -886,10 +887,29 @@ export class Game {
       this.enterBattleForLocationContent(this.interiorLocationId, followUp.combatContent);
       return;
     }
+    // Mirrors onInteriorInteract's top-level 'abilityDraft' case -- lets a
+    // folded dialogue reply (e.g. Moe's "PICK UP AN OLD TIMER'S TRICK", now
+    // nested under TALK TO MOE) still hand off to the same full-screen draft.
+    if (followUp.special === 'abilityDraft') {
+      markLocationVisited(this.runState, this.interiorLocationId);
+      this.increaseMayhem(5);
+      saveActiveRun(this.runState);
+      const choices = rollAbilityChoices(this.runState, 3);
+      this.showAbilityDraftScreen(this.interiorLocationId, choices, false);
+      return;
+    }
     this.interiorActionsRemaining -= followUp.cost || 0;
     const result = followUp.run(this.runState);
     saveActiveRun(this.runState);
-    screens.showInteriorResult(result.text, null, null, () => this.afterInteriorResult());
+    // Chain onward: a folded reply can itself open another round of replies
+    // (e.g. TALK TO MOE -> UPGRADE A CARD -> pick a card), same as a
+    // top-level interaction's own followUps.
+    screens.showInteriorResult(
+      result.text,
+      result.followUps,
+      (nextFollowUp) => this.onInteriorFollowUp(nextFollowUp),
+      () => this.afterInteriorResult()
+    );
   }
 
   afterInteriorResult() {

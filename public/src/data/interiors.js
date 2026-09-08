@@ -100,23 +100,31 @@ function moeRumor(runState) {
   return `${pick.text} (NEW MAP INFORMATION)`;
 }
 
-// Moe's "I NEED A MINUTE." -- the one clear rest action (25% Max HP, once
-// per visit, exact before/after numbers shown), shared by every Moe's
-// Tavern state instead of each repeating its own HP-percentage math.
-function moeRestInteraction() {
+// Moe's is primarily a RECOVERY stop -- one obvious primary button, once per
+// visit, that scales with how bad the night has gotten (REDESIGN MOE'S
+// TAVERN: EARLY GAME = Duff, MID GAME = Duff+, LATE GAME = Moe's Special).
+function moeBeerTier(runState) {
+  if (runState.mayhem >= 65) return { heal: 35, pour: "MOE'S SPECIAL" };
+  if (runState.mayhem >= 30) return { heal: 30, pour: 'A DUFF+' };
+  return { heal: 25, pour: 'A COLD DUFF' };
+}
+
+function haveABeerInteraction() {
   return {
-    id: 'needAMinute',
-    label: 'I NEED A MINUTE.',
+    id: 'haveABeer',
+    label: 'HAVE A BEER',
     cost: 1,
+    isUsed: (runState) => !!runState.world.locationFlags.moeBeerThisVisit,
+    usedLabel: 'ALREADY HAD ONE',
     run(runState) {
-      if (runState.world.locationFlags.moeRestedThisVisit) {
-        return { text: 'Moe: "You already had your minute, Homer. Bar\'s not a hotel."' };
+      if (runState.world.locationFlags.moeBeerThisVisit) {
+        return { text: 'Moe: "You already had one, Homer. Bar\'s not a hotel."' };
       }
+      const tier = moeBeerTier(runState);
       const before = Math.round(runState.hp);
-      const healAmt = Math.round(runState.maxHp * 0.25);
-      runState.hp = Math.min(runState.maxHp, runState.hp + healAmt);
-      runState.world.locationFlags.moeRestedThisVisit = true;
-      return { text: `You put your head down on the bar for a minute. CURRENT HP ${before}/${runState.maxHp} -> AFTER REST ${Math.round(runState.hp)}/${runState.maxHp}.` };
+      runState.hp = Math.min(runState.maxHp, runState.hp + tier.heal);
+      runState.world.locationFlags.moeBeerThisVisit = true;
+      return { text: `Moe slides ${tier.pour} across the bar. "Woo-hoo!" HP ${before}/${runState.maxHp} -> ${Math.round(runState.hp)}/${runState.maxHp}. (+${tier.heal} HP)` };
     },
   };
 }
@@ -129,6 +137,23 @@ function grantUndiscoveredRelic(runState) {
   return relic;
 }
 
+// The Kwik-E-Mart's primary reason to visit alongside the STORE -- a small,
+// repeatable cash-for-HP heal (REDESIGN KWIK-E-MART: weaker than Moe's free
+// Duff, so spend-money-healing-now vs. save-for-the-store is a real choice).
+function eatAHotDogInteraction() {
+  return {
+    id: 'eatAHotDog',
+    label: 'EAT A HOT DOG',
+    cost: 1,
+    run(runState) {
+      if (runState.donutsCurrency < 5) return { text: "Apu: \"That's five donuts, Homer. Not five IOUs.\"" };
+      runState.donutsCurrency -= 5;
+      runState.hp = Math.min(runState.maxHp, runState.hp + 15);
+      return { text: "It's been on the roller since... a while. Still hits the spot. (+15 HP, -5 donuts)" };
+    },
+  };
+}
+
 // Available in every interior/state (appended below, after INTERIORS is
 // defined) -- lets Homer use a rare Kwik-E-Mart find (data/items.js
 // `rare: true` entries, held in runState.consumables) wherever he happens
@@ -138,6 +163,7 @@ function useItemInteraction() {
     id: 'useItem',
     label: 'USE AN ITEM',
     cost: 1,
+    secondary: true,
     run(runState) {
       const entries = Object.entries(runState.consumables || {}).filter(([, qty]) => qty > 0);
       if (!entries.length) return { text: 'You check your bag. Nothing in there but lint and a coupon.' };
@@ -171,6 +197,7 @@ function upgradeCardInteraction(archetype, { price, risk } = {}) {
     id: 'upgradeCard',
     label: 'UPGRADE A CARD',
     cost: 1,
+    secondary: true,
     run(runState) {
       const candidates = getUpgradableAbilities(runState, archetype);
       if (!candidates.length) {
@@ -203,6 +230,7 @@ function sellItemInteraction() {
     id: 'sellItem',
     label: 'SELL AN ITEM',
     cost: 1,
+    secondary: true,
     visible(runState) {
       return runState.world.locationStates.kwikEMart !== 'overrun';
     },
@@ -236,6 +264,7 @@ function unlockStorageCageInteraction() {
     id: 'unlockStorageCage',
     label: 'UNLOCK THE STORAGE CAGE',
     cost: 1,
+    secondary: true,
     visible(runState) {
       return !!runState.world.locationFlags.hasMysteriousKey;
     },
@@ -255,6 +284,11 @@ function unlockStorageCageInteraction() {
 export const INTERIORS = {
   kwikEMart: {
     npcId: 'apu',
+    // The uploaded Kwik-E-Mart scene photo (Apu behind the counter) -- same
+    // treatment as moesTavern's `image` below (see ui/screens.js
+    // populateLocationInterior), so both fast-pit-stop locations show real
+    // art instead of the small emoji `background` glyph.
+    image: 'apuChat',
     // Checked once after any interaction while the visit is in this state
     // (see systems/locationInterior.js) -- fires at most once per run.
     // 'normal' is only ever showing before Segment I's Horror Rule activates
@@ -267,81 +301,63 @@ export const INTERIORS = {
         background: '🏪',
         intro: 'Apu stands behind the counter, humming along to a radio that only plays static tonight.',
         interactions: [
+          eatAHotDogInteraction(),
+          { id: 'buySomething', label: 'STORE', cost: 1, special: 'shop' },
           {
-            id: 'talkApu',
+            id: 'talkToApu',
             label: 'TALK TO APU',
-            cost: 1,
-            run() {
-              return {
-                text: 'Apu: "Homer! Something very strange is happening tonight."',
-                followUps: [
-                  {
-                    id: 'whatHappened',
-                    label: "WHAT'S HAPPENED?",
-                    run(runState) {
-                      runState.world.locationFlags.springfieldElementary = 'Possible Infection';
-                      runState.quests.helpApu = 'active';
-                      return { text: 'Apu: "I saw something shamble past Springfield Elementary. It wasn\'t walking right." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
-                    },
-                  },
-                  {
-                    id: 'freeSquishee',
-                    label: 'CAN I HAVE IT FOR FREE?',
-                    run(runState) {
-                      const level = runState.relationships.apu;
-                      if (level === 'friendly' || level === 'bestFriend') {
-                        runState.hp = Math.min(runState.maxHp, runState.hp + 20);
-                        return { text: 'Apu: "For my best customer? Of course." (+20 HP)' };
-                      }
-                      shiftRelationship(runState, 'apu', -1);
-                      return { text: 'Apu: "This is a business, Homer, not a charity."' };
-                    },
-                  },
-                  {
-                    id: 'thanksApu',
-                    label: 'THANKS, APU.',
-                    run() {
-                      return { text: 'Apu: "Good luck out there, my friend."' };
-                    },
-                  },
-                ],
-              };
-            },
-          },
-          { id: 'buySomething', label: 'BUY SOMETHING', cost: 1, special: 'shop' },
-          {
-            id: 'squishee',
-            label: 'ORDER A SQUISHEE',
-            cost: 1,
+            cost: 0,
+            secondary: true,
             run(runState) {
-              if (runState.donutsCurrency < 1) return { text: "You're out of donuts to pay with. Apu isn't budging." };
-              runState.donutsCurrency -= 1;
-              runState.hp = Math.min(runState.maxHp, runState.hp + 20);
-              shiftRelationship(runState, 'apu', 1);
-              return { text: 'The brain freeze is almost worth it. (+20 HP, -1 donut)' };
-            },
-          },
-          {
-            id: 'lookAround',
-            label: 'LOOK AROUND',
-            cost: 1,
-            run() {
-              return { text: 'Chips, magazines, a lottery machine that only prints question marks. Nothing useful.' };
-            },
-          },
-          {
-            id: 'backRoom',
-            label: 'INVESTIGATE THE BACK ROOM',
-            cost: 1,
-            run(runState) {
-              if (runState.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
-                return { text: "Just boxes of expired hot dogs. You've already checked." };
-              }
-              runState.world.secretsFoundIds.push('kwikEMartBackRoom');
-              const relic = grantUndiscoveredRelic(runState);
-              if (relic) return { text: `SECRET FOUND! Behind a case of expired hot dogs: ${relic.emoji} ${relic.name}.` };
-              runState.donutsCurrency += 5;
-              return { text: 'SECRET FOUND! A cigar box full of donut money. +5 donuts.' };
+              const followUps = [
+                {
+                  id: 'whatHappened',
+                  label: "WHAT'S HAPPENED?",
+                  run(rs) {
+                    rs.world.locationFlags.springfieldElementary = 'Possible Infection';
+                    rs.quests.helpApu = 'active';
+                    return { text: 'Apu: "I saw something shamble past Springfield Elementary. It wasn\'t walking right." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
+                  },
+                },
+                {
+                  id: 'freeSquishee',
+                  label: 'CAN I HAVE IT FOR FREE?',
+                  run(rs) {
+                    const level = rs.relationships.apu;
+                    if (level === 'friendly' || level === 'bestFriend') {
+                      rs.hp = Math.min(rs.maxHp, rs.hp + 20);
+                      return { text: 'Apu: "For my best customer? Of course." (+20 HP)' };
+                    }
+                    shiftRelationship(rs, 'apu', -1);
+                    return { text: 'Apu: "This is a business, Homer, not a charity."' };
+                  },
+                },
+                {
+                  id: 'lookAround',
+                  label: 'LOOK AROUND',
+                  run() {
+                    return { text: 'Chips, magazines, a lottery machine that only prints question marks. Nothing useful.' };
+                  },
+                },
+                {
+                  id: 'backRoom',
+                  label: 'INVESTIGATE THE BACK ROOM',
+                  run(rs) {
+                    if (rs.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
+                      return { text: "Just boxes of expired hot dogs. You've already checked." };
+                    }
+                    rs.world.secretsFoundIds.push('kwikEMartBackRoom');
+                    const relic = grantUndiscoveredRelic(rs);
+                    if (relic) return { text: `SECRET FOUND! Behind a case of expired hot dogs: ${relic.emoji} ${relic.name}.` };
+                    rs.donutsCurrency += 5;
+                    return { text: 'SECRET FOUND! A cigar box full of donut money. +5 donuts.' };
+                  },
+                },
+              ];
+              const sell = sellItemInteraction();
+              if (sell.visible(runState)) followUps.push({ id: sell.id, label: sell.label, cost: sell.cost, run: sell.run });
+              followUps.push({ id: 'thanksApu', label: 'THANKS, APU.', run() { return { text: 'Apu: "Good luck out there, my friend."' }; } });
+              return { text: 'Apu: "Homer! Something very strange is happening tonight."', followUps };
             },
           },
         ],
@@ -351,9 +367,20 @@ export const INTERIORS = {
         intro: 'The shelves are on their sides. Apu is crouched behind the counter with a broken hockey stick.',
         interactions: [
           {
-            id: 'talkApu',
-            label: 'TALK TO APU',
+            id: 'squisheeMachine',
+            label: 'GRAB A BITE',
             cost: 1,
+            run(runState) {
+              runState.hp = Math.min(runState.maxHp, runState.hp + 10);
+              return { text: "The Squishee machine still works. It's the blue kind. You try not to think about the color too hard. (+10 HP)" };
+            },
+          },
+          { id: 'buySomething', label: 'STORE', cost: 1, special: 'shop' },
+          {
+            id: 'talkToApu',
+            label: 'TALK TO APU',
+            cost: 0,
+            secondary: true,
             run() {
               return {
                 text: 'Apu (whispering): "Thank Vishnu. I thought you were one of them."',
@@ -361,10 +388,26 @@ export const INTERIORS = {
                   {
                     id: 'whatHappenedZ',
                     label: 'WHAT HAPPENED HERE?',
-                    run(runState) {
-                      runState.world.locationFlags.springfieldElementary = 'Possible Infection';
-                      runState.quests.helpApu = 'active';
+                    run(rs) {
+                      rs.world.locationFlags.springfieldElementary = 'Possible Infection';
+                      rs.quests.helpApu = 'active';
                       return { text: 'Apu: "A whole busload of them came from the school. Be careful there." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
+                    },
+                  },
+                  {
+                    id: 'backRoom',
+                    label: 'INVESTIGATE THE NOISE OUT BACK',
+                    run(rs) {
+                      if (rs.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
+                        return { text: "Whatever it was, it's gone now." };
+                      }
+                      rs.world.secretsFoundIds.push('kwikEMartBackRoom');
+                      if (Math.random() < 0.5) {
+                        rs.donutsCurrency += 5;
+                        return { text: 'SECRET FOUND! Just a raccoon in the dumpster. It left behind a bag of donut money. +5 donuts.' };
+                      }
+                      rs.hp = Math.max(1, rs.hp - 12);
+                      return { text: 'SECRET FOUND! Not a raccoon. You get clawed before slamming the door. (-12 HP)' };
                     },
                   },
                   {
@@ -378,43 +421,19 @@ export const INTERIORS = {
               };
             },
           },
-          { id: 'buySomething', label: 'BUY SOMETHING', cost: 1, special: 'shop' },
-          {
-            id: 'squisheeMachine',
-            label: 'CHECK THE SQUISHEE MACHINE',
-            cost: 1,
-            run(runState) {
-              runState.hp = Math.min(runState.maxHp, runState.hp + 10);
-              return { text: "It still works. It's the blue kind. You try not to think about the color too hard. (+10 HP)" };
-            },
-          },
-          {
-            id: 'backRoom',
-            label: 'INVESTIGATE THE NOISE OUT BACK',
-            cost: 1,
-            run(runState) {
-              if (runState.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
-                return { text: "Whatever it was, it's gone now." };
-              }
-              runState.world.secretsFoundIds.push('kwikEMartBackRoom');
-              if (Math.random() < 0.5) {
-                runState.donutsCurrency += 5;
-                return { text: 'SECRET FOUND! Just a raccoon in the dumpster. It left behind a bag of donut money. +5 donuts.' };
-              }
-              runState.hp = Math.max(1, runState.hp - 12);
-              return { text: 'SECRET FOUND! Not a raccoon. You get clawed before slamming the door. (-12 HP)' };
-            },
-          },
         ],
       },
       alienInvasion: {
         background: '🛸',
         intro: 'The fluorescent lights hum a little too rhythmically. Apu is staring at the Squishee machine like it just spoke to him.',
         interactions: [
+          eatAHotDogInteraction(),
+          { id: 'buySomething', label: 'STORE', cost: 1, special: 'shop' },
           {
-            id: 'talkApu',
+            id: 'talkToApu',
             label: 'TALK TO APU',
-            cost: 1,
+            cost: 0,
+            secondary: true,
             run() {
               return {
                 text: 'Apu: "Homer. Have you looked at the sky tonight? Really looked?"',
@@ -422,10 +441,23 @@ export const INTERIORS = {
                   {
                     id: 'questionLights',
                     label: 'QUESTION THE LIGHTS',
-                    run(runState) {
-                      runState.world.locationFlags.springfieldElementary = 'Possible Infection';
-                      runState.quests.helpApu = 'active';
+                    run(rs) {
+                      rs.world.locationFlags.springfieldElementary = 'Possible Infection';
+                      rs.quests.helpApu = 'active';
                       return { text: 'Apu: "They circled the school twice. I counted." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
+                    },
+                  },
+                  {
+                    id: 'roofAccess',
+                    label: 'CHECK THE ROOF ACCESS',
+                    run(rs) {
+                      if (rs.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
+                        return { text: 'The hatch is still welded shut, same as last time.' };
+                      }
+                      rs.world.secretsFoundIds.push('kwikEMartBackRoom');
+                      const relic = grantUndiscoveredRelic(rs);
+                      if (relic) return { text: `SECRET FOUND! Someone welded the roof hatch shut from the outside -- and left this behind: ${relic.emoji} ${relic.name}.` };
+                      return { text: 'SECRET FOUND! The roof hatch is welded shut from the outside. That\'s new.' };
                     },
                   },
                   {
@@ -437,21 +469,6 @@ export const INTERIORS = {
                   },
                 ],
               };
-            },
-          },
-          { id: 'buySomething', label: 'BUY SOMETHING', cost: 1, special: 'shop' },
-          {
-            id: 'roofAccess',
-            label: 'CHECK THE ROOF ACCESS',
-            cost: 1,
-            run(runState) {
-              if (runState.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
-                return { text: 'The hatch is still welded shut, same as last time.' };
-              }
-              runState.world.secretsFoundIds.push('kwikEMartBackRoom');
-              const relic = grantUndiscoveredRelic(runState);
-              if (relic) return { text: `SECRET FOUND! Someone welded the roof hatch shut from the outside -- and left this behind: ${relic.emoji} ${relic.name}.` };
-              return { text: 'SECRET FOUND! The roof hatch is welded shut from the outside. That\'s new.' };
             },
           },
         ],
@@ -519,73 +536,64 @@ export const INTERIORS = {
         background: '🍺',
         intro: "Moe wipes a glass that was already dirty before he started. Barney's asleep sitting up at the bar.",
         interactions: [
+          haveABeerInteraction(),
           {
-            id: 'whatveYouGot',
-            label: "WHAT'VE YOU GOT?",
+            id: 'talkToMoe',
+            label: 'TALK TO MOE',
             cost: 0,
+            secondary: true,
             run(runState) {
               return {
                 text: `${moeGreeting(runState)} He slides a few things across the bar.`,
-                followUps: moeServiceFollowUps(runState),
+                followUps: [
+                  ...moeServiceFollowUps(runState),
+                  {
+                    id: 'heardAnything',
+                    label: 'HEARD ANYTHING?',
+                    cost: 1,
+                    run(rs) {
+                      return { text: moeRumor(rs) };
+                    },
+                  },
+                  {
+                    id: 'wheresBarney',
+                    label: "WHERE'S BARNEY?",
+                    run(rs) {
+                      if (rs.quests.wheresBarney === 'active') {
+                        return { text: 'Moe: "Still no sign of him. Guy owes me for three Duffs, too."' };
+                      }
+                      if (rs.quests.wheresBarney === 'complete') {
+                        return { text: 'Moe: "Barney\'s fine. Or as fine as Barney gets."' };
+                      }
+                      rs.quests.wheresBarney = 'active';
+                      return { text: 'Moe: "Now that you mention it, ain\'t seen him all night... Actually, go check on him, would ya? Somethin\' about it\'s buggin\' me." (QUEST STARTED: WHERE\'S BARNEY?)' };
+                    },
+                  },
+                  {
+                    id: 'talkBarney',
+                    label: 'TALK TO BARNEY',
+                    run() {
+                      return { text: 'Barney (waking up): "Ohhh, is it Tuesday? *BURRRP* Homer! Buy a guy a drink?"' };
+                    },
+                  },
+                  // Not the HP rest above -- this is Moe's-flavored ability
+                  // drafting (the old rest-node "LEARN ABILITY" mechanic).
+                  { id: 'oldTimersTrick', label: "PICK UP AN OLD TIMER'S TRICK", special: 'abilityDraft' },
+                  {
+                    id: 'backRoom',
+                    label: 'CHECK THE BACK ROOM',
+                    run(rs) {
+                      if (rs.world.secretsFoundIds.includes('moesBackRoom')) {
+                        return { text: "Same crates. Same weird stain on the floor you're choosing not to think about." };
+                      }
+                      rs.world.secretsFoundIds.push('moesBackRoom');
+                      const relic = grantUndiscoveredRelic(rs);
+                      if (relic) return { text: `SECRET FOUND! Moe's "emergency stash" behind a loose floorboard: ${relic.emoji} ${relic.name}.` };
+                      return { text: "SECRET FOUND! Moe's illegal back-room poker game, mid-hand. Everyone stares. You leave quietly." };
+                    },
+                  },
+                ],
               };
-            },
-          },
-          {
-            id: 'heardAnything',
-            label: 'HEARD ANYTHING?',
-            cost: 1,
-            run(runState) {
-              return { text: moeRumor(runState) };
-            },
-          },
-          {
-            id: 'wheresBarney',
-            label: "WHERE'S BARNEY?",
-            cost: 0,
-            run(runState) {
-              if (runState.quests.wheresBarney === 'active') {
-                return { text: 'Moe: "Still no sign of him. Guy owes me for three Duffs, too."' };
-              }
-              if (runState.quests.wheresBarney === 'complete') {
-                return { text: 'Moe: "Barney\'s fine. Or as fine as Barney gets."' };
-              }
-              runState.quests.wheresBarney = 'active';
-              return { text: 'Moe: "Now that you mention it, ain\'t seen him all night... Actually, go check on him, would ya? Somethin\' about it\'s buggin\' me." (QUEST STARTED: WHERE\'S BARNEY?)' };
-            },
-          },
-          moeRestInteraction(),
-          {
-            id: 'leaveDialogue',
-            label: 'LEAVE',
-            cost: 0,
-            run() {
-              return { text: 'Moe: "Yeah, yeah, get outta here."' };
-            },
-          },
-          {
-            id: 'talkBarney',
-            label: 'TALK TO BARNEY',
-            cost: 1,
-            run() {
-              return { text: 'Barney (waking up): "Ohhh, is it Tuesday? *BURRRP* Homer! Buy a guy a drink?"' };
-            },
-          },
-          // Not the HP rest above -- this is Moe's-flavored ability drafting
-          // (the old rest-node "LEARN ABILITY" mechanic), kept as its own
-          // option so it isn't lost in the "I NEED A MINUTE." rework.
-          { id: 'oldTimersTrick', label: "PICK UP AN OLD TIMER'S TRICK", cost: 1, special: 'abilityDraft' },
-          {
-            id: 'backRoom',
-            label: 'CHECK THE BACK ROOM',
-            cost: 1,
-            run(runState) {
-              if (runState.world.secretsFoundIds.includes('moesBackRoom')) {
-                return { text: "Same crates. Same weird stain on the floor you're choosing not to think about." };
-              }
-              runState.world.secretsFoundIds.push('moesBackRoom');
-              const relic = grantUndiscoveredRelic(runState);
-              if (relic) return { text: `SECRET FOUND! Moe's "emergency stash" behind a loose floorboard: ${relic.emoji} ${relic.name}.` };
-              return { text: "SECRET FOUND! Moe's illegal back-room poker game, mid-hand. Everyone stares. You leave quietly." };
             },
           },
         ],
@@ -602,143 +610,128 @@ export const INTERIORS = {
         background: '🩸',
         intro: 'The lights flicker. Bar stools lie overturned. A blood trail leads toward the back room. Moe is holding a shotgun. Barney is nowhere in sight.',
         interactions: [
+          haveABeerInteraction(),
           {
-            id: 'talkMoe',
+            id: 'talkToMoe',
             label: 'TALK TO MOE',
-            cost: 1,
-            run() {
-              return {
-                text: 'Moe (not lowering the shotgun): "One of \'em got in. I handled it. Mostly."',
-                followUps: [
-                  {
-                    id: 'itsOkayMoe',
-                    label: "IT'S OKAY, MOE.",
-                    run(runState) {
-                      shiftRelationship(runState, 'moe', 1);
-                      return { text: 'Moe lowers the shotgun an inch. "...Thanks, Homer."' };
-                    },
-                  },
-                  {
-                    id: 'askBlood',
-                    label: 'WHAT HAPPENED TO THE BLOOD TRAIL?',
-                    run() {
-                      return { text: 'Moe: "Leads straight to the back room door. I ain\'t opened it." It\'s now very firmly closed.' };
-                    },
-                  },
-                  {
-                    id: 'offerBarricade',
-                    label: 'LET ME BARRICADE THAT DOOR.',
-                    run(runState) {
-                      if (runState.world.locationFlags.moesTavern === 'Barricaded') {
-                        return { text: 'Moe: "Already done, Homer. Keep up."' };
-                      }
-                      runState.world.locationFlags.moesTavern = 'Barricaded';
-                      shiftRelationship(runState, 'moe', 1);
-                      return { text: 'You wedge a pool table against the front door. Moe nods. "...Yeah. Okay. That helps." (MOE\'S TAVERN: BARRICADED)' };
-                    },
-                  },
-                ],
-              };
-            },
-          },
-          {
-            id: 'whatveYouGot',
-            label: "WHAT'VE YOU GOT?",
             cost: 0,
+            secondary: true,
             run(runState) {
-              return {
-                text: 'Moe keeps the shotgun in one hand and pours with the other. "Still open for business. Barely."',
-                followUps: moeServiceFollowUps(runState),
-              };
-            },
-          },
-          {
-            id: 'heardAnything',
-            label: 'HEARD ANYTHING?',
-            cost: 1,
-            run(runState) {
-              return { text: moeRumor(runState) };
-            },
-          },
-          {
-            id: 'wheresBarney',
-            label: "WHERE'S BARNEY?",
-            cost: 0,
-            run(runState) {
+              const followUps = [
+                {
+                  id: 'itsOkayMoe',
+                  label: "IT'S OKAY, MOE.",
+                  run(rs) {
+                    shiftRelationship(rs, 'moe', 1);
+                    return { text: 'Moe lowers the shotgun an inch. "...Thanks, Homer."' };
+                  },
+                },
+                {
+                  id: 'askBlood',
+                  label: 'WHAT HAPPENED TO THE BLOOD TRAIL?',
+                  run() {
+                    return { text: 'Moe: "Leads straight to the back room door. I ain\'t opened it." It\'s now very firmly closed.' };
+                  },
+                },
+                {
+                  id: 'offerBarricade',
+                  label: 'LET ME BARRICADE THAT DOOR.',
+                  run(rs) {
+                    if (rs.world.locationFlags.moesTavern === 'Barricaded') {
+                      return { text: 'Moe: "Already done, Homer. Keep up."' };
+                    }
+                    rs.world.locationFlags.moesTavern = 'Barricaded';
+                    shiftRelationship(rs, 'moe', 1);
+                    return { text: 'You wedge a pool table against the front door. Moe nods. "...Yeah. Okay. That helps." (MOE\'S TAVERN: BARRICADED)' };
+                  },
+                },
+                ...moeServiceFollowUps(runState),
+                {
+                  id: 'heardAnything',
+                  label: 'HEARD ANYTHING?',
+                  cost: 1,
+                  run(rs) {
+                    return { text: moeRumor(rs) };
+                  },
+                },
+                {
+                  id: 'wheresBarney',
+                  label: "WHERE'S BARNEY?",
+                  run(rs) {
+                    if (rs.quests.wheresBarney === 'active') {
+                      return { text: 'Moe: "Still lookin\'? Back room, probably. If you\'re brave."' };
+                    }
+                    if (rs.quests.wheresBarney === 'complete') {
+                      return { text: 'Moe: "Barney\'s fine. Or as fine as Barney gets."' };
+                    }
+                    rs.quests.wheresBarney = 'active';
+                    return { text: 'Moe: "He went to the back for a keg. That was an hour ago." (QUEST STARTED: WHERE\'S BARNEY?)' };
+                  },
+                },
+                { id: 'oldTimersTrickZ', label: "PICK UP AN OLD TIMER'S TRICK", special: 'abilityDraft' },
+              ];
               if (runState.quests.wheresBarney === 'active') {
-                return { text: 'Moe: "Still lookin\'? Back room, probably. If you\'re brave."' };
-              }
-              if (runState.quests.wheresBarney === 'complete') {
-                return { text: 'Moe: "Barney\'s fine. Or as fine as Barney gets."' };
-              }
-              runState.quests.wheresBarney = 'active';
-              return { text: 'Moe: "He went to the back for a keg. That was an hour ago." (QUEST STARTED: WHERE\'S BARNEY?)' };
-            },
-          },
-          moeRestInteraction(),
-          { id: 'oldTimersTrickZ', label: "PICK UP AN OLD TIMER'S TRICK", cost: 1, special: 'abilityDraft' },
-          {
-            id: 'searchBarney',
-            label: 'SEARCH FOR BARNEY',
-            cost: 1,
-            visible(runState) {
-              return runState.quests.wheresBarney === 'active';
-            },
-            run(runState) {
-              if (runState.world.secretsFoundIds.includes('moesBackRoom')) {
-                return { text: 'Still no sign of him back here.' };
-              }
-              runState.world.secretsFoundIds.push('moesBackRoom');
-              if (Math.random() < 0.5) {
-                runState.quests.wheresBarney = 'complete';
-                return { text: 'SECRET FOUND! Barney, alive, hiding in the walk-in fridge. "Is it over? Is the keg okay?" He stumbles out, rattled but fine. (WHERE\'S BARNEY?: COMPLETE)' };
-              }
-              runState.hp = Math.max(1, runState.hp - 15);
-              return { text: "SECRET FOUND! It's not Barney anymore. It lunges before you slam the door shut. (-15 HP)" };
-            },
-          },
-          // A real 3-choice horror event instead of an instant fight --
-          // CONFRONT LENNY hands off to a real battle the same way a
-          // top-level `special: 'combat'` interaction always has (see
-          // game.js onInteriorFollowUp's matching case).
-          {
-            id: 'regularsWrong',
-            label: 'THE REGULARS ARE MOVING WRONG',
-            cost: 1,
-            visible(runState) {
-              return !runState.world.locationFlags.moesRegularsFought;
-            },
-            run() {
-              return {
-                text: "Lenny, Carl, and Barney haven't moved from the corner booth in a while. Haven't blinked either.",
-                followUps: [
-                  {
-                    id: 'confrontLenny',
-                    label: 'CONFRONT LENNY',
-                    special: 'combat',
-                    flagId: 'moesRegularsFought',
-                    combatContent: { type: 'combat', enemyIds: ['zombieLenny', 'zombieCarl', 'zombieBarney'] },
+                followUps.push({
+                  id: 'searchBarney',
+                  label: 'SEARCH FOR BARNEY',
+                  run(rs) {
+                    if (rs.world.secretsFoundIds.includes('moesBackRoom')) {
+                      return { text: 'Still no sign of him back here.' };
+                    }
+                    rs.world.secretsFoundIds.push('moesBackRoom');
+                    if (Math.random() < 0.5) {
+                      rs.quests.wheresBarney = 'complete';
+                      return { text: 'SECRET FOUND! Barney, alive, hiding in the walk-in fridge. "Is it over? Is the keg okay?" He stumbles out, rattled but fine. (WHERE\'S BARNEY?: COMPLETE)' };
+                    }
+                    rs.hp = Math.max(1, rs.hp - 15);
+                    return { text: "SECRET FOUND! It's not Barney anymore. It lunges before you slam the door shut. (-15 HP)" };
                   },
-                  {
-                    id: 'lockDoors',
-                    label: 'TELL MOE TO LOCK THE DOORS',
-                    run(runState) {
-                      shiftRelationship(runState, 'moe', 1);
-                      runState.mayhem = Math.min(100, runState.mayhem + 5);
-                      runState.world.locationFlags.moesRegularsFought = true;
-                      return { text: 'Moe locks the doors without asking why. The three of them just... sit there. Nobody sleeps tonight. (MOE FAVOR UP, MAYHEM +5%)' };
-                    },
+                });
+              }
+              // A real 3-choice horror event instead of an instant fight --
+              // CONFRONT LENNY hands off to a real battle the same way a
+              // top-level `special: 'combat'` interaction always has (see
+              // game.js onInteriorFollowUp's matching case), now chained one
+              // level deeper under TALK TO MOE.
+              if (!runState.world.locationFlags.moesRegularsFought) {
+                followUps.push({
+                  id: 'regularsWrong',
+                  label: 'THE REGULARS ARE MOVING WRONG',
+                  run() {
+                    return {
+                      text: "Lenny, Carl, and Barney haven't moved from the corner booth in a while. Haven't blinked either.",
+                      followUps: [
+                        {
+                          id: 'confrontLenny',
+                          label: 'CONFRONT LENNY',
+                          special: 'combat',
+                          flagId: 'moesRegularsFought',
+                          combatContent: { type: 'combat', enemyIds: ['zombieLenny', 'zombieCarl', 'zombieBarney'] },
+                        },
+                        {
+                          id: 'lockDoors',
+                          label: 'TELL MOE TO LOCK THE DOORS',
+                          run(rs) {
+                            shiftRelationship(rs, 'moe', 1);
+                            rs.mayhem = Math.min(100, rs.mayhem + 5);
+                            rs.world.locationFlags.moesRegularsFought = true;
+                            return { text: 'Moe locks the doors without asking why. The three of them just... sit there. Nobody sleeps tonight. (MOE FAVOR UP, MAYHEM +5%)' };
+                          },
+                        },
+                        {
+                          id: 'pretendDidntNotice',
+                          label: "PRETEND YOU DIDN'T NOTICE",
+                          run(rs) {
+                            rs.world.locationFlags.moesRegularsFought = true;
+                            return { text: "You look away. Nothing happens. Yet." };
+                          },
+                        },
+                      ],
+                    };
                   },
-                  {
-                    id: 'pretendDidntNotice',
-                    label: "PRETEND YOU DIDN'T NOTICE",
-                    run(runState) {
-                      runState.world.locationFlags.moesRegularsFought = true;
-                      return { text: "You look away. Nothing happens. Yet." };
-                    },
-                  },
-                ],
-              };
+                });
+              }
+              return { text: 'Moe (not lowering the shotgun): "One of \'em got in. I handled it. Mostly."', followUps };
             },
           },
         ],
@@ -747,10 +740,12 @@ export const INTERIORS = {
         background: '🛸',
         intro: 'Everything looks mostly normal. Moe is wiping the same glass in a perfect, unblinking rhythm. Something about his eyes catches the light wrong.',
         interactions: [
+          haveABeerInteraction(),
           {
-            id: 'talkMoe',
+            id: 'talkToMoe',
             label: 'TALK TO MOE',
-            cost: 1,
+            cost: 0,
+            secondary: true,
             run() {
               return {
                 text: 'Moe: "Evenin\', Homer. Beautiful night for... observing local customs."',
@@ -767,29 +762,28 @@ export const INTERIORS = {
                   {
                     id: 'orderDuffAlien',
                     label: 'ORDER A DUFF.',
-                    run(runState) {
-                      if (runState.donutsCurrency < 1) return { text: "You're out of money." };
-                      runState.donutsCurrency -= 1;
-                      runState.hp = Math.min(runState.maxHp, runState.hp + 12);
+                    run(rs) {
+                      if (rs.donutsCurrency < 1) return { text: "You're out of money." };
+                      rs.donutsCurrency -= 1;
+                      rs.hp = Math.min(rs.maxHp, rs.hp + 12);
                       return { text: 'It tastes normal. Suspiciously normal. (+12 HP, -1 donut)' };
+                    },
+                  },
+                  {
+                    id: 'checkBasement',
+                    label: 'CHECK THE BASEMENT',
+                    run(rs) {
+                      if (rs.world.secretsFoundIds.includes('moesBackRoom')) {
+                        return { text: 'Just kegs. Still just kegs. Probably.' };
+                      }
+                      rs.world.secretsFoundIds.push('moesBackRoom');
+                      const relic = grantUndiscoveredRelic(rs);
+                      if (relic) return { text: `SECRET FOUND! A humming metal case among the kegs, definitely not brewing equipment: ${relic.emoji} ${relic.name}.` };
+                      return { text: 'SECRET FOUND! A humming metal case among the kegs. You decide not to open it.' };
                     },
                   },
                 ],
               };
-            },
-          },
-          {
-            id: 'checkBasement',
-            label: 'CHECK THE BASEMENT',
-            cost: 1,
-            run(runState) {
-              if (runState.world.secretsFoundIds.includes('moesBackRoom')) {
-                return { text: 'Just kegs. Still just kegs. Probably.' };
-              }
-              runState.world.secretsFoundIds.push('moesBackRoom');
-              const relic = grantUndiscoveredRelic(runState);
-              if (relic) return { text: `SECRET FOUND! A humming metal case among the kegs, definitely not brewing equipment: ${relic.emoji} ${relic.name}.` };
-              return { text: 'SECRET FOUND! A humming metal case among the kegs. You decide not to open it.' };
             },
           },
         ],
@@ -912,8 +906,11 @@ export const INTERIORS = {
 // Wire the shared bag interactions into every state after the fact, rather
 // than repeating them in each block above -- USE AN ITEM everywhere, SELL AN
 // ITEM only where Apu is standing behind the counter.
+// SELL AN ITEM now lives inside TALK TO APU's dialogue tree (normal state)
+// instead of standing on its own -- only the rarer, key/quest-gated finds
+// still get their own small secondary button.
 for (const state of Object.values(INTERIORS.kwikEMart.states)) {
-  state.interactions.push(sellItemInteraction(), unlockStorageCageInteraction(), helpApuReportInteraction());
+  state.interactions.push(unlockStorageCageInteraction(), helpApuReportInteraction());
 }
 for (const interior of Object.values(INTERIORS)) {
   for (const state of Object.values(interior.states)) {
