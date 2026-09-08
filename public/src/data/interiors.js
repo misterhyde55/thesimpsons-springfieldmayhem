@@ -249,6 +249,35 @@ function bartQuestApuFollowUp(runState) {
   };
 }
 
+// Starts WHERE'S MARGE? (data/quests.js whereIsMargeRetirementCastleContent).
+// Wired into every kwikEMart state's TALK TO APU dialogue below, same
+// pattern as bartQuestApuFollowUp.
+function margeQuestApuFollowUp(runState) {
+  if (runState.quests.whereIsMarge) return null;
+  return {
+    id: 'apuMentionsMarge',
+    label: 'HAVE YOU SEEN MARGE?',
+    run(rs) {
+      rs.quests.whereIsMarge = 'active';
+      return { text: 'Apu: "Your wife? She came through asking about your father, then headed for the Retirement Castle. That was some time ago now." (QUEST STARTED: WHERE\'S MARGE?)' };
+    },
+  };
+}
+
+// Starts WHERE'S LISA? (data/quests.js whereIsLisaChurchContent). Wired
+// into every moesTavern state's TALK TO MOE dialogue below.
+function lisaQuestMoeFollowUp(runState) {
+  if (runState.quests.whereIsLisa) return null;
+  return {
+    id: 'moeMentionsLisa',
+    label: 'HAVE YOU SEEN LISA?',
+    run(rs) {
+      rs.quests.whereIsLisa = 'active';
+      return { text: 'Moe: "That little egghead of yours? Came in askin\' for quiet. I sent her to the church. Man\'s gotta be desperate to send a kid to church." (QUEST STARTED: WHERE\'S LISA?)' };
+    },
+  };
+}
+
 // Available in every interior/state (appended below, after INTERIORS is
 // defined) -- lets Homer use a rare Kwik-E-Mart find (data/items.js
 // `rare: true` entries, held in runState.consumables) wherever he happens
@@ -457,6 +486,8 @@ export const INTERIORS = {
               if (sell.visible(runState)) followUps.push({ id: sell.id, label: sell.label, cost: sell.cost, run: sell.run });
               const bartFollowUp = bartQuestApuFollowUp(runState);
               if (bartFollowUp) followUps.push(bartFollowUp);
+              const margeFollowUp = margeQuestApuFollowUp(runState);
+              if (margeFollowUp) followUps.push(margeFollowUp);
               followUps.push({ id: 'thanksApu', label: 'THANKS, APU.', run() { return { text: 'Apu: "Good luck out there, my friend."' }; } });
               return { text: 'Apu: "Homer! Something very strange is happening tonight."', followUps };
             },
@@ -512,6 +543,8 @@ export const INTERIORS = {
               ];
               const bartFollowUp = bartQuestApuFollowUp(runState);
               if (bartFollowUp) followUps.push(bartFollowUp);
+              const margeFollowUp = margeQuestApuFollowUp(runState);
+              if (margeFollowUp) followUps.push(margeFollowUp);
               followUps.push({
                 id: 'staySafe',
                 label: 'STAY SAFE, APU.',
@@ -562,6 +595,8 @@ export const INTERIORS = {
               ];
               const bartFollowUp = bartQuestApuFollowUp(runState);
               if (bartFollowUp) followUps.push(bartFollowUp);
+              const margeFollowUp = margeQuestApuFollowUp(runState);
+              if (margeFollowUp) followUps.push(margeFollowUp);
               followUps.push({
                 id: 'neverMind',
                 label: 'NEVER MIND, APU.',
@@ -651,57 +686,57 @@ export const INTERIORS = {
             cost: 0,
             secondary: true,
             run(runState) {
-              return {
-                text: `${moeGreeting(runState)} He slides a few things across the bar.`,
-                followUps: [
-                  ...moeServiceFollowUps(runState),
-                  {
-                    id: 'heardAnything',
-                    label: 'HEARD ANYTHING?',
-                    cost: 1,
-                    run(rs) {
-                      return { text: moeRumor(rs) };
-                    },
+              const followUps = [
+                ...moeServiceFollowUps(runState),
+                {
+                  id: 'heardAnything',
+                  label: 'HEARD ANYTHING?',
+                  cost: 1,
+                  run(rs) {
+                    return { text: moeRumor(rs) };
                   },
-                  {
-                    id: 'wheresBarney',
-                    label: "WHERE'S BARNEY?",
-                    run(rs) {
-                      if (rs.quests.wheresBarney === 'active') {
-                        return { text: 'Moe: "Still no sign of him. Guy owes me for three Duffs, too."' };
-                      }
-                      if (rs.quests.wheresBarney === 'complete') {
-                        return { text: 'Moe: "Barney\'s fine. Or as fine as Barney gets."' };
-                      }
-                      rs.quests.wheresBarney = 'active';
-                      return { text: 'Moe: "Now that you mention it, ain\'t seen him all night... Actually, go check on him, would ya? Somethin\' about it\'s buggin\' me." (QUEST STARTED: WHERE\'S BARNEY?)' };
-                    },
+                },
+                {
+                  id: 'wheresBarney',
+                  label: "WHERE'S BARNEY?",
+                  run(rs) {
+                    if (rs.quests.wheresBarney === 'active') {
+                      return { text: 'Moe: "Still no sign of him. Guy owes me for three Duffs, too."' };
+                    }
+                    if (rs.quests.wheresBarney === 'complete') {
+                      return { text: 'Moe: "Barney\'s fine. Or as fine as Barney gets."' };
+                    }
+                    rs.quests.wheresBarney = 'active';
+                    return { text: 'Moe: "Now that you mention it, ain\'t seen him all night... Actually, go check on him, would ya? Somethin\' about it\'s buggin\' me." (QUEST STARTED: WHERE\'S BARNEY?)' };
                   },
-                  {
-                    id: 'talkBarney',
-                    label: 'TALK TO BARNEY',
-                    run() {
-                      return { text: 'Barney (waking up): "Ohhh, is it Tuesday? *BURRRP* Homer! Buy a guy a drink?"' };
-                    },
+                },
+                {
+                  id: 'talkBarney',
+                  label: 'TALK TO BARNEY',
+                  run() {
+                    return { text: 'Barney (waking up): "Ohhh, is it Tuesday? *BURRRP* Homer! Buy a guy a drink?"' };
                   },
-                  // Not the HP rest above -- this is Moe's-flavored ability
-                  // drafting (the old rest-node "LEARN ABILITY" mechanic).
-                  { id: 'oldTimersTrick', label: "PICK UP AN OLD TIMER'S TRICK", special: 'abilityDraft' },
-                  {
-                    id: 'backRoom',
-                    label: 'CHECK THE BACK ROOM',
-                    run(rs) {
-                      if (rs.world.secretsFoundIds.includes('moesBackRoom')) {
-                        return { text: "Same crates. Same weird stain on the floor you're choosing not to think about." };
-                      }
-                      rs.world.secretsFoundIds.push('moesBackRoom');
-                      const relic = grantUndiscoveredRelic(rs);
-                      if (relic) return { text: `SECRET FOUND! Moe's "emergency stash" behind a loose floorboard: ${relic.emoji} ${relic.name}.` };
-                      return { text: "SECRET FOUND! Moe's illegal back-room poker game, mid-hand. Everyone stares. You leave quietly." };
-                    },
+                },
+                // Not the HP rest above -- this is Moe's-flavored ability
+                // drafting (the old rest-node "LEARN ABILITY" mechanic).
+                { id: 'oldTimersTrick', label: "PICK UP AN OLD TIMER'S TRICK", special: 'abilityDraft' },
+                {
+                  id: 'backRoom',
+                  label: 'CHECK THE BACK ROOM',
+                  run(rs) {
+                    if (rs.world.secretsFoundIds.includes('moesBackRoom')) {
+                      return { text: "Same crates. Same weird stain on the floor you're choosing not to think about." };
+                    }
+                    rs.world.secretsFoundIds.push('moesBackRoom');
+                    const relic = grantUndiscoveredRelic(rs);
+                    if (relic) return { text: `SECRET FOUND! Moe's "emergency stash" behind a loose floorboard: ${relic.emoji} ${relic.name}.` };
+                    return { text: "SECRET FOUND! Moe's illegal back-room poker game, mid-hand. Everyone stares. You leave quietly." };
                   },
-                ],
-              };
+                },
+              ];
+              const lisaFollowUp = lisaQuestMoeFollowUp(runState);
+              if (lisaFollowUp) followUps.push(lisaFollowUp);
+              return { text: `${moeGreeting(runState)} He slides a few things across the bar.`, followUps };
             },
           },
         ],
@@ -779,6 +814,8 @@ export const INTERIORS = {
                 },
                 { id: 'oldTimersTrickZ', label: "PICK UP AN OLD TIMER'S TRICK", special: 'abilityDraft' },
               ];
+              const lisaFollowUp = lisaQuestMoeFollowUp(runState);
+              if (lisaFollowUp) followUps.push(lisaFollowUp);
               if (runState.quests.wheresBarney === 'active') {
                 followUps.push({
                   id: 'searchBarney',
@@ -856,44 +893,44 @@ export const INTERIORS = {
             label: 'TALK TO MOE',
             cost: 0,
             secondary: true,
-            run() {
-              return {
-                text: 'Moe: "Evenin\', Homer. Beautiful night for... observing local customs."',
-                followUps: [
-                  {
-                    id: 'questionMoe',
-                    label: 'QUESTION MOE',
-                    run() {
-                      return Math.random() < 0.5
-                        ? { text: 'Moe blinks (normally, this time). "The hell\'s wrong with you? It\'s me, Moe."' }
-                        : { text: 'Moe smiles with slightly too many teeth. "Fascinating... species."' };
-                    },
+            run(runState) {
+              const followUps = [
+                {
+                  id: 'questionMoe',
+                  label: 'QUESTION MOE',
+                  run() {
+                    return Math.random() < 0.5
+                      ? { text: 'Moe blinks (normally, this time). "The hell\'s wrong with you? It\'s me, Moe."' }
+                      : { text: 'Moe smiles with slightly too many teeth. "Fascinating... species."' };
                   },
-                  {
-                    id: 'orderDuffAlien',
-                    label: 'ORDER A DUFF.',
-                    run(rs) {
-                      if (rs.donutsCurrency < 1) return { text: "You're out of money." };
-                      rs.donutsCurrency -= 1;
-                      rs.hp = Math.min(rs.maxHp, rs.hp + 12);
-                      return { text: 'It tastes normal. Suspiciously normal. (+12 HP, -1 donut)' };
-                    },
+                },
+                {
+                  id: 'orderDuffAlien',
+                  label: 'ORDER A DUFF.',
+                  run(rs) {
+                    if (rs.donutsCurrency < 1) return { text: "You're out of money." };
+                    rs.donutsCurrency -= 1;
+                    rs.hp = Math.min(rs.maxHp, rs.hp + 12);
+                    return { text: 'It tastes normal. Suspiciously normal. (+12 HP, -1 donut)' };
                   },
-                  {
-                    id: 'checkBasement',
-                    label: 'CHECK THE BASEMENT',
-                    run(rs) {
-                      if (rs.world.secretsFoundIds.includes('moesBackRoom')) {
-                        return { text: 'Just kegs. Still just kegs. Probably.' };
-                      }
-                      rs.world.secretsFoundIds.push('moesBackRoom');
-                      const relic = grantUndiscoveredRelic(rs);
-                      if (relic) return { text: `SECRET FOUND! A humming metal case among the kegs, definitely not brewing equipment: ${relic.emoji} ${relic.name}.` };
-                      return { text: 'SECRET FOUND! A humming metal case among the kegs. You decide not to open it.' };
-                    },
+                },
+                {
+                  id: 'checkBasement',
+                  label: 'CHECK THE BASEMENT',
+                  run(rs) {
+                    if (rs.world.secretsFoundIds.includes('moesBackRoom')) {
+                      return { text: 'Just kegs. Still just kegs. Probably.' };
+                    }
+                    rs.world.secretsFoundIds.push('moesBackRoom');
+                    const relic = grantUndiscoveredRelic(rs);
+                    if (relic) return { text: `SECRET FOUND! A humming metal case among the kegs, definitely not brewing equipment: ${relic.emoji} ${relic.name}.` };
+                    return { text: 'SECRET FOUND! A humming metal case among the kegs. You decide not to open it.' };
                   },
-                ],
-              };
+                },
+              ];
+              const lisaFollowUp = lisaQuestMoeFollowUp(runState);
+              if (lisaFollowUp) followUps.push(lisaFollowUp);
+              return { text: 'Moe: "Evenin\', Homer. Beautiful night for... observing local customs."', followUps };
             },
           },
         ],

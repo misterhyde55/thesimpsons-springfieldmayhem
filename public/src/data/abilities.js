@@ -750,6 +750,93 @@ export const ABILITIES = {
       api.damage(6);
     },
   },
+  // Lisa's own cast-gated abilities (WHERE'S LISA?, data/quests.js) --
+  // intelligence/status-effect flavor, matching her characters.js stub
+  // ("Manipulates enemy intents").
+  saxAttack: {
+    id: 'saxAttack',
+    name: 'Sax Attack',
+    emoji: '🎷',
+    icon: { category: 'combat', id: 'attack' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'lisa',
+    archetype: 'universal',
+    target: 'enemy',
+    description: 'Deal 5 damage. Apply 2 Weak.',
+    effect(api) {
+      api.damage(5);
+      api.status(STATUS.WEAK, 2, 'target');
+    },
+  },
+  seesRightThroughYou: {
+    id: 'seesRightThroughYou',
+    name: 'Sees Right Through You',
+    emoji: '🧠',
+    icon: { category: 'combat', id: 'stun' },
+    cost: 1,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'lisa',
+    archetype: 'universal',
+    target: 'enemy',
+    description: 'Apply 3 Vulnerable.',
+    effect(api) {
+      api.status(STATUS.VULNERABLE, 3, 'target');
+    },
+  },
+  // Marge's own cast-gated abilities (WHERE'S MARGE?, data/quests.js) --
+  // defense/support, matching her characters.js stub ("Tougher the lower
+  // her health gets" -- see the homerMarge synergy in data/synergies.js).
+  homieShield: {
+    id: 'homieShield',
+    name: 'Homie!',
+    emoji: '🧹',
+    icon: { category: 'combat', id: 'defend' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'marge',
+    archetype: 'universal',
+    target: 'self',
+    description: 'Gain 10 Armor.',
+    effect(api) {
+      api.status(STATUS.ARMOR, 10, 'self');
+    },
+  },
+  theLook: {
+    id: 'theLook',
+    name: 'The Look',
+    emoji: '😠',
+    icon: { category: 'combat', id: 'defend' },
+    cost: 1,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'marge',
+    archetype: 'universal',
+    target: 'enemy',
+    description: 'Apply 2 Weak. Gain 4 Armor.',
+    effect(api) {
+      api.status(STATUS.WEAK, 2, 'target');
+      api.status(STATUS.ARMOR, 4, 'self');
+    },
+  },
+  // Maggie's own cast-gated ability (WHERE'S MAGGIE?, data/quests.js) --
+  // deliberately just one, rare and a little absurd rather than a full kit
+  // ("Maggie's assists should feel rare and funny").
+  pacifierShot: {
+    id: 'pacifierShot',
+    name: 'Pacifier Shot',
+    emoji: '🍼',
+    icon: { category: 'combat', id: 'stun' },
+    cost: 1,
+    rarity: RARITY.RARE,
+    characterId: 'maggie',
+    archetype: 'universal',
+    target: 'enemy',
+    description: 'Deal 3 damage. Apply 2 Stun.',
+    effect(api) {
+      api.damage(3);
+      api.status(STATUS.STUN, 2, 'target');
+    },
+  },
 };
 
 // `castIds` is every character currently in the episode cast (always

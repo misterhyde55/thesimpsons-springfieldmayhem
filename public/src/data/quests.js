@@ -168,6 +168,114 @@ export function missingOfficersReportContent() {
   };
 }
 
+// ---------- QUEST 5: WHERE'S LISA? ----------
+// Started by a Moe's Tavern "TALK TO MOE" follow-up (data/interiors.js
+// lisaQuestMoeFollowUp). Resolved at First Church of Springfield -- Lisa,
+// being Lisa, went somewhere quiet to think. Joining the cast unlocks
+// SAX ATTACK/SEES RIGHT THROUGH YOU and the homerLisa synergy.
+export function whereIsLisaChurchContent() {
+  return {
+    type: 'questChoice',
+    title: 'A Quiet Pew',
+    emoji: '🎷',
+    npcId: 'lisa',
+    prompt: 'Lisa is sitting alone in the front pew, saxophone across her knees. "Dad. I needed somewhere that wasn\'t falling apart. Something followed me anyway."',
+    options: [
+      {
+        id: 'fightItOff',
+        label: 'FIGHT IT OFF',
+        leadsTo: 'combat',
+        combatContent: { type: 'combat', enemyIds: ['shamblingIntern'], questResolution: 'lisaFound' },
+        apply() {
+          return "She's already on her feet, saxophone raised like a bat. Might as well back her up.";
+        },
+      },
+      {
+        id: 'grabAndRun',
+        label: 'LEAVE QUIETLY, TOGETHER',
+        apply(runState) {
+          runState.quests.whereIsLisa = 'resolved';
+          if (!runState.cast.includes('lisa')) runState.cast.push('lisa');
+          runState.donutsCurrency += 4;
+          return 'Lisa slips her hand into yours without a word. LISA JOINED THE CAST. She had a granola bar in her bag: +4 donuts, only a little stale.';
+        },
+      },
+    ],
+  };
+}
+
+// ---------- QUEST 6: WHERE'S MARGE? ----------
+// Started by a Kwik-E-Mart "TALK TO APU" follow-up (data/interiors.js
+// margeQuestApuFollowUp). Resolved at the Retirement Castle -- Marge went
+// to check on Grampa and hasn't come back. Joining the cast unlocks
+// HOMIE!/THE LOOK and the homerMarge synergy.
+export function whereIsMargeRetirementCastleContent() {
+  return {
+    type: 'questChoice',
+    title: 'Checking On Grampa',
+    emoji: '🧹',
+    npcId: 'marge',
+    prompt: 'Marge is braced against a supply closet door, holding it shut with both hands. "Homer! I came to check on your father and now half the residents are -- well, you\'ll see."',
+    options: [
+      {
+        id: 'fightItOff',
+        label: 'FIGHT IT OFF',
+        leadsTo: 'combat',
+        combatContent: { type: 'combat', enemyIds: ['zombieGrandpa'], questResolution: 'margeFound' },
+        apply() {
+          return "She lets go of the door the second you're beside her. Not exactly a fair fight for either of you now.";
+        },
+      },
+      {
+        id: 'grabAndRun',
+        label: 'PULL HER OUT THE WINDOW',
+        apply(runState) {
+          runState.quests.whereIsMarge = 'resolved';
+          if (!runState.cast.includes('marge')) runState.cast.push('marge');
+          runState.donutsCurrency += 4;
+          return 'Marge climbs out without complaint, which is how you know it was bad in there. MARGE JOINED THE CAST. She grabbed the petty cash tin on the way: +4 donuts.';
+        },
+      },
+    ],
+  };
+}
+
+// ---------- QUEST 7: WHERE'S MAGGIE? ----------
+// Unlike the others, this one is already 'active' the instant the episode
+// begins (state/gameState.js createRunState) -- Maggie went missing when
+// the outbreak started, no NPC needs to mention it. Resolved at Krusty
+// Burger, where a baby has apparently been fine the entire time. Joining
+// the cast unlocks the single, deliberately rare PACIFIER SHOT.
+export function whereIsMaggieKrustyBurgerContent() {
+  return {
+    type: 'questChoice',
+    title: 'The Ball Pit',
+    emoji: '👶',
+    npcId: 'maggie',
+    prompt: 'Maggie is sitting in the Krusty Burger ball pit, entirely unbothered, sucking on her pacifier while a very confused zombie paces just outside the netting.',
+    options: [
+      {
+        id: 'fightItOff',
+        label: 'DEAL WITH THE ZOMBIE',
+        leadsTo: 'combat',
+        combatContent: { type: 'combat', enemyIds: ['shamblingIntern'], questResolution: 'maggieFound' },
+        apply() {
+          return "It hasn't figured out how ball pits work yet. You have the advantage.";
+        },
+      },
+      {
+        id: 'grabAndRun',
+        label: 'SCOOP HER UP AND GO',
+        apply(runState) {
+          runState.quests.whereIsMaggie = 'resolved';
+          if (!runState.cast.includes('maggie')) runState.cast.push('maggie');
+          return 'You wade in and grab her before the zombie notices either of you. She hands you her pacifier as a reward. MAGGIE JOINED THE CAST.';
+        },
+      },
+    ],
+  };
+}
+
 // ---------- QUEST TRACKER (player-facing) ----------
 // runState.quests only ever stores a bare status string ('active',
 // 'resolved', or an outcome like 'saved'/'killed') -- this is the display
@@ -205,6 +313,24 @@ export const QUEST_DISPLAY = {
     reward: 'Bart Joins the Cast',
     locationId: 'springfieldElementary',
   },
+  whereIsLisa: {
+    title: "WHERE'S LISA?",
+    hint: 'Try First Church of Springfield.',
+    reward: 'Lisa Joins the Cast',
+    locationId: 'springfieldChurch',
+  },
+  whereIsMarge: {
+    title: "WHERE'S MARGE?",
+    hint: 'She went to check on Grampa. Try the Retirement Castle.',
+    reward: 'Marge Joins the Cast',
+    locationId: 'retirementCastle',
+  },
+  whereIsMaggie: {
+    title: "WHERE'S MAGGIE?",
+    hint: "She's been missing since the outbreak began. Try Krusty Burger.",
+    reward: 'Maggie Joins the Cast',
+    locationId: 'krustyBurger',
+  },
 };
 
 // Only 'active' quests show -- once resolved, the reward toast/banner at
@@ -230,5 +356,14 @@ export function applyQuestResolution(runState, resolutionId) {
   } else if (resolutionId === 'bartFound' && runState.quests.whereIsBart === 'active') {
     runState.quests.whereIsBart = 'resolved';
     if (!runState.cast.includes('bart')) runState.cast.push('bart');
+  } else if (resolutionId === 'lisaFound' && runState.quests.whereIsLisa === 'active') {
+    runState.quests.whereIsLisa = 'resolved';
+    if (!runState.cast.includes('lisa')) runState.cast.push('lisa');
+  } else if (resolutionId === 'margeFound' && runState.quests.whereIsMarge === 'active') {
+    runState.quests.whereIsMarge = 'resolved';
+    if (!runState.cast.includes('marge')) runState.cast.push('marge');
+  } else if (resolutionId === 'maggieFound' && runState.quests.whereIsMaggie === 'active') {
+    runState.quests.whereIsMaggie = 'resolved';
+    if (!runState.cast.includes('maggie')) runState.cast.push('maggie');
   }
 }
