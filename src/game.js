@@ -106,6 +106,12 @@ export class Game {
 
     this.runState = null;
     this.battle = null;
+    // Held true for the duration of a boss's dramatic phase-transition pause
+    // (data/bosses.js `transitionLine`, e.g. Zombie Ned's "Okie dokie...")
+    // -- afterPlayerAction defers its mid-fight-event check while this is
+    // true, so a checkMidFightEvent (e.g. Rod & Todd) triggered on the exact
+    // same hit doesn't pop its modal on top of the still-darkened stage.
+    this.phaseTransitionPending = false;
     this.pendingAbilityId = null;
     this.pendingCharacterId = null;
     this.pendingEpisode = null;
@@ -1098,13 +1104,23 @@ export class Game {
     const result = playAbility(this.battle, this.runState, abilityId, targetInstanceId);
     if (!result.ok) return;
 
-    screens.playCombatantAnimation(null, 'cast');
-    this.animateAbilityEvents(result.events);
-    screens.appendBattleLog(`You used ${ABILITIES[abilityId].name}.`);
-    screens.renderBattle(this.battle, this.runState);
-    syncRunStateFromBattle(this.runState, this.battle);
-
-    this.afterPlayerAction();
+    const ability = ABILITIES[abilityId];
+    // MAJOR COMBAT POLISH: "Homer leans/lunges forward... impact appears...
+    // enemy recoils" -- a card that hits an enemy gets the lunge lead-in
+    // (Homer moves toward the target before impact lands), a self/allies
+    // card (buff/heal/armor) keeps the smaller "cast" hop, since there's no
+    // target to lunge at.
+    const isAttack = ability.target === 'enemy' || ability.target === 'allEnemies';
+    screens.playCombatantAnimation(null, isAttack ? 'lunge' : 'cast');
+    const resolve = () => {
+      this.animateAbilityEvents(result.events);
+      screens.appendBattleLog(`You used ${ability.name}.`);
+      screens.renderBattle(this.battle, this.runState);
+      syncRunStateFromBattle(this.runState, this.battle);
+      this.afterPlayerAction();
+    };
+    if (isAttack) setTimeout(resolve, 220);
+    else resolve();
   }
 
   onInspectPile(which) {
@@ -1192,10 +1208,30 @@ export class Game {
         screens.shakeBattleStage();
         screens.appendBattleLog(`${this.enemyName(ev.targetId)} is BROKEN! Stunned and Vulnerable.`);
       } else if (ev.kind === 'phaseChange') {
-        screens.showFloatingNumber(ev.targetId, ev.phaseName || 'PHASE SHIFT', 'phase');
-        screens.playCombatantAnimation(ev.targetId, 'phase');
-        screens.shakeBattleStage();
-        screens.appendBattleLog(`${this.enemyName(ev.targetId)} enters a new phase${ev.phaseName ? `: ${ev.phaseName}` : ''}!`);
+        const name = this.enemyName(ev.targetId);
+        const runPhaseBeat = () => {
+          screens.showFloatingNumber(ev.targetId, ev.phaseName || 'PHASE SHIFT', 'phase');
+          screens.playCombatantAnimation(ev.targetId, 'phase');
+          screens.shakeBattleStage();
+          screens.appendBattleLog(`${name} enters a new phase${ev.phaseName ? `: ${ev.phaseName}` : ''}!`);
+        };
+        if (ev.transitionLine) {
+          // MAJOR COMBAT POLISH: "Pause battle briefly. Screen darkens...
+          // Then: ZOMBIE NED MUTATES." -- a held dramatic beat before the
+          // ordinary phase-change flash/shake below, only for bosses whose
+          // phase declares a transitionLine (data/bosses.js).
+          this.phaseTransitionPending = true;
+          screens.setBattleDarkened(true);
+          screens.showBanner(ev.transitionLine, 1400);
+          setTimeout(() => {
+            screens.showBanner(`${name.toUpperCase()} MUTATES.`, 1600);
+            screens.setBattleDarkened(false);
+            runPhaseBeat();
+            this.phaseTransitionPending = false;
+          }, 1500);
+        } else {
+          runPhaseBeat();
+        }
       } else if (ev.kind === 'locationRevive') {
         screens.showFloatingNumber(ev.targetId, 'REVIVED!', 'phase');
         screens.playCombatantAnimation(ev.targetId, 'phase');
@@ -1210,6 +1246,16 @@ export class Game {
   // resolve the outcome, then check for a per-enemy mid-fight event (e.g.
   // Zombie Ned's Rod & Todd rescue) before letting the turn continue.
   afterPlayerAction() {
+    // A boss phase-transition's dramatic pause (data/bosses.js
+    // transitionLine) is still holding the stage darkened -- wait it out
+    // before checking for a mid-fight event, so e.g. Zombie Ned's Rod &
+    // Todd rescue (which can trigger on the very same hit that crosses his
+    // 50% HP phase line) never pops its choice modal over a still-dark,
+    // still-transitioning battlefield.
+    if (this.phaseTransitionPending) {
+      setTimeout(() => this.afterPlayerAction(), 200);
+      return;
+    }
     if (this.battle.outcome === 'victory') {
       setTimeout(() => this.onBattleVictory(), 700);
       return;
@@ -1337,15 +1383,31 @@ export class Game {
         screens.appendBattleLog(`${name} is Stunned and skips their turn.`);
         continue;
       }
+      // MAJOR COMBAT POLISH: a boss's pattern step (data/bosses.js) can
+      // carry a one-line combat quip -- shown once per lap through the
+      // pattern (whenever that step comes up), not every single turn.
+      if (action.intent?.dialogue) {
+        screens.showNpcBanner(this.battle.enemies.find((e) => e.instanceId === action.enemyId)?.templateId, action.intent.dialogue, 2600);
+      }
       const r = action.result;
       if (r && (r.type === 'attack' || r.type === 'attackTwice')) {
-        if (r.dealt > 0) {
-          screens.showFloatingNumber(null, `-${r.dealt}`, 'damage');
-          screens.playCombatantAnimation(null, 'hit');
-          screens.shakeBattleStage();
-        } else if (r.dodged) {
-          screens.showFloatingNumber(null, 'DODGE', 'heal');
+        if (r.dealt > 0 || r.dodged) {
+          // Enemy visibly lunges toward Homer FIRST, impact/recoil/damage
+          // land a beat later -- "enemy turns must feel like actual
+          // actions, not hidden calculations." Single-enemy fights only
+          // (this session's scoped target); a multi-enemy stagger is a
+          // follow-up, not needed for Zombie Ned alone.
+          screens.playCombatantAnimation(action.enemyId, 'lunge');
         }
+        setTimeout(() => {
+          if (r.dealt > 0) {
+            screens.showFloatingNumber(null, `-${r.dealt}`, 'damage');
+            screens.playCombatantAnimation(null, 'hit');
+            screens.shakeBattleStage();
+          } else if (r.dodged) {
+            screens.showFloatingNumber(null, 'DODGE', 'heal');
+          }
+        }, 260);
       } else if (r && r.type === 'prayer') {
         if (r.interrupted) {
           this.battle.flags.interruptsLanded = (this.battle.flags.interruptsLanded || 0) + 1;

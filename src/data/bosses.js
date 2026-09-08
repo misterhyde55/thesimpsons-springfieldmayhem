@@ -95,41 +95,43 @@ export const BOSSES = {
         },
       };
     },
-    // "Ned Snaps" -- entering the final phase, he loses his composure (and
-    // his guard): reuses the existing Vulnerable status rather than
-    // inventing a bespoke "lower defense" number, so it reads on the same
-    // status pip the player already understands.
+    // "Ned Snaps" -- entering Phase 2, he loses his composure (and his
+    // guard): reuses the existing Vulnerable status rather than inventing a
+    // bespoke "lower defense" number, so it reads on the same status pip the
+    // player already understands.
     onPhaseChange(battle, runState, enemy, phaseIndex) {
-      if (phaseIndex === 2) addStatus(enemy, STATUS.VULNERABLE, 3);
+      if (phaseIndex === 1) addStatus(enemy, STATUS.VULNERABLE, 3);
     },
+    // A fixed 4-step `pattern` per phase instead of a weighted `intents`
+    // pool (REDESIGN COMBAT: "give him an actual pattern... this gives
+    // players something to learn") -- enemyAI.js's rollIntent cycles through
+    // it by enemy.turnsInPhase, always restarting at step 0 the moment a
+    // fresh phase begins (battleEngine.js checkPhaseTransition resets the
+    // counter). Phase 2 kicks in at the same 50% HP line
+    // checkMidFightEvent above already uses for Rod & Todd, so the "Ned
+    // snaps" moment and their rescue land together. A pattern step's
+    // optional `dialogue` surfaces once per lap (see game.js
+    // animateEnemyActions) -- personality without nagging every turn.
     phases: [
       {
-        minHpPct: 0.6,
+        minHpPct: 0.5,
         name: 'OKILLY DOKILLY',
-        intents: [
-          { type: 'attack', value: 10, weight: 35, label: 'Neighborly Swipe', icon: '🧟' },
-          { type: 'defend', value: 10, weight: 20, label: 'Turn The Other Cheek', icon: '🛡️' },
-          { type: 'prayer', value: 25, weight: 25, label: 'Prayer', icon: '🙏', interruptible: true, interruptThreshold: 15 },
-          { type: 'bewilder', value: 1, weight: 20, label: 'Howdy, Neighbor', icon: '😵‍💫' },
-        ],
-      },
-      {
-        minHpPct: 0.3,
-        name: 'STUPID SEXY ZOMBIE',
-        intents: [
-          { type: 'attack', value: 12, weight: 30, label: 'Neighborly Swipe', icon: '🧟' },
-          { type: 'prayer', value: 25, weight: 20, label: 'Prayer', icon: '🙏', interruptible: true, interruptThreshold: 15 },
-          { type: 'distract', value: 1, weight: 25, label: 'Ski Nightmare', icon: '💃' },
-          { type: 'bewilder', value: 1, weight: 25, label: 'Howdy, Neighbor', icon: '😵‍💫' },
+        pattern: [
+          { type: 'attack', value: 10, label: 'Righteous Swipe', icon: '🧟', dialogue: 'Hi-diddly-ho, Homer! This is gonna hurt me more than it hurts you. Probably.' },
+          { type: 'infect', value: 3, label: 'Holy Hunger', icon: '☣️' },
+          { type: 'defend', value: 10, label: 'Barricade', icon: '🛡️' },
+          { type: 'summon', value: 1, summonId: 'zombieBarfly', label: 'Neighborly Backup', icon: '📣' },
         ],
       },
       {
         minHpPct: 0,
-        name: 'NED SNAPS',
-        intents: [
-          { type: 'attack', value: 18, weight: 55, label: 'Neighborino Rage', icon: '😡' },
-          { type: 'distract', value: 1, weight: 20, label: 'Ski Nightmare', icon: '💃' },
-          { type: 'bewilder', value: 1, weight: 25, label: 'Howdy, Neighbor', icon: '😵‍💫' },
+        name: 'UNHOLY NEIGHBOR',
+        transitionLine: 'Okie dokie...',
+        pattern: [
+          { type: 'attackTwice', value: 16, label: 'Frenzy', icon: '😡', dialogue: "Brains, neighborino... so many brains." },
+          { type: 'prayer', value: 12, label: 'Holy Hunger', icon: '🙏', interruptible: true, interruptThreshold: 15 },
+          { type: 'weaken', value: 2, label: 'Unholy Sermon', icon: '📖' },
+          { type: 'attack', value: 18, label: 'Final Bite', icon: '🦷', dialogue: "Let's pray... FOR YOUR DEATH!" },
         ],
       },
     ],

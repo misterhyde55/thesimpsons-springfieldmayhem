@@ -31,12 +31,31 @@ export function currentPhaseIndex(enemy) {
   return idx === -1 ? enemy.template.phases.length - 1 : idx;
 }
 
+function activePhase(enemy) {
+  if (!enemy.template.phases) return null;
+  return enemy.template.phases[currentPhaseIndex(enemy)];
+}
+
 function intentsForEnemy(enemy) {
-  if (enemy.template.phases) return enemy.template.phases[currentPhaseIndex(enemy)].intents;
+  const phase = activePhase(enemy);
+  if (phase) return phase.intents;
   return enemy.template.intents;
 }
 
+// A boss phase can declare a fixed `pattern` (an ordered array of intents)
+// instead of a weighted `intents` pool -- REDESIGN COMBAT: "give him an
+// actual pattern... this gives players something to learn." Cycles by
+// enemy.turnsInPhase (battleEngine.js resets it to 0 whenever
+// checkPhaseTransition moves the enemy into a new phase), so a boss always
+// opens a fresh phase on step 0 of its pattern rather than wherever the
+// previous phase's weighted rolls happened to leave off.
 export function rollIntent(enemy) {
+  const phase = activePhase(enemy);
+  if (phase && phase.pattern) {
+    enemy.intent = phase.pattern[enemy.turnsInPhase % phase.pattern.length];
+    enemy.turnsInPhase += 1;
+    return;
+  }
   const pool = intentsForEnemy(enemy);
   const chosen = pickWeighted(pool.map((i) => ({ ...i, weight: i.weight })));
   enemy.intent = chosen;

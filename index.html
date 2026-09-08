@@ -367,6 +367,7 @@
           <div class="combatant-footer">
             <div id="battle-player-name" class="combatant-name">HOMER</div>
             <div class="hp-bar-outer">
+              <div id="battle-player-hp-bar-ghost" class="hp-bar-ghost"></div>
               <div id="battle-player-hp-bar" class="hp-bar-inner"></div>
               <span id="battle-player-hp-text" class="hp-bar-label">150 / 150</span>
             </div>
@@ -379,9 +380,13 @@
       <div class="battlefield-side battlefield-side-enemies">
         <div id="battle-enemies" class="battle-enemies-row"></div>
       </div>
-    </div>
 
-    <div id="battle-log" class="battle-log"></div>
+      <!-- MAJOR COMBAT POLISH: "remove combat log from center... small
+           lower-left log" -- tucked into the battlefield's own corner
+           (position:relative on .battle-stage) instead of sitting in the
+           main vertical flow between the battlefield and the hand. -->
+      <div id="battle-log" class="battle-log"></div>
+    </div>
 
     <!-- Battlefield objects (data/battleEnvironments.js) -- free, limited-
          use actions separate from Homer's own ability deck. Empty/hidden
