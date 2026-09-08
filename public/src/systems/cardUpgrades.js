@@ -10,10 +10,12 @@ import { ABILITIES } from '../data/abilities.js';
 
 // Every owned, not-yet-upgraded ability of a given archetype -- what an
 // upgrade station's "UPGRADE A CARD" interaction offers as choices.
+// `archetype` of null/undefined means "any archetype" (Moe's general
+// upgrade, as opposed to Bowlarama/Nuclear Plant's archetype-locked ones).
 export function getUpgradableAbilities(runState, archetype) {
   return runState.abilityDeck
     .map((id) => ABILITIES[id])
-    .filter((ability) => ability && ability.archetype === archetype && ability.upgradesToId);
+    .filter((ability) => ability && (!archetype || ability.archetype === archetype) && ability.upgradesToId);
 }
 
 // Replaces `baseId` with its `+` id in place. Returns the new (upgraded)

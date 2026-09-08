@@ -789,7 +789,7 @@ export class Game {
       this.interiorActionsRemaining,
       (interaction) => this.onInteriorInteract(interaction),
       () => this.leaveInterior(),
-      INTERIORS[this.interiorLocationId].image,
+      INTERIORS[this.interiorLocationId],
       this.runState
     );
     if (this.interiorActionsRemaining === 1) {

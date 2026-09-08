@@ -582,7 +582,7 @@ function renderHandCards(battle, runState) {
   container.innerHTML = getHandAbilities(battle)
     .map(
       (ability) => `
-      <button class="action-card archetype-${ability.archetype}" data-ability-id="${ability.id}">
+      <button class="action-card archetype-${ability.archetype}${ability.upgraded ? ' upgraded' : ''}" data-ability-id="${ability.id}">
         <span class="action-cost">${abilityCost(battle, runState, ability)}</span>
         <span class="action-rarity" style="background:${RARITY_COLOR[ability.rarity] || RARITY_COLOR.common}"></span>
         <span class="action-icon-wrap">${iconHtml(ability.icon.category, ability.icon.id, ability.name)}</span>
@@ -1422,15 +1422,22 @@ export function populateTravelScreen(scene, sceneLine, destinationName, travelOu
 // with `isUsed(runState)` returning true renders disabled with its
 // `usedLabel` instead of the normal cost caption (e.g. Moe's HAVE A BEER ->
 // "ALREADY HAD ONE" once spent this visit).
-export function populateLocationInterior(locationName, state, actionsRemaining, onInteract, onLeave, imageAssetId, runState) {
+export function populateLocationInterior(locationName, state, actionsRemaining, onInteract, onLeave, interior, runState) {
   $('interior-location-name').textContent = locationName.toUpperCase();
   $('interior-actions-readout').textContent = `ACTIONS REMAINING: ${actionsRemaining}`;
   const stage = $('interior-stage');
-  const imageUrl = imageAssetId ? getAssetUrl('ui', imageAssetId) : null;
   const imageEl = $('interior-image');
-  stage.classList.toggle('has-image', !!imageUrl);
-  if (imageUrl) {
-    imageEl.src = imageUrl;
+  const portraitEl = $('interior-portrait');
+  // Two art modes (LOCATION INTERACTION SYSTEM, data/interiors.js): a single
+  // combined scene photo (`image`, e.g. Moe's -- Moe is already IN the
+  // shot), or a real location background with a separate NPC chat portrait
+  // composited on top (`background` + `portrait`, e.g. Kwik-E-Mart's real
+  // store photo + Apu's own portrait) -- never both, never invented art.
+  const backgroundUrl = interior?.background ? getAssetUrl(interior.background.category, interior.background.id) : interior?.image ? getAssetUrl('ui', interior.image) : null;
+  const portraitUrl = interior?.portrait ? getAssetUrl(interior.portrait.category, interior.portrait.id) : null;
+  stage.classList.toggle('has-image', !!backgroundUrl);
+  if (backgroundUrl) {
+    imageEl.src = backgroundUrl;
     imageEl.classList.remove('hidden');
     $('interior-background-emoji').classList.add('hidden');
   } else {
@@ -1438,7 +1445,9 @@ export function populateLocationInterior(locationName, state, actionsRemaining, 
     $('interior-background-emoji').classList.remove('hidden');
     $('interior-background-emoji').textContent = state.background;
   }
-  $('interior-intro-text').textContent = state.intro;
+  portraitEl.classList.toggle('hidden', !portraitUrl);
+  if (portraitUrl) portraitEl.src = portraitUrl;
+  $('interior-intro-text').textContent = typeof state.intro === 'function' ? state.intro(runState) : state.intro;
   $('interior-result-panel').classList.add('hidden');
 
   if (runState) {
