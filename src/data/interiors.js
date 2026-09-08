@@ -960,6 +960,7 @@ export const INTERIORS = {
   // Moe's/Apu's-style dialogue interior -- the upgrade station is the point.
   bowlarama: {
     deferVisitToContent: true,
+    background: { category: 'buildings', id: 'bowlarama' },
     states: {
       normal: {
         background: '🎳',
