@@ -95,6 +95,8 @@ export const ASSET_MANIFEST = {
     // feral clawed look fits the lesser, more common alienProbe instead.
     alienProbe: `${BASE}/enemies/alien1.png`,
     alienEnforcer: `${BASE}/enemies/alien2.png`,
+    // Real filename as uploaded (note: "rapid", not "rabid").
+    rabidStrayDog: `${BASE}/enemies/rapidstraydog.png`,
   },
   // data/bosses.js entries, keyed by boss id. Chief Wiggum and Mr. Burns reuse
   // their characters/ portrait here for the in-arena boss sprite -- one image
