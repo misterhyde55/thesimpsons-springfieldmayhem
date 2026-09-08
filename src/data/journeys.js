@@ -1,4 +1,4 @@
-import { wheresBarneyCemeteryContent, missingOfficersReportContent } from './quests.js';
+import { wheresBarneyCemeteryContent, missingOfficersReportContent, whereIsBartSchoolContent } from './quests.js';
 
 // A "journey" is a character's whole episode: three segments, each
 // activating its own Horror Rule (which then stays active -- see
@@ -141,6 +141,14 @@ export function getLocationContent(runState, locationId) {
   // the report-back-and-collect-reward beat instead of its normal content.
   if (locationId === 'policeStation' && runState.quests.missingOfficers === 'resolved') {
     return missingOfficersReportContent();
+  }
+
+  // Quest 4 (WHERE'S BART?, started at the Kwik-E-Mart): overrides
+  // Springfield Elementary's normal content with the FIGHT IT OFF/GRAB AND
+  // RUN encounter, as long as the school isn't this segment's own scripted
+  // boss fight (Segment I).
+  if (locationId === 'springfieldElementary' && runState.quests.whereIsBart === 'active' && segment.bossLocationId !== 'springfieldElementary') {
+    return whereIsBartSchoolContent();
   }
 
   return segment.content[locationId] || null;

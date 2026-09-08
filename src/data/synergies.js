@@ -33,6 +33,21 @@ export const SYNERGIES = {
       },
     },
   },
+  homerBart: {
+    id: 'homerBart',
+    name: 'Like Father, Like Son',
+    icon: '🛹',
+    requires: ['homer', 'bart'],
+    description: 'Whenever you apply Stun to an enemy, also apply 1 Vulnerable.',
+    hooks: {
+      onStatusApplied(runState, battle, holder, statusId, newTotal) {
+        if (statusId !== 'stun' || holder === battle.player || battle.flags.bartSynergyLock) return;
+        battle.flags.bartSynergyLock = true;
+        holder.statuses.vulnerable = (holder.statuses.vulnerable || 0) + 1;
+        battle.flags.bartSynergyLock = false;
+      },
+    },
+  },
 };
 
 export function getActiveSynergies(runState) {

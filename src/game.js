@@ -718,14 +718,18 @@ export class Game {
     // content is used up, because a quest or callback has put something new
     // there -- First Church of Springfield once Devil Ned corrupts it
     // (data/journeys.js getLocationContent, until he's actually defeated),
-    // Springfield Cemetery while WHERE'S BARNEY? is active, and Police
-    // Station once THE MISSING OFFICERS is ready to be reported.
+    // Springfield Cemetery while WHERE'S BARNEY? is active, Police Station
+    // once THE MISSING OFFICERS is ready to be reported, and Springfield
+    // Elementary while WHERE'S BART? is active.
     const hasPendingLocationOverride =
       (locationId === 'springfieldChurch' && this.runState.world.locationFlags.hasDevilPortal && !this.runState.world.locationFlags.devilNedDefeated) ||
       (locationId === 'springfieldCemetery' &&
         this.runState.quests.wheresBarney === 'active' &&
         getCurrentSegment(this.runState).bossLocationId !== 'springfieldCemetery') ||
-      (locationId === 'policeStation' && this.runState.quests.missingOfficers === 'resolved');
+      (locationId === 'policeStation' && this.runState.quests.missingOfficers === 'resolved') ||
+      (locationId === 'springfieldElementary' &&
+        this.runState.quests.whereIsBart === 'active' &&
+        getCurrentSegment(this.runState).bossLocationId !== 'springfieldElementary');
     const alreadyVisited = !hasPendingLocationOverride && this.runState.world.segmentVisitedLocationIds.includes(locationId);
     const content = alreadyVisited ? null : getLocationContent(this.runState, locationId);
     if (!content) {
