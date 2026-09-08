@@ -123,6 +123,7 @@ export const ASSET_MANIFEST = {
     simpsonHouse: `${BASE}/buildings/742_Evergreen_Terrace.webp`,
     homeFrontYard: `${BASE}/buildings/742_Evergreen_Terrace.webp`,
     moesTavern: `${BASE}/buildings/Moe%27s_Tavern.webp`,
+    kwikEMart: `${BASE}/buildings/kwikemart.png`,
     springfieldElementary: `${BASE}/buildings/Springfield_Elementary_School.webp`,
     flandersHouse: `${BASE}/buildings/Flanders%20House.webp`,
     nuclearPlant: `${BASE}/buildings/Springfield%20Nuclear%20Power%20Plant.png`,

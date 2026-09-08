@@ -1,19 +1,42 @@
-// Enterable location interiors -- small interactive scenes rather than a
-// single board-node encounter. Each interior has one `states` map keyed by
-// Horror Rule id (plus 'normal'); systems/locationInterior.js resolves
-// which state is showing right now (resolveInteriorStateId below) so the
-// SAME building reacts to whichever Horror Rules the run has stacked up --
-// see data/horrorRules.js for why a state id doubles as a rule id.
+// LOCATION INTERACTION SYSTEM -- enterable location interiors as small,
+// data-driven interactive scenes rather than a single board-node encounter
+// or a bespoke screen per building. An INTERIORS entry is
+// `{npcId?, image? | (background & portrait)?, states: {...}}`; the same
+// shape works for Moe (a single combined scene photo) and Apu (a real
+// location background with the NPC's own chat portrait composited on top)
+// today, and is meant to be reused as-is for future NPCs (Comic Book Guy,
+// Dr. Hibbert, Chief Wiggum, Krusty, Skinner, Mr. Burns, ...) with entirely
+// different gameplay functions -- only the `states`/interactions differ.
 //
-// Each state is `{background, intro, interactions: [...]}`. An interaction
-// is `{id, label, cost, run(runState) => {text, followUps?}}` -- `run`
-// resolves immediately and can mutate runState (heal, spend currency, flag
-// a rumor, discover a secret). `followUps` are a dialogue's own reply
-// options (free -- they're part of the one "talk" action, not a new one),
-// each shaped the same as an interaction but without its own `cost`. An
-// interaction can instead set `special: 'shop'` or `special: 'abilityDraft'`
-// to hand off to an existing full-screen flow (systems/economy.js's shop
-// modal, or the ability draft) rather than resolving inline.
+// `states` is keyed by Horror Rule id (plus 'normal'); systems/
+// locationInterior.js resolves which state is showing right now
+// (resolveInteriorStateId below) so the SAME building reacts to whichever
+// Horror Rules the run has stacked up -- see data/horrorRules.js for why a
+// state id doubles as a rule id.
+//
+// Each state is `{background, intro, interactions: [...]}`. `background`
+// is the emoji fallback shown only when no `image`/`background`+`portrait`
+// art is set on the interior. `intro` is either a plain string or a
+// `(runState) => string` for state that reacts to the player (e.g. Moe
+// reacting to Homer's current HP) -- see ui/screens.js populateLocationInterior.
+//
+// An interaction is `{id, label, cost, run(runState) => {text, followUps?},
+// secondary?, isUsed?(runState), usedLabel?}` -- `run` resolves immediately
+// and can mutate runState (heal, spend currency, flag a rumor, discover a
+// secret, upgrade a card). `secondary: true` renders it as a small chip
+// instead of a large primary button (ui/screens.js). `isUsed`/`usedLabel`
+// disable it and swap its label once a once-per-visit/once-per-checkpoint
+// limit is spent (e.g. "ALREADY HAD ONE", "UPGRADE USED"), without needing
+// a separate `visible` check that would just remove the button outright.
+// `followUps` are a dialogue's own reply options (free -- they're part of
+// the one "talk" action, not a new one), each shaped the same as an
+// interaction but without its own `cost`, and can themselves return further
+// `followUps` -- game.js onInteriorFollowUp chains them, so a reply can open
+// another round of replies (e.g. TALK TO MOE -> UPGRADE A CARD -> pick a
+// card -> CURRENT/UPGRADED preview -> CONFIRM). An interaction/followUp can
+// instead set `special: 'shop'`, `special: 'abilityDraft'`, or (on a
+// followUp) `special: 'combat'` to hand off to an existing full-screen flow
+// rather than resolving inline.
 import { shiftRelationship, moeDuffTerms, moeGreeting } from '../systems/relationships.js';
 import { getRelicShopPool } from './relics.js';
 import { getEvent } from './events.js';
@@ -129,6 +152,62 @@ function haveABeerInteraction() {
   };
 }
 
+// Moe's SECOND reason to visit even at full HP -- a free, general card
+// upgrade (any archetype, unlike Bowlarama/Nuclear Plant's archetype-locked
+// paid stations). Limited to one per segment ("episode checkpoint") via
+// runState.world.moeUpgradeUsedSegment so leaving and immediately walking
+// back in doesn't grant unlimited free upgrades -- it naturally opens back
+// up the moment the run advances to the next segment/Act.
+function moeUpgradeInteraction() {
+  return {
+    id: 'moeUpgradeCard',
+    label: 'UPGRADE A CARD',
+    cost: 1,
+    isUsed: (runState) => runState.world.moeUpgradeUsedSegment === runState.segmentIndex,
+    usedLabel: 'UPGRADE USED',
+    run(runState) {
+      if (runState.world.moeUpgradeUsedSegment === runState.segmentIndex) {
+        return { text: 'Moe: "Already sorted you out this time around, Homer. Come back later."' };
+      }
+      const candidates = getUpgradableAbilities(runState, null);
+      if (!candidates.length) {
+        return { text: "Moe: \"Nothin' in that deck of yours left to sharpen up.\"" };
+      }
+      const followUps = candidates.map((ability) => {
+        const upgraded = ABILITIES[ability.upgradesToId];
+        return {
+          id: `moePreview_${ability.id}`,
+          label: ability.name.toUpperCase(),
+          run() {
+            return {
+              text: `CURRENT:\n${ability.description}\n\nUPGRADED:\n${upgraded.description}`,
+              followUps: [
+                {
+                  id: `moeConfirm_${ability.id}`,
+                  label: `CONFIRM: ${upgraded.name.toUpperCase()}`,
+                  run(rs) {
+                    const result = upgradeAbility(rs, ability.id);
+                    rs.world.moeUpgradeUsedSegment = rs.segmentIndex;
+                    return { text: `Moe works it over for a minute. "There. ${result.name}. Don't say I never did nothin' for ya." (CARD UPGRADED)` };
+                  },
+                },
+                {
+                  id: `moeCancel_${ability.id}`,
+                  label: 'NEVER MIND',
+                  run() {
+                    return { text: 'Moe shrugs and goes back to wiping the bar.' };
+                  },
+                },
+              ],
+            };
+          },
+        };
+      });
+      return { text: 'Moe: "Whaddya want sharpened up?"', followUps };
+    },
+  };
+}
+
 function grantUndiscoveredRelic(runState) {
   const pool = getRelicShopPool().filter((r) => !runState.relics.includes(r.id));
   if (!pool.length) return null;
@@ -149,7 +228,7 @@ function eatAHotDogInteraction() {
       if (runState.donutsCurrency < 5) return { text: "Apu: \"That's five donuts, Homer. Not five IOUs.\"" };
       runState.donutsCurrency -= 5;
       runState.hp = Math.min(runState.maxHp, runState.hp + 15);
-      return { text: "It's been on the roller since... a while. Still hits the spot. (+15 HP, -5 donuts)" };
+      return { text: 'Apu: "Please do not ask how long that has been rotating." (+15 HP, -5 donuts)' };
     },
   };
 }
@@ -284,11 +363,15 @@ function unlockStorageCageInteraction() {
 export const INTERIORS = {
   kwikEMart: {
     npcId: 'apu',
-    // The uploaded Kwik-E-Mart scene photo (Apu behind the counter) -- same
-    // treatment as moesTavern's `image` below (see ui/screens.js
-    // populateLocationInterior), so both fast-pit-stop locations show real
-    // art instead of the small emoji `background` glyph.
-    image: 'apuChat',
+    // Two real, separately-uploaded assets composited by ui/screens.js
+    // populateLocationInterior -- the actual store scene as the stage's
+    // full background (buildings/kwikemart.png) with Apu's own chat
+    // portrait (ui/apuChat) layered on top, instead of moesTavern's single
+    // combined bar photo below. Different presentation, deliberately not
+    // reusing Moe's art -- see the LOCATION INTERACTION SYSTEM comment atop
+    // this file for how `image` vs `background`+`portrait` are resolved.
+    background: { category: 'buildings', id: 'kwikEMart' },
+    portrait: { category: 'ui', id: 'apuChat' },
     // Checked once after any interaction while the visit is in this state
     // (see systems/locationInterior.js) -- fires at most once per run.
     // 'normal' is only ever showing before Segment I's Horror Rule activates
@@ -299,7 +382,7 @@ export const INTERIORS = {
     states: {
       normal: {
         background: '🏪',
-        intro: 'Apu stands behind the counter, humming along to a radio that only plays static tonight.',
+        intro: 'Apu: "Welcome to the Kwik-E-Mart, Homer. Please purchase something before the undead do."',
         interactions: [
           eatAHotDogInteraction(),
           { id: 'buySomething', label: 'STORE', cost: 1, special: 'shop' },
@@ -534,9 +617,16 @@ export const INTERIORS = {
       // cost on the followUp instead (see game.js onInteriorFollowUp).
       normal: {
         background: '🍺',
-        intro: "Moe wipes a glass that was already dirty before he started. Barney's asleep sitting up at the bar.",
+        // HP-aware greeting -- Moe actually reacts to how banged-up Homer
+        // looks instead of the same flavor line at 150/150 and 12/150.
+        intro(runState) {
+          if (runState.hp / runState.maxHp < 0.4) return 'Moe: "Geez, Homer. You look terrible."';
+          if (runState.hp / runState.maxHp < 0.8) return 'Moe: "Rough night, huh? Siddown."';
+          return "Moe wipes a glass that was already dirty before he started. Barney's asleep sitting up at the bar.";
+        },
         interactions: [
           haveABeerInteraction(),
+          moeUpgradeInteraction(),
           {
             id: 'talkToMoe',
             label: 'TALK TO MOE',
@@ -611,6 +701,7 @@ export const INTERIORS = {
         intro: 'The lights flicker. Bar stools lie overturned. A blood trail leads toward the back room. Moe is holding a shotgun. Barney is nowhere in sight.',
         interactions: [
           haveABeerInteraction(),
+          moeUpgradeInteraction(),
           {
             id: 'talkToMoe',
             label: 'TALK TO MOE',
@@ -741,6 +832,7 @@ export const INTERIORS = {
         intro: 'Everything looks mostly normal. Moe is wiping the same glass in a perfect, unblinking rhythm. Something about his eyes catches the light wrong.',
         interactions: [
           haveABeerInteraction(),
+          moeUpgradeInteraction(),
           {
             id: 'talkToMoe',
             label: 'TALK TO MOE',
@@ -917,12 +1009,10 @@ for (const interior of Object.values(INTERIORS)) {
     state.interactions.push(useItemInteraction());
   }
 }
-// Moe's is the Duff upgrade station (REDESIGN COMBAT GAMEPLAY: "MOE'S --
-// Upgrade: DUFF RAGE") -- wired onto every state the same way, rather than
-// repeating it in each block above.
-for (const state of Object.values(INTERIORS.moesTavern.states)) {
-  state.interactions.push(upgradeCardInteraction('duff', { price: 5 }));
-}
+// Moe's own general UPGRADE A CARD (moeUpgradeInteraction, added inline to
+// normal/zombieOutbreak/alienInvasion above) replaces the old paid,
+// duff-only upgradeCardInteraction station -- underAttack/overrun stay
+// combat-only/looted, same as they never got haveABeerInteraction either.
 
 // Prefers the most-recently-activated Horror Rule that defines a state for
 // this location (so Segment II's rule wins over Segment I's once both are

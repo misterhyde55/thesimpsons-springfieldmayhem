@@ -1292,6 +1292,28 @@ body:not(.header-hidden) .location-interior-screen {
 .action-card.archetype-bowling { --action-accent: #38b6ff; --action-bg-a: #1a2c38; --action-bg-b: #141f28; }
 .action-card.archetype-rage { --action-accent: #d0021b; --action-bg-a: #3a1414; --action-bg-b: #240d0d; }
 
+/* Moe's UPGRADE A CARD result -- a small, immediately-recognizable frame
+   (double border + corner badge) on top of the card's normal archetype
+   look, not a new art style. */
+.action-card.upgraded { border-width: 3px; box-shadow: inset 0 0 0 1px rgba(246, 210, 23, 0.6); }
+.action-card.upgraded::after {
+  content: '+';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f6d217;
+  color: #1b1b1f;
+  font-weight: 800;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
 .end-turn-btn {
   flex: 0 0 auto;
   background: #f6d217;
@@ -2041,6 +2063,7 @@ body:not(.header-hidden) .location-interior-screen {
   justify-content: center;
   margin-bottom: 12px;
   overflow: hidden;
+  position: relative;
 }
 .interior-background-emoji { font-size: 5rem; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5)); }
 /* A real interior photo (data/interiors.js `image`, e.g. Moe's Tavern's
@@ -2056,6 +2079,22 @@ body:not(.header-hidden) .location-interior-screen {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .interior-image { width: 100%; height: 100%; object-fit: contain; background: #000; }
+/* The NPC's own chat portrait (Kwik-E-Mart's Apuchat.avif over
+   kwikemart.png), composited on top of the location background instead of
+   one combined photo like Moe's -- anchored bottom-right so the location
+   art stays the star of the screen. */
+.interior-portrait {
+  position: absolute;
+  right: 2%;
+  bottom: 0;
+  height: 78%;
+  max-width: 48%;
+  object-fit: contain;
+  object-position: bottom right;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6));
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 18%);
+  mask-image: linear-gradient(to right, transparent, #000 18%);
+}
 .interior-intro-text { max-width: 560px; color: #e2e2ea; font-style: italic; text-align: center; margin-bottom: 8px; }
 
 /* Current HP/Cash at a glance -- the fast-decision numbers ("do I need
@@ -2084,7 +2123,13 @@ body:not(.header-hidden) .location-interior-screen {
   gap: 10px;
   margin-bottom: 10px;
 }
-.interior-interactions-primary .interior-interaction-btn--primary { flex: 1 1 200px; margin: 0; }
+.interior-interactions-primary .interior-interaction-btn--primary {
+  flex: 1 1 200px;
+  margin: 0;
+  font-size: 1rem;
+  padding: 12px 16px;
+  white-space: nowrap;
+}
 .interior-interaction-btn small { display: block; font-weight: 400; opacity: 0.75; font-size: 0.7rem; margin-top: 2px; }
 
 .interior-interactions-secondary {
@@ -2122,6 +2167,9 @@ body:not(.header-hidden) .location-interior-screen {
   text-align: center;
   margin-bottom: 14px;
 }
+/* Lets multi-line results (Moe's CURRENT/UPGRADED card comparison) keep
+   their line breaks instead of collapsing to one run-on sentence. */
+#interior-result-text { white-space: pre-line; }
 .interior-followups { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 
 /* ---------------- Story scene (cinematic Treehouse artwork moments) ---------------- */
