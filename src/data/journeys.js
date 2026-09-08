@@ -107,7 +107,13 @@ export const JOURNEYS = {
           // The "Hospital" encounter combo: Hibbert keeps healing the
           // Nurses, changing who's worth focusing down first.
           springfieldHospital: { type: 'combat', enemyIds: ['zombieHibbert', 'zombieNurse', 'zombieNurse'] },
-          burnsManor: { type: 'combat', elite: true, enemyIds: ['zombieKrustyDeluxe'], questResolution: 'officersFound' },
+          // BURNS MANSION SHOULD BE IMPORTANT: "EXCELLENTLY EVIL" -- Segment
+          // III's already-elite Burns Manor fight is the natural high-risk
+          // culmination point (see game.js showBurnsMachineIntro/
+          // onBattleVictory's burnsExcellentlyEvil branch for the actual
+          // dialogue -> combat -> ACTIVATE/DESTROY/STEAL COMPONENT flow) --
+          // still resolves THE MISSING OFFICERS the same way it always did.
+          burnsManor: { type: 'combat', elite: true, enemyIds: ['zombieKrustyDeluxe'], questResolution: 'officersFound', burnsExcellentlyEvil: true },
           retirementCastle: { type: 'event', eventPool: ['grampasStory'] },
           springfieldChurch: { type: 'event', eventPool: ['churchConfession'] },
           springfieldSewer: { type: 'combat', elite: true, enemyIds: ['zombieSnake', 'zombieKrustyDeluxe'] },

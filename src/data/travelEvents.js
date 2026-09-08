@@ -9,6 +9,8 @@
 // long way around through the school.
 import { blockRoad } from './worldMap.js';
 import { getRelicShopPool } from './relics.js';
+import { getDraftPool, RARITY } from './abilities.js';
+import { learnAbility } from '../systems/abilityDraft.js';
 
 // Shared by both zombie ambush tiers below -- low-HP, no-name zombies (the
 // same sprites the board's generic mob encounters use), appropriate for a
@@ -339,6 +341,127 @@ export const TRAVEL_EVENTS = {
             label: 'TAKE THE DETOUR',
             apply() {
               return 'You backtrack and find another way around. It costs you a few minutes and nothing else.';
+            },
+          },
+        },
+      };
+    },
+  },
+  // HELP OTTO leads to real combat (`special: 'combat'`, same convention
+  // showInteriorRandomEvent/onInteriorFollowUp already use), and JUMP ON
+  // is the one choice in this pass that actually changes the destination
+  // -- "the destination should remain the player's destination unless the
+  // event explicitly changes it" -- via `redirectTo` on the returned
+  // result, read by game.js travelTo. Never rolls when Springfield
+  // Elementary is already where the player is headed (redirecting there
+  // would be a no-op choice).
+  ottoEncounter: {
+    id: 'ottoEncounter',
+    weight: 2,
+    condition: (runState, fromId, toId) => toId !== 'springfieldElementary',
+    apply() {
+      return {
+        decision: {
+          title: 'SCHOOL BUS!',
+          speaker: 'Otto',
+          prompt: 'A school bus barrels down the street, swerving hard. Otto leans out the window: "DUDE! THERE ARE ZOMBIES ON THE BUS!"',
+          choiceA: {
+            label: 'HELP OTTO (Fight Zombie Students)',
+            special: 'combat',
+            combatContent: { type: 'combat', enemyIds: ['zombieStudent', 'zombieStudent'], grantRelicId: 'ottosMixtape' },
+          },
+          choiceB: {
+            label: 'JUMP ON (travel to Springfield Elementary immediately)',
+            apply() {
+              return { text: 'You swing aboard as the doors hiss shut behind you. Otto floors it, still cheering.', redirectTo: 'springfieldElementary' };
+            },
+          },
+          choiceC: {
+            label: 'IGNORE',
+            apply() {
+              return 'The bus roars past, still swerving. You decide this is somebody else\'s problem.';
+            },
+          },
+        },
+      };
+    },
+  },
+  comicBookGuyEncounter: {
+    id: 'comicBookGuyEncounter',
+    weight: 2,
+    condition: () => true,
+    apply() {
+      return {
+        decision: {
+          title: 'COMIC BOOK GUY',
+          speaker: 'Comic Book Guy',
+          prompt: '"I have survived many fictional apocalypses. This one is disappointingly derivative." He holds out a single card, face-down.',
+          choiceA: {
+            label: 'BUY THE MYSTERY CARD ($15, unknown outcome)',
+            apply(runState) {
+              if (runState.donutsCurrency < 15) return 'You check your pockets. "Hmph. Poverty is the WORST kind of derivative." He pockets the card and shuffles off.';
+              runState.donutsCurrency -= 15;
+              const roll = Math.random();
+              if (roll < 0.4) {
+                const pool = getDraftPool(runState.cast).filter(
+                  (a) => (a.rarity === RARITY.RARE || a.rarity === RARITY.EPIC) && !runState.abilityDeck.includes(a.id)
+                );
+                if (pool.length) {
+                  const ability = pool[Math.floor(Math.random() * pool.length)];
+                  learnAbility(runState, ability);
+                  return `He flips the card over. "...huh. Mint condition." ${ability.name.toUpperCase()} learned. (-15 donuts)`;
+                }
+              }
+              if (roll < 0.7) {
+                runState.hp = Math.max(1, runState.hp - 10);
+                return 'He flips the card over. It\'s cursed. You feel it immediately. "Worst curse ever, honestly." (-10 HP, -15 donuts)';
+              }
+              return 'He flips the card over. It\'s a 1994 Non-Sport Update Bazooka Joe promo, water-damaged. "...huh. Worthless." (-15 donuts, nothing else happens)';
+            },
+          },
+          choiceB: {
+            label: 'NO THANKS',
+            apply() {
+              return '"Your loss. Worst customer ever." He shrugs and wanders off, muttering about continuity errors.';
+            },
+          },
+        },
+      };
+    },
+  },
+  grandpaEncounter: {
+    id: 'grandpaEncounter',
+    weight: 2,
+    condition: () => true,
+    apply() {
+      return {
+        decision: {
+          title: 'GRANDPA',
+          speaker: 'Grandpa',
+          prompt: '"I know exactly how this whole zombie business got started, you know."',
+          choiceA: {
+            label: 'LISTEN (small chance he actually knows something)',
+            apply(runState) {
+              // "Keep it SHORT enough not to annoy the player" -- one line
+              // either way, no multi-step dialogue.
+              if (Math.random() < 0.25) {
+                runState.donutsCurrency += 4;
+                return 'Grandpa: "...and that\'s how I met a man who later turned into your grandmother. Anyway, it was the mailbox. I\'m almost certain." Somehow, that tip pays off. (+4 donuts)';
+              }
+              return 'Grandpa: "Now, back in my day, the Army gave us cough drops made of real tobacco..." You nod and keep moving before the story finds a second act.';
+            },
+          },
+          choiceB: {
+            label: "HELP GRANDPA HOME (escort him to the Retirement Castle)",
+            apply(runState) {
+              if (!runState.relics.includes('grandpasWarStory')) runState.relics.push('grandpasWarStory');
+              return 'You walk him all the way back to the Retirement Castle. He pats your arm. "You\'re alright, for a... whoever you are." GRANDPA\'S WAR STORY learned.';
+            },
+          },
+          choiceC: {
+            label: 'KEEP MOVING',
+            apply() {
+              return "You keep moving. He waves after you, mid-sentence, about something involving an onion tied to his belt.";
             },
           },
         },

@@ -125,10 +125,13 @@ function haveABeerInteraction() {
         return { text: 'Moe: "You already had one, Homer. Bar\'s not a hotel."' };
       }
       const tier = moeBeerTier(runState);
+      // SPRINGFIELD PERKS: Moe's Favorite Customer (data/relics.js) -- read
+      // directly here since this heal happens outside any battle.
+      const heal = tier.heal + (runState.relics.includes('moesFavoriteCustomer') ? 10 : 0);
       const before = Math.round(runState.hp);
-      runState.hp = Math.min(runState.maxHp, runState.hp + tier.heal);
+      runState.hp = Math.min(runState.maxHp, runState.hp + heal);
       runState.world.locationFlags.moeBeerThisVisit = true;
-      return { text: `Moe slides ${tier.pour} across the bar. "Woo-hoo!" HP ${before}/${runState.maxHp} -> ${Math.round(runState.hp)}/${runState.maxHp}. (+${tier.heal} HP)` };
+      return { text: `Moe slides ${tier.pour} across the bar. "Woo-hoo!" HP ${before}/${runState.maxHp} -> ${Math.round(runState.hp)}/${runState.maxHp}. (+${heal} HP)` };
     },
   };
 }
@@ -208,8 +211,11 @@ function eatAHotDogInteraction() {
     run(runState) {
       if (runState.donutsCurrency < 5) return { text: "Apu: \"That's five donuts, Homer. Not five IOUs.\"" };
       runState.donutsCurrency -= 5;
-      runState.hp = Math.min(runState.maxHp, runState.hp + 15);
-      return { text: 'Apu: "Please do not ask how long that has been rotating." (+15 HP, -5 donuts)' };
+      // SPRINGFIELD PERKS: Kwik-E Regular (data/relics.js) -- read directly
+      // here since this heal happens outside any battle.
+      const heal = runState.relics.includes('kwikERegular') ? 20 : 15;
+      runState.hp = Math.min(runState.maxHp, runState.hp + heal);
+      return { text: `Apu: "Please do not ask how long that has been rotating." (+${heal} HP, -5 donuts)` };
     },
   };
 }

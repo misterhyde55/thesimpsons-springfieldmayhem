@@ -21,8 +21,10 @@ import { CHARACTERS } from './data/characters.js';
 import { ENEMIES } from './data/enemies.js';
 import { BOSSES, ZOMBIE_NED_REWARD } from './data/bosses.js';
 import { LOCATIONS } from './data/locations.js';
-import { getEvent, SNAKE_DEFEAT_REWARD } from './data/events.js';
+import { getEvent, SNAKE_DEFEAT_REWARD, BURNS_MACHINE_CHOICE } from './data/events.js';
 import { ABILITIES, STARTER_ABILITY_IDS, RARITY } from './data/abilities.js';
+import { RELICS } from './data/relics.js';
+import { getAssetUrl } from './data/assets.js';
 import { ITEMS } from './data/items.js';
 import { HORROR_RULES } from './data/horrorRules.js';
 import { rollProductChoices } from './data/products.js';
@@ -646,11 +648,29 @@ export class Game {
     });
     if (outcome?.decision) {
       screens.showChoiceModal(outcome.decision, (choice) => {
-        const resultText = choice.apply(this.runState);
+        // A decision choice can also lead to real combat (data/
+        // travelEvents.js ottoEncounter's HELP OTTO) -- mirrors the exact
+        // `special: 'combat'` convention showInteriorRandomEvent/
+        // onInteriorFollowUp already use, reusing the same "fight now,
+        // then continue on to the ORIGINAL destination" ambush flow a
+        // road ambush already goes through.
+        if (choice.special === 'combat') {
+          screens.hideChoiceModal();
+          this.enterAmbushBattle(fromId, locationId, choice.combatContent);
+          return;
+        }
+        const result = choice.apply(this.runState);
+        // A choice can redirect the trip (Otto's JUMP ON) instead of
+        // continuing to the original destination -- "the destination
+        // should remain the player's destination unless the event
+        // explicitly changes it," so this only ever applies when the
+        // choice's own result says so.
+        const resultText = typeof result === 'string' ? result : result.text;
+        const destination = typeof result === 'string' ? locationId : result.redirectTo || locationId;
         saveActiveRun(this.runState);
         screens.hideChoiceModal();
         screens.showBanner(resultText, 3200);
-        this.arriveAt(locationId);
+        this.arriveAt(destination);
       });
     }
   }
@@ -1074,6 +1094,14 @@ export class Game {
 
   // ---------- BATTLE SETUP ----------
   enterBattleForLocationContent(locationId, content) {
+    // BURNS MANSION SHOULD BE IMPORTANT: "EXCELLENTLY EVIL" -- Burns and
+    // Smithers' dialogue plays out first (the same showStoryScene a boss
+    // intro uses), THEN the fight itself; the real choice (ACTIVATE/
+    // DESTROY/STEAL COMPONENT) comes after victory, see onBattleVictory.
+    if (content.burnsExcellentlyEvil) {
+      this.showBurnsMachineIntro(locationId, content);
+      return;
+    }
     if (content.type === 'boss') {
       const scene = pickTreehouseScene('bossIntro', {
         locationId,
@@ -1089,6 +1117,22 @@ export class Game {
     }
     const enemyTemplates = content.enemyIds.map((id) => ENEMIES[id]);
     this.startBattleForLocationContent(locationId, content, enemyTemplates, false);
+  }
+
+  showBurnsMachineIntro(locationId, content) {
+    const scene = {
+      id: 'burnsExcellentlyEvilIntro',
+      image: getAssetUrl('buildings', 'burnsManor'),
+      title: 'EXCELLENTLY EVIL',
+      narration: [
+        'Mr. Burns: "Ah, Simpson. Come to gawk at the help? No matter."',
+        'Mr. Burns: "I have constructed a machine capable of ending this whole tedious outbreak. Smithers, wheel it out."',
+        'Smithers hesitates for exactly one second too long before obeying. That is never a good sign.',
+      ],
+      choices: null,
+    };
+    const enemyTemplates = content.enemyIds.map((id) => ENEMIES[id]);
+    this.showStoryScene(scene, () => this.startBattleForLocationContent(locationId, content, enemyTemplates, false));
   }
 
   showBossIntro(locationId, content) {
@@ -1107,7 +1151,7 @@ export class Game {
       this.runState.hp = Math.min(this.runState.maxHp, this.runState.hp + 30);
     }
 
-    this.battle = createBattle(this.runState, enemyTemplates, locationId, isBoss, content.environmentId);
+    this.battle = createBattle(this.runState, enemyTemplates, locationId, isBoss, content.environmentId, content.elite);
     this.pendingLocationContent = content;
 
     // CALLBACK! An earlier choice (see data/callbacks.js buttonActivates)
@@ -1640,6 +1684,16 @@ export class Game {
     markLocationVisited(this.runState, locationId);
     if (content.questResolution) applyQuestResolution(this.runState, content.questResolution);
     if (content.resolvesInvasionId) this.resolveLocationInvasionVictory(content.resolvesInvasionId);
+    // Otto's travel encounter reward (data/travelEvents.js ottoEncounter
+    // combatContent.grantRelicId) -- a single guaranteed relic on victory,
+    // shown as a banner rather than a choice screen since there's only one
+    // outcome. Still lets the ordinary post-victory reward flow (ability
+    // draft, etc.) run afterward -- this is additive, not exclusive.
+    if (content.grantRelicId && !this.runState.relics.includes(content.grantRelicId)) {
+      this.runState.relics.push(content.grantRelicId);
+      const relic = RELICS[content.grantRelicId];
+      if (relic) screens.showRewardToasts(`${relic.emoji} ${relic.name.toUpperCase()} LEARNED!`);
+    }
     saveActiveRun(this.runState);
 
     // Zombie Ned (combat-redesign prototype, Flanders House) gets a graded
@@ -1659,6 +1713,23 @@ export class Game {
         screens.hideChoiceModal();
         saveActiveRun(this.runState);
         screens.showBanner(resultText, 3200);
+        this.showBoard();
+      });
+      return;
+    }
+
+    // BURNS MANSION SHOULD BE IMPORTANT: "EXCELLENTLY EVIL" -- ACTIVATE/
+    // DESTROY/STEAL COMPONENT each move Mayhem differently (data/events.js
+    // BURNS_MACHINE_CHOICE's `apply` returns {text, mayhemDelta}, the same
+    // shape onStorySceneChoice already uses), so the delta goes through
+    // increaseMayhem here rather than being computed inside the data file.
+    if (content.burnsExcellentlyEvil) {
+      screens.showChoiceModal(BURNS_MACHINE_CHOICE, (choice) => {
+        const { text, mayhemDelta } = choice.apply(this.runState);
+        if (mayhemDelta) this.increaseMayhem(mayhemDelta);
+        screens.hideChoiceModal();
+        saveActiveRun(this.runState);
+        screens.showBanner(text, 3600);
         this.showBoard();
       });
       return;
