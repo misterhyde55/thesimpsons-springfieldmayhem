@@ -233,6 +233,22 @@ function eatAHotDogInteraction() {
   };
 }
 
+// Starts WHERE'S BART? (data/quests.js whereIsBartSchoolContent) -- returns
+// null once the quest has already started/resolved so TALK TO APU's
+// dialogue tree only offers it once. Wired into every kwikEMart state's
+// followUps below.
+function bartQuestApuFollowUp(runState) {
+  if (runState.quests.whereIsBart) return null;
+  return {
+    id: 'apuMentionsBart',
+    label: 'HAVE YOU SEEN BART?',
+    run(rs) {
+      rs.quests.whereIsBart = 'active';
+      return { text: 'Apu: "Now that you mention it -- he knocked over the Squishee machine, screamed something about a shortcut, and bolted toward the school." (QUEST STARTED: WHERE\'S BART?)' };
+    },
+  };
+}
+
 // Available in every interior/state (appended below, after INTERIORS is
 // defined) -- lets Homer use a rare Kwik-E-Mart find (data/items.js
 // `rare: true` entries, held in runState.consumables) wherever he happens
@@ -439,6 +455,8 @@ export const INTERIORS = {
               ];
               const sell = sellItemInteraction();
               if (sell.visible(runState)) followUps.push({ id: sell.id, label: sell.label, cost: sell.cost, run: sell.run });
+              const bartFollowUp = bartQuestApuFollowUp(runState);
+              if (bartFollowUp) followUps.push(bartFollowUp);
               followUps.push({ id: 'thanksApu', label: 'THANKS, APU.', run() { return { text: 'Apu: "Good luck out there, my friend."' }; } });
               return { text: 'Apu: "Homer! Something very strange is happening tonight."', followUps };
             },
@@ -464,44 +482,44 @@ export const INTERIORS = {
             label: 'TALK TO APU',
             cost: 0,
             secondary: true,
-            run() {
-              return {
-                text: 'Apu (whispering): "Thank Vishnu. I thought you were one of them."',
-                followUps: [
-                  {
-                    id: 'whatHappenedZ',
-                    label: 'WHAT HAPPENED HERE?',
-                    run(rs) {
-                      rs.world.locationFlags.springfieldElementary = 'Possible Infection';
-                      rs.quests.helpApu = 'active';
-                      return { text: 'Apu: "A whole busload of them came from the school. Be careful there." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
-                    },
+            run(runState) {
+              const followUps = [
+                {
+                  id: 'whatHappenedZ',
+                  label: 'WHAT HAPPENED HERE?',
+                  run(rs) {
+                    rs.world.locationFlags.springfieldElementary = 'Possible Infection';
+                    rs.quests.helpApu = 'active';
+                    return { text: 'Apu: "A whole busload of them came from the school. Be careful there." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
                   },
-                  {
-                    id: 'backRoom',
-                    label: 'INVESTIGATE THE NOISE OUT BACK',
-                    run(rs) {
-                      if (rs.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
-                        return { text: "Whatever it was, it's gone now." };
-                      }
-                      rs.world.secretsFoundIds.push('kwikEMartBackRoom');
-                      if (Math.random() < 0.5) {
-                        rs.donutsCurrency += 5;
-                        return { text: 'SECRET FOUND! Just a raccoon in the dumpster. It left behind a bag of donut money. +5 donuts.' };
-                      }
-                      rs.hp = Math.max(1, rs.hp - 12);
-                      return { text: 'SECRET FOUND! Not a raccoon. You get clawed before slamming the door. (-12 HP)' };
-                    },
+                },
+                {
+                  id: 'backRoom',
+                  label: 'INVESTIGATE THE NOISE OUT BACK',
+                  run(rs) {
+                    if (rs.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
+                      return { text: "Whatever it was, it's gone now." };
+                    }
+                    rs.world.secretsFoundIds.push('kwikEMartBackRoom');
+                    if (Math.random() < 0.5) {
+                      rs.donutsCurrency += 5;
+                      return { text: 'SECRET FOUND! Just a raccoon in the dumpster. It left behind a bag of donut money. +5 donuts.' };
+                    }
+                    rs.hp = Math.max(1, rs.hp - 12);
+                    return { text: 'SECRET FOUND! Not a raccoon. You get clawed before slamming the door. (-12 HP)' };
                   },
-                  {
-                    id: 'staySafe',
-                    label: 'STAY SAFE, APU.',
-                    run() {
-                      return { text: 'Apu nods, gripping his hockey stick tighter.' };
-                    },
-                  },
-                ],
-              };
+                },
+              ];
+              const bartFollowUp = bartQuestApuFollowUp(runState);
+              if (bartFollowUp) followUps.push(bartFollowUp);
+              followUps.push({
+                id: 'staySafe',
+                label: 'STAY SAFE, APU.',
+                run() {
+                  return { text: 'Apu nods, gripping his hockey stick tighter.' };
+                },
+              });
+              return { text: 'Apu (whispering): "Thank Vishnu. I thought you were one of them."', followUps };
             },
           },
         ],
@@ -517,41 +535,41 @@ export const INTERIORS = {
             label: 'TALK TO APU',
             cost: 0,
             secondary: true,
-            run() {
-              return {
-                text: 'Apu: "Homer. Have you looked at the sky tonight? Really looked?"',
-                followUps: [
-                  {
-                    id: 'questionLights',
-                    label: 'QUESTION THE LIGHTS',
-                    run(rs) {
-                      rs.world.locationFlags.springfieldElementary = 'Possible Infection';
-                      rs.quests.helpApu = 'active';
-                      return { text: 'Apu: "They circled the school twice. I counted." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
-                    },
+            run(runState) {
+              const followUps = [
+                {
+                  id: 'questionLights',
+                  label: 'QUESTION THE LIGHTS',
+                  run(rs) {
+                    rs.world.locationFlags.springfieldElementary = 'Possible Infection';
+                    rs.quests.helpApu = 'active';
+                    return { text: 'Apu: "They circled the school twice. I counted." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
                   },
-                  {
-                    id: 'roofAccess',
-                    label: 'CHECK THE ROOF ACCESS',
-                    run(rs) {
-                      if (rs.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
-                        return { text: 'The hatch is still welded shut, same as last time.' };
-                      }
-                      rs.world.secretsFoundIds.push('kwikEMartBackRoom');
-                      const relic = grantUndiscoveredRelic(rs);
-                      if (relic) return { text: `SECRET FOUND! Someone welded the roof hatch shut from the outside -- and left this behind: ${relic.emoji} ${relic.name}.` };
-                      return { text: 'SECRET FOUND! The roof hatch is welded shut from the outside. That\'s new.' };
-                    },
+                },
+                {
+                  id: 'roofAccess',
+                  label: 'CHECK THE ROOF ACCESS',
+                  run(rs) {
+                    if (rs.world.secretsFoundIds.includes('kwikEMartBackRoom')) {
+                      return { text: 'The hatch is still welded shut, same as last time.' };
+                    }
+                    rs.world.secretsFoundIds.push('kwikEMartBackRoom');
+                    const relic = grantUndiscoveredRelic(rs);
+                    if (relic) return { text: `SECRET FOUND! Someone welded the roof hatch shut from the outside -- and left this behind: ${relic.emoji} ${relic.name}.` };
+                    return { text: 'SECRET FOUND! The roof hatch is welded shut from the outside. That\'s new.' };
                   },
-                  {
-                    id: 'neverMind',
-                    label: 'NEVER MIND, APU.',
-                    run() {
-                      return { text: 'Apu blinks, slow and unsettling, and goes back to restocking.' };
-                    },
-                  },
-                ],
-              };
+                },
+              ];
+              const bartFollowUp = bartQuestApuFollowUp(runState);
+              if (bartFollowUp) followUps.push(bartFollowUp);
+              followUps.push({
+                id: 'neverMind',
+                label: 'NEVER MIND, APU.',
+                run() {
+                  return { text: 'Apu blinks, slow and unsettling, and goes back to restocking.' };
+                },
+              });
+              return { text: 'Apu: "Homer. Have you looked at the sky tonight? Really looked?"', followUps };
             },
           },
         ],

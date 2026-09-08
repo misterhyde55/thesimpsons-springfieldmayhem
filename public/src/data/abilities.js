@@ -715,6 +715,41 @@ export const ABILITIES = {
       api.status(STATUS.WEAK, 2, 'target');
     },
   },
+  // Bart's own cast-gated abilities (WHERE'S BART?, data/quests.js) --
+  // mischief/offense, same "found him, now his tricks are yours" payoff as
+  // Milhouse's above.
+  slingshot: {
+    id: 'slingshot',
+    name: 'Slingshot',
+    emoji: '🎯',
+    icon: { category: 'combat', id: 'stun' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'bart',
+    archetype: 'universal',
+    target: 'enemy',
+    description: 'Deal 8 damage. 35% chance to Stun.',
+    effect(api) {
+      api.damage(8);
+      if (Math.random() < 0.35) api.status(STATUS.STUN, 1, 'target');
+    },
+  },
+  cowabunga: {
+    id: 'cowabunga',
+    name: 'Cowabunga',
+    emoji: '🛹',
+    icon: { category: 'combat', id: 'dodge' },
+    cost: 1,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'bart',
+    archetype: 'universal',
+    target: 'enemy',
+    description: 'Gain 1 Dodge. Deal 6 damage.',
+    effect(api) {
+      api.status(STATUS.DODGE, 1, 'self');
+      api.damage(6);
+    },
+  },
 };
 
 // `castIds` is every character currently in the episode cast (always

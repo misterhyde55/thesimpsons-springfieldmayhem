@@ -95,6 +95,44 @@ export function helpApuReportInteraction() {
   };
 }
 
+// ---------- QUEST 4: WHERE'S BART? ----------
+// Started by a Kwik-E-Mart "TALK TO APU" follow-up (data/interiors.js
+// bartQuestApuFollowUp). Resolved at Springfield Elementary (see
+// getLocationContent's override below), same "found him, now his tricks
+// are yours" payoff as Milhouse's cast-join event: joining the cast makes
+// Bart's own abilities (SLINGSHOT, COWABUNGA -- data/abilities.js
+// characterId: 'bart') draftable, and unlocks the homerBart synergy.
+export function whereIsBartSchoolContent() {
+  return {
+    type: 'questChoice',
+    title: 'There He Is',
+    emoji: '🛹',
+    npcId: 'bart',
+    prompt: 'Bart is crouched behind the bike rack, skateboard raised like a weapon, eyes wide. "Dad?! Something followed me from the Kwik-E-Mart!"',
+    options: [
+      {
+        id: 'fightItOff',
+        label: 'FIGHT IT OFF',
+        leadsTo: 'combat',
+        combatContent: { type: 'combat', enemyIds: ['zombieStudent'], questResolution: 'bartFound' },
+        apply() {
+          return "Whatever it is, it's between you and Bart now.";
+        },
+      },
+      {
+        id: 'grabAndRun',
+        label: 'GRAB BART AND RUN',
+        apply(runState) {
+          runState.quests.whereIsBart = 'resolved';
+          if (!runState.cast.includes('bart')) runState.cast.push('bart');
+          runState.donutsCurrency += 4;
+          return 'You yank Bart up by the collar and sprint. "Cowabunga," he wheezes. BART JOINED THE CAST. He empties his pockets on the way: +4 donuts, mostly in nickels.';
+        },
+      },
+    ],
+  };
+}
+
 // ---------- QUEST 3: THE MISSING OFFICERS ----------
 // Started by data/events.js's policeEvidenceRoom 4th option. Resolved by
 // winning the fight at Burns Manor (any segment already has combat content
@@ -161,6 +199,12 @@ export const QUEST_DISPLAY = {
     reward: 'Cash • Relic • Safer Police Station',
     locationId: 'burnsManor',
   },
+  whereIsBart: {
+    title: "WHERE'S BART?",
+    hint: 'Last seen near Springfield Elementary.',
+    reward: 'Bart Joins the Cast',
+    locationId: 'springfieldElementary',
+  },
 };
 
 // Only 'active' quests show -- once resolved, the reward toast/banner at
@@ -183,5 +227,8 @@ export function applyQuestResolution(runState, resolutionId) {
     runState.world.locationFlags.barneyGone = true;
   } else if (resolutionId === 'officersFound' && runState.quests.missingOfficers === 'active') {
     runState.quests.missingOfficers = 'resolved';
+  } else if (resolutionId === 'bartFound' && runState.quests.whereIsBart === 'active') {
+    runState.quests.whereIsBart = 'resolved';
+    if (!runState.cast.includes('bart')) runState.cast.push('bart');
   }
 }
