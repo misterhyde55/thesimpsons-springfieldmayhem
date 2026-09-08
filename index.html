@@ -200,20 +200,38 @@
 
     <div id="map-hover-panel" class="map-hover-panel hidden"></div>
 
-    <!-- Real interactive sidebar -- the art's own baked-in legend (down the
-         left edge of Springfieldmap2.png) is now purely decorative behind
-         this; every category here is a live filter driven by src/systems/
-         mapIntel.js, not a static list. See ui/worldMapView.js for the
-         click/highlight wiring. -->
+    <!-- SIMPLIFY THE SPRINGFIELD INTEL SIDEBAR: answers exactly three
+         questions -- what should I be doing, how dangerous is it, what
+         else is active -- nothing more. The map's own hotspot icons (see
+         ui/worldMapView.js nodeStateClass) are the source of truth for
+         "what exists here"; this panel never duplicates that. Defaults
+         collapsed to a small icon-only toggle (see mountMapView) so it
+         never permanently covers the map, on desktop or mobile. -->
     <div id="map-sidebar-left" class="map-sidebar">
       <div class="sidebar-header">
         <span class="sidebar-title">SPRINGFIELD INTEL</span>
         <button id="btn-sidebar-collapse" type="button" class="sidebar-collapse-btn" title="Collapse">&#9664;</button>
       </div>
-      <button id="btn-filter-you-are-here" type="button" class="sidebar-you-are-here-btn">🏠 YOU ARE HERE</button>
-      <div id="sidebar-filter-list" class="sidebar-filter-list"></div>
-      <button id="btn-sidebar-clear" type="button" class="sidebar-clear-btn hidden">CLEAR FILTERS</button>
-      <div id="sidebar-info-panel" class="sidebar-info-panel hidden"></div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">CURRENT OBJECTIVE</div>
+        <div id="sidebar-objective-title" class="sidebar-objective-title">MAIN OBJECTIVE</div>
+        <div id="sidebar-objective-hint" class="sidebar-objective-hint"></div>
+        <button id="btn-sidebar-show-location" type="button" class="sidebar-show-location-btn hidden">SHOW LOCATION</button>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">MAYHEM</div>
+        <div class="sidebar-mayhem-row" title="Mayhem increases as the episode progresses. Higher Mayhem can cause: stronger enemies, elite encounters, dangerous location events, Treehouse Rules, altered locations, better rewards.">
+          <span id="sidebar-mayhem-pct" class="sidebar-mayhem-pct">0%</span>
+          <span id="sidebar-mayhem-label" class="sidebar-mayhem-label">MOSTLY NORMAL</span>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">ACTIVE QUESTS</div>
+        <div class="sidebar-quest-row">
+          <span id="sidebar-quest-count" class="sidebar-quest-count">0</span>
+          <button id="btn-sidebar-view-quests" type="button" class="sidebar-view-quests-btn hidden">VIEW QUESTS</button>
+        </div>
+      </div>
     </div>
 
     <div class="map-hud-top-left">
@@ -482,7 +500,8 @@
        matters instead of only remembering it from dialogue text. -->
   <div id="quest-tracker-modal" class="modal hidden">
     <div class="modal-box">
-      <h2>ACTIVE QUESTS</h2>
+      <h2>QUEST JOURNAL</h2>
+      <div id="quest-tracker-objective" class="quest-tracker-objective"></div>
       <div id="quest-tracker-list" class="quest-tracker-list"></div>
       <button id="btn-quest-tracker-close">CLOSE</button>
     </div>

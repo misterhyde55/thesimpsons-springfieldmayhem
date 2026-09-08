@@ -373,26 +373,67 @@ export function populateQuestTrackerToggle(activeQuests, onOpen) {
   btn.addEventListener('click', onOpen);
 }
 
-export function showQuestTrackerModal(activeQuests, onClose, onShowOnMap) {
+function activeQuestCardHtml(quest) {
+  return `
+    <div class="quest-tracker-title">${quest.title}</div>
+    <div class="quest-tracker-hint">${quest.hint}</div>
+    <div class="quest-tracker-reward">REWARD: ${quest.reward}</div>
+    ${quest.locationId ? '<button type="button" class="quest-tracker-show-map-btn">SHOW ON MAP</button>' : ''}
+  `;
+}
+
+// `data`: {objectiveText, sideQuests, familyQuests, resolvedQuests} -- see
+// game.js openQuestJournal. Sections only render when they have something
+// in them, so a fresh run just shows MAIN OBJECTIVE and nothing else.
+export function showQuestTrackerModal(data, onClose, onShowOnMap) {
+  $('quest-tracker-objective').innerHTML = `
+    <div class="quest-tracker-section-label">MAIN OBJECTIVE</div>
+    <div class="quest-tracker-hint">${data.objectiveText}</div>
+  `;
+
   const list = $('quest-tracker-list');
   list.innerHTML = '';
-  if (!activeQuests.length) {
-    list.innerHTML = '<p class="quest-tracker-empty">Nothing active right now. Keep exploring Springfield.</p>';
-  }
-  for (const quest of activeQuests) {
-    const card = document.createElement('div');
-    card.className = 'quest-tracker-card';
-    card.innerHTML = `
-      <div class="quest-tracker-title">${quest.title}</div>
-      <div class="quest-tracker-hint">${quest.hint}</div>
-      <div class="quest-tracker-reward">REWARD: ${quest.reward}</div>
-      ${quest.locationId ? '<button type="button" class="quest-tracker-show-map-btn">SHOW ON MAP</button>' : ''}
-    `;
-    if (quest.locationId && onShowOnMap) {
-      card.querySelector('.quest-tracker-show-map-btn').addEventListener('click', () => onShowOnMap(quest.locationId));
+  const sections = [
+    ['SIDE QUESTS', data.sideQuests],
+    ['FAMILY QUESTS', data.familyQuests],
+  ];
+  let anyActive = false;
+  for (const [label, quests] of sections) {
+    if (!quests.length) continue;
+    anyActive = true;
+    const heading = document.createElement('div');
+    heading.className = 'quest-tracker-section-label';
+    heading.textContent = label;
+    list.appendChild(heading);
+    for (const quest of quests) {
+      const card = document.createElement('div');
+      card.className = 'quest-tracker-card';
+      card.innerHTML = activeQuestCardHtml(quest);
+      if (quest.locationId && onShowOnMap) {
+        card.querySelector('.quest-tracker-show-map-btn').addEventListener('click', () => onShowOnMap(quest.locationId));
+      }
+      list.appendChild(card);
     }
-    list.appendChild(card);
   }
+  if (!anyActive) {
+    const empty = document.createElement('p');
+    empty.className = 'quest-tracker-empty';
+    empty.textContent = 'Nothing active right now. Keep exploring Springfield.';
+    list.appendChild(empty);
+  }
+  if (data.resolvedQuests.length) {
+    const heading = document.createElement('div');
+    heading.className = 'quest-tracker-section-label';
+    heading.textContent = 'COMPLETED';
+    list.appendChild(heading);
+    for (const quest of data.resolvedQuests) {
+      const card = document.createElement('div');
+      card.className = 'quest-tracker-card quest-tracker-card-resolved';
+      card.innerHTML = `<div class="quest-tracker-title">${quest.title}</div><div class="quest-tracker-hint">${quest.outcome.toUpperCase()}</div>`;
+      list.appendChild(card);
+    }
+  }
+
   $('quest-tracker-modal').classList.remove('hidden');
   freshButton('btn-quest-tracker-close').addEventListener('click', () => {
     $('quest-tracker-modal').classList.add('hidden');
@@ -955,9 +996,9 @@ export function showNpcBanner(characterId, text, ms = 2200) {
 
 // Distinct from showBanner (narrative NPC/story lines): a stack of short-
 // lived gold chips for mechanical gains/losses ("+$14 CASH", "MOE
-// RELATIONSHIP +10", "NEW RUMOR") so the player never has to infer a
-// consequence from dialogue text alone. Pass an array of either strings or
-// {text, negative} objects; each chip removes itself after its animation.
+// RELATIONSHIP +10") so the player never has to infer a consequence from
+// dialogue text alone. Pass an array of either strings or {text, negative}
+// objects; each chip removes itself after its animation.
 export function showRewardToasts(entries) {
   const stack = $('reward-toast-stack');
   const list = Array.isArray(entries) ? entries : [entries];
@@ -1435,7 +1476,7 @@ export function populateTravelScreen(scene, sceneLine, destinationName, travelOu
 // REDESIGN MOE'S TAVERN + KWIK-E-MART: a "fast pit stop" reads two large,
 // obvious buttons (the actual reason to visit -- a heal, the store) plus a
 // row of small utility chips underneath for everything else the location
-// still offers (talk/rumors/quests/secrets/upgrades, all now folded behind
+// still offers (talk/quests/secrets/upgrades, all now folded behind
 // a single TALK TO X chip's dialogue tree -- see data/interiors.js), rather
 // than one long vertical stack of a dozen equally-sized buttons. An
 // interaction opts into the small row with `secondary: true`; an interaction

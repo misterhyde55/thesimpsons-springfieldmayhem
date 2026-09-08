@@ -36,7 +36,7 @@ import { pickTravelScene, pickSceneLine } from './data/scenes.js';
 import { rollTravelEvent } from './data/travelEvents.js';
 import { pickTreehouseScene } from './data/treehouseScenes.js';
 import { DEVIL_DEALS } from './data/devilDeals.js';
-import { applyQuestResolution, getActiveQuestsSummary } from './data/quests.js';
+import { applyQuestResolution, getActiveQuestsSummary, getResolvedQuestsSummary } from './data/quests.js';
 import { getLocationBattleEvent } from './data/locationBattleEvents.js';
 
 import { generateEpisode } from './systems/episodeManager.js';
@@ -484,9 +484,7 @@ export class Game {
     const reachableIds = getReachableLocationIds(this.runState);
     screens.populateBoardInfo(this.runState, segment, reachableIds.length);
     screens.applyMapMayhemVisuals(this.runState.mayhem);
-    screens.populateQuestTrackerToggle(getActiveQuestsSummary(this.runState), () => {
-      screens.showQuestTrackerModal(getActiveQuestsSummary(this.runState), null, (locationId) => this.onQuestShowOnMap(locationId));
-    });
+    screens.populateQuestTrackerToggle(getActiveQuestsSummary(this.runState), () => this.openQuestJournal());
     screens.freshButton('btn-board-pause').addEventListener('click', () => this.openPauseMenu());
     mapView.mountMapView({
       onHotspotClick: (locationId) => this.onHotspotClick(locationId),
@@ -500,6 +498,8 @@ export class Game {
         this.runState.world.mapCamera = camera;
         saveActiveRun(this.runState);
       },
+      onShowLocation: (locationId) => this.onQuestShowOnMap(locationId),
+      onViewQuests: () => this.openQuestJournal(),
     });
     // A brand-new run has no saved camera yet -- start framed on the
     // Simpsons House rather than showing the whole map at once. Returning
@@ -581,6 +581,25 @@ export class Game {
     mapView.focusCameraOnLocation(locationId);
     this.saveMapCamera();
     this.onHotspotClick(locationId);
+  }
+
+  // Springfield Intel's VIEW QUESTS (sidebar) and the board HUD's QUESTS
+  // toggle both open the same QUEST JOURNAL -- MAIN OBJECTIVE (the current
+  // segment's own objective text, data/journeys.js) plus SIDE QUESTS,
+  // FAMILY QUESTS, and COMPLETED, each grouped by data/quests.js QUEST_
+  // DISPLAY's `kind`.
+  openQuestJournal() {
+    const active = getActiveQuestsSummary(this.runState);
+    screens.showQuestTrackerModal(
+      {
+        objectiveText: getCurrentSegment(this.runState).objective,
+        sideQuests: active.filter((q) => q.kind === 'side'),
+        familyQuests: active.filter((q) => q.kind === 'family'),
+        resolvedQuests: getResolvedQuestsSummary(this.runState),
+      },
+      null,
+      (locationId) => this.onQuestShowOnMap(locationId)
+    );
   }
 
   confirmTravelTo(locationId) {

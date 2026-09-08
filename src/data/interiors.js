@@ -22,7 +22,7 @@
 //
 // An interaction is `{id, label, cost, run(runState) => {text, followUps?},
 // secondary?, isUsed?(runState), usedLabel?}` -- `run` resolves immediately
-// and can mutate runState (heal, spend currency, flag a rumor, discover a
+// and can mutate runState (heal, spend currency, start a quest, discover a
 // secret, upgrade a card). `secondary: true` renders it as a small chip
 // instead of a large primary button (ui/screens.js). `isUsed`/`usedLabel`
 // disable it and swap its label once a once-per-visit/once-per-checkpoint
@@ -102,25 +102,6 @@ function moeServiceFollowUps(runState) {
       },
     },
   ];
-}
-
-// Moe's "HEARD ANYTHING?" -- reveals one real, previously-unknown piece of
-// map information as the same locationFlags-string "rumor" convention the
-// old TALK TO MOE followup already used (see mapIntel.js's RUMOR filter,
-// which reads these same flags), instead of inventing a new info system.
-const RUMOR_POOL = [
-  { locationId: 'springfieldElementary', flag: 'Possible Infection', text: 'Moe: "Barney swears he saw somethin\' shufflin\' around the school. I told him to lay off the tap."' },
-  { locationId: 'policeStation', flag: 'Officers Missing', text: 'Moe: "Wiggum\'s boys went quiet on the radio. Nobody\'s heard from the station all night."' },
-  { locationId: 'burnsManor', flag: 'Something Big', text: 'Moe: "Guy came in ramblin\' about lights on at the Manor. Old man Burns don\'t leave lights on for nobody."' },
-  { locationId: 'springfieldCemetery', flag: 'Ground Disturbed', text: 'Moe: "Groundskeeper quit on the spot. Said the dirt out at the cemetery ain\'t layin\' right anymore."' },
-];
-
-function moeRumor(runState) {
-  const candidates = RUMOR_POOL.filter((r) => runState.world.locationFlags[r.locationId] !== r.flag);
-  if (!candidates.length) return 'Moe: "Told you everything I know, Homer. You\'re on your own now."';
-  const pick = candidates[Math.floor(Math.random() * candidates.length)];
-  runState.world.locationFlags[pick.locationId] = pick.flag;
-  return `${pick.text} (NEW MAP INFORMATION)`;
 }
 
 // Moe's is primarily a RECOVERY stop -- one obvious primary button, once per
@@ -442,7 +423,6 @@ export const INTERIORS = {
                   id: 'whatHappened',
                   label: "WHAT'S HAPPENED?",
                   run(rs) {
-                    rs.world.locationFlags.springfieldElementary = 'Possible Infection';
                     rs.quests.helpApu = 'active';
                     return { text: 'Apu: "I saw something shamble past Springfield Elementary. It wasn\'t walking right." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
                   },
@@ -519,7 +499,6 @@ export const INTERIORS = {
                   id: 'whatHappenedZ',
                   label: 'WHAT HAPPENED HERE?',
                   run(rs) {
-                    rs.world.locationFlags.springfieldElementary = 'Possible Infection';
                     rs.quests.helpApu = 'active';
                     return { text: 'Apu: "A whole busload of them came from the school. Be careful there." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
                   },
@@ -574,7 +553,6 @@ export const INTERIORS = {
                   id: 'questionLights',
                   label: 'QUESTION THE LIGHTS',
                   run(rs) {
-                    rs.world.locationFlags.springfieldElementary = 'Possible Infection';
                     rs.quests.helpApu = 'active';
                     return { text: 'Apu: "They circled the school twice. I counted." (SPRINGFIELD ELEMENTARY: NEW INFORMATION)' };
                   },
@@ -663,11 +641,10 @@ export const INTERIORS = {
     // the small emoji `background` glyph other interiors still use.
     image: 'moeChat',
     states: {
-      // REDESIGN: Moe's Tavern as a real rest/social/rumor room, not a menu
-      // page. The five top-level buttons are a free dialogue tree (cost: 0
-      // -- talking to Moe never spends an action); the ACTIONS that
-      // dialogue leads to (a paid service, a rest, a rumor) carry their own
-      // cost on the followUp instead (see game.js onInteriorFollowUp).
+      // TALK TO MOE is a free dialogue tree (cost: 0 -- talking to Moe
+      // never spends an action); the ACTIONS that dialogue leads to (a
+      // paid service, a quest) carry their own cost on the followUp
+      // instead (see game.js onInteriorFollowUp).
       normal: {
         background: '🍺',
         // HP-aware greeting -- Moe actually reacts to how banged-up Homer
@@ -688,14 +665,6 @@ export const INTERIORS = {
             run(runState) {
               const followUps = [
                 ...moeServiceFollowUps(runState),
-                {
-                  id: 'heardAnything',
-                  label: 'HEARD ANYTHING?',
-                  cost: 1,
-                  run(rs) {
-                    return { text: moeRumor(rs) };
-                  },
-                },
                 {
                   id: 'wheresBarney',
                   label: "WHERE'S BARNEY?",
@@ -790,14 +759,6 @@ export const INTERIORS = {
                   },
                 },
                 ...moeServiceFollowUps(runState),
-                {
-                  id: 'heardAnything',
-                  label: 'HEARD ANYTHING?',
-                  cost: 1,
-                  run(rs) {
-                    return { text: moeRumor(rs) };
-                  },
-                },
                 {
                   id: 'wheresBarney',
                   label: "WHERE'S BARNEY?",
