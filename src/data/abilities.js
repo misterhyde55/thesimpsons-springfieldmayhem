@@ -98,6 +98,7 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'bowling',
     target: 'enemy',
+    upgradesToId: 'suckerPunchPlus',
     description: 'Deal 6 damage. Apply 1 Stun.',
     effect(api) {
       api.damage(6);
@@ -114,11 +115,55 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'bowling',
     target: 'enemy',
+    upgradesToId: 'bowlingBallPlus',
     description: 'Deal 18 damage. If the enemy is Stunned, deal +8. Chips 8 Break.',
     effect(api) {
       const bonus = api.getStatus(STATUS.STUN, 'target') > 0 ? 8 : 0;
       api.damage(18 + bonus);
       api.reduceBreak(8);
+    },
+  },
+  // ---- Upgraded ("+") cards, reached only by upgrading the base card above
+  // at Barney's Bowlarama (see data/interiors.js upgradeCardInteraction) --
+  // never appear in the ordinary draft pool (getDraftPool filters out
+  // `upgraded: true`), and a run can only ever hold the base id OR its
+  // upgraded id in abilityDeck, never both (systems/cardUpgrades.js
+  // upgradeAbility swaps the array entry in place).
+  suckerPunchPlus: {
+    id: 'suckerPunchPlus',
+    name: 'Sucker Punch+',
+    emoji: '🥊',
+    icon: { category: 'combat', id: 'stun' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'homer',
+    archetype: 'bowling',
+    target: 'enemy',
+    upgraded: true,
+    baseId: 'suckerPunch',
+    description: 'Deal 9 damage. Apply 2 Stun.',
+    effect(api) {
+      api.damage(9);
+      api.status(STATUS.STUN, 2, 'target');
+    },
+  },
+  bowlingBallPlus: {
+    id: 'bowlingBallPlus',
+    name: 'Bowling Ball+',
+    emoji: '🎳',
+    icon: { category: 'items', id: 'bowlingBall' },
+    cost: 2,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'homer',
+    archetype: 'bowling',
+    target: 'enemy',
+    upgraded: true,
+    baseId: 'bowlingBall',
+    description: 'Deal 24 damage. If the enemy is Stunned, deal +12. Chips 12 Break.',
+    effect(api) {
+      const bonus = api.getStatus(STATUS.STUN, 'target') > 0 ? 12 : 0;
+      api.damage(24 + bonus);
+      api.reduceBreak(12);
     },
   },
   // Zombie Ned's reward pool (data/bosses.js zombieNed / game.js's
@@ -149,9 +194,28 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'duff',
     target: 'self',
+    upgradesToId: 'duffCouragePlus',
     description: 'Gain 5 Strength this battle. Become Tipsy (+10% damage taken).',
     effect(api) {
       api.status(STATUS.STRENGTH, 5, 'self');
+      api.status(STATUS.TIPSY, 1, 'self');
+    },
+  },
+  duffCouragePlus: {
+    id: 'duffCouragePlus',
+    name: 'Duff Courage+',
+    emoji: '🍺',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'self',
+    upgraded: true,
+    baseId: 'duffCourage',
+    description: 'Gain 8 Strength this battle. Become Tipsy (+10% damage taken).',
+    effect(api) {
+      api.status(STATUS.STRENGTH, 8, 'self');
       api.status(STATUS.TIPSY, 1, 'self');
     },
   },
@@ -165,6 +229,7 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'nuclear',
     target: 'enemy',
+    upgradesToId: 'nuclearUppercutPlus',
     description: 'Deal 22 damage. Apply 3 Radiation.',
     effect(api) {
       api.damage(22);
@@ -181,6 +246,7 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'nuclear',
     target: 'enemy',
+    upgradesToId: 'meltdownPlus',
     description: "Consume the enemy's Radiation. Deal 3 damage per stack consumed.",
     effect(api) {
       const stacks = api.consumeStatus(STATUS.RADIATION, 'target');
@@ -197,10 +263,69 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'nuclear',
     target: 'enemy',
+    upgradesToId: 'radiationLeakPlus',
     description: 'Deal 4 damage. Apply 4 Radiation.',
     effect(api) {
       api.damage(4);
       api.status(STATUS.RADIATION, 4, 'target');
+    },
+  },
+  // ---- Upgraded ("+") cards -- reached only via the Nuclear Plant's
+  // upgrade station (data/interiors.js), which also risks a stack of
+  // Radiation on Homer himself for the privilege (REDESIGN COMBAT
+  // GAMEPLAY: "upgrade NUCLEAR cards but risk Radiation").
+  nuclearUppercutPlus: {
+    id: 'nuclearUppercutPlus',
+    name: 'Nuclear Uppercut+',
+    emoji: '☢️',
+    icon: { category: 'items', id: 'radioactiveRod' },
+    cost: 2,
+    rarity: RARITY.RARE,
+    characterId: 'homer',
+    archetype: 'nuclear',
+    target: 'enemy',
+    upgraded: true,
+    baseId: 'nuclearUppercut',
+    description: 'Deal 28 damage. Apply 4 Radiation.',
+    effect(api) {
+      api.damage(28);
+      api.status(STATUS.RADIATION, 4, 'target');
+    },
+  },
+  meltdownPlus: {
+    id: 'meltdownPlus',
+    name: 'Meltdown+',
+    emoji: '🌋',
+    icon: { category: 'items', id: 'radioactiveRod' },
+    cost: 1,
+    rarity: RARITY.EPIC,
+    characterId: 'homer',
+    archetype: 'nuclear',
+    target: 'enemy',
+    upgraded: true,
+    baseId: 'meltdown',
+    description: "Consume the enemy's Radiation. Deal 4 damage per stack consumed.",
+    effect(api) {
+      const stacks = api.consumeStatus(STATUS.RADIATION, 'target');
+      api.damage(stacks * 4);
+    },
+  },
+  radiationLeakPlus: {
+    id: 'radiationLeakPlus',
+    name: 'Radiation Leak+',
+    emoji: '🟢',
+    icon: { category: 'items', id: 'radioactiveRod' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'homer',
+    archetype: 'nuclear',
+    target: 'enemy',
+    upgraded: true,
+    baseId: 'radiationLeak',
+    description: 'Deal 6 damage. Apply 6 Radiation.',
+    effect(api) {
+      api.damage(6);
+      api.status(STATUS.RADIATION, 6, 'target');
     },
   },
   secondHelping: {
@@ -263,6 +388,25 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'duff',
     target: 'self',
+    upgradesToId: 'duffChugPlus',
+    description: 'Gain 10 Strength this battle. Become Tipsy x2.',
+    effect(api) {
+      api.status(STATUS.STRENGTH, 10, 'self');
+      api.status(STATUS.TIPSY, 2, 'self');
+    },
+  },
+  duffChugPlus: {
+    id: 'duffChugPlus',
+    name: 'Duff Chug+',
+    emoji: '🍻',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.RARE,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'self',
+    upgraded: true,
+    baseId: 'duffChug',
     description: 'Gain 10 Strength this battle. Become Tipsy x2.',
     effect(api) {
       api.status(STATUS.STRENGTH, 10, 'self');
@@ -283,9 +427,27 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'duff',
     target: 'enemy',
+    upgradesToId: 'drunkenHaymakerPlus',
     description: 'Deal 8 damage, +5 for each stack of Tipsy you have.',
     effect(api) {
       api.damage(8 + api.getStatus(STATUS.TIPSY, 'self') * 5);
+    },
+  },
+  drunkenHaymakerPlus: {
+    id: 'drunkenHaymakerPlus',
+    name: 'Drunken Haymaker+',
+    emoji: '🥊',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'enemy',
+    upgraded: true,
+    baseId: 'drunkenHaymaker',
+    description: 'Deal 12 damage, +5 for each stack of Tipsy you have.',
+    effect(api) {
+      api.damage(12 + api.getStatus(STATUS.TIPSY, 'self') * 5);
     },
   },
   beerBelly: {
@@ -298,9 +460,27 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'duff',
     target: 'self',
+    upgradesToId: 'beerBellyPlus',
     description: 'Gain 5 Armor, +3 for each stack of Tipsy you have.',
     effect(api) {
       api.status(STATUS.ARMOR, 5 + api.getStatus(STATUS.TIPSY, 'self') * 3, 'self');
+    },
+  },
+  beerBellyPlus: {
+    id: 'beerBellyPlus',
+    name: 'Beer Belly+',
+    emoji: '🛡️',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'self',
+    upgraded: true,
+    baseId: 'beerBelly',
+    description: 'Gain 8 Armor, +3 for each stack of Tipsy you have.',
+    effect(api) {
+      api.status(STATUS.ARMOR, 8 + api.getStatus(STATUS.TIPSY, 'self') * 3, 'self');
     },
   },
   duffRage: {
@@ -313,9 +493,27 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'duff',
     target: 'self',
+    upgradesToId: 'duffRagePlus',
     description: 'Gain 3 Strength for each stack of Tipsy you have (minimum 3).',
     effect(api) {
       api.status(STATUS.STRENGTH, Math.max(3, api.getStatus(STATUS.TIPSY, 'self') * 3), 'self');
+    },
+  },
+  duffRagePlus: {
+    id: 'duffRagePlus',
+    name: 'Duff Rage+',
+    emoji: '😤',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'self',
+    upgraded: true,
+    baseId: 'duffRage',
+    description: 'Gain 4 Strength for each stack of Tipsy you have (minimum 4).',
+    effect(api) {
+      api.status(STATUS.STRENGTH, Math.max(4, api.getStatus(STATUS.TIPSY, 'self') * 4), 'self');
     },
   },
   holdMyBeer: {
@@ -328,9 +526,28 @@ export const ABILITIES = {
     characterId: 'homer',
     archetype: 'duff',
     target: 'enemy',
+    upgradesToId: 'holdMyBeerPlus',
     description: 'Deal 24 damage. Become Tipsy x3. "Watch this."',
     effect(api) {
       api.damage(24);
+      api.status(STATUS.TIPSY, 3, 'self');
+    },
+  },
+  holdMyBeerPlus: {
+    id: 'holdMyBeerPlus',
+    name: 'Hold My Beer+',
+    emoji: '🍺',
+    icon: { category: 'items', id: 'duff' },
+    cost: 2,
+    rarity: RARITY.EPIC,
+    characterId: 'homer',
+    archetype: 'duff',
+    target: 'enemy',
+    upgraded: true,
+    baseId: 'holdMyBeer',
+    description: 'Deal 32 damage. Become Tipsy x3. "Watch THIS."',
+    effect(api) {
+      api.damage(32);
       api.status(STATUS.TIPSY, 3, 'self');
     },
   },
@@ -411,9 +628,27 @@ export const ABILITIES = {
     characterId: 'moe',
     archetype: 'duff',
     target: 'enemy',
+    upgradesToId: 'lastCallPlus',
     description: 'Deal 16 damage.',
     effect(api) {
       api.damage(16);
+    },
+  },
+  lastCallPlus: {
+    id: 'lastCallPlus',
+    name: 'Last Call+',
+    emoji: '🍸',
+    icon: { category: 'items', id: 'duff' },
+    cost: 2,
+    rarity: RARITY.UNCOMMON,
+    characterId: 'moe',
+    archetype: 'duff',
+    target: 'enemy',
+    upgraded: true,
+    baseId: 'lastCall',
+    description: 'Deal 22 damage.',
+    effect(api) {
+      api.damage(22);
     },
   },
   onTheHouse: {
@@ -426,9 +661,27 @@ export const ABILITIES = {
     characterId: 'moe',
     archetype: 'duff',
     target: 'self',
+    upgradesToId: 'onTheHousePlus',
     description: 'Heal 12 HP.',
     effect(api) {
       api.heal(12, 'self');
+    },
+  },
+  onTheHousePlus: {
+    id: 'onTheHousePlus',
+    name: 'On the House+',
+    emoji: '🍻',
+    icon: { category: 'items', id: 'duff' },
+    cost: 1,
+    rarity: RARITY.COMMON,
+    characterId: 'moe',
+    archetype: 'duff',
+    target: 'self',
+    upgraded: true,
+    baseId: 'onTheHouse',
+    description: 'Heal 18 HP.',
+    effect(api) {
+      api.heal(18, 'self');
     },
   },
   nervousWreck: {
@@ -470,6 +723,9 @@ export const ABILITIES = {
 // have joined the run first.
 export function getDraftPool(castIds) {
   return Object.values(ABILITIES).filter(
-    (a) => !STARTER_ABILITY_IDS.includes(a.id) && (a.characterId === null || castIds.includes(a.characterId))
+    // Upgraded ("+") cards are never drafted directly -- they're only ever
+    // reached by upgrading the owned base card (systems/cardUpgrades.js) at
+    // an upgrade station (Bowlarama, Moe's, Nuclear Plant).
+    (a) => !a.upgraded && !STARTER_ABILITY_IDS.includes(a.id) && (a.characterId === null || castIds.includes(a.characterId))
   );
 }

@@ -646,6 +646,24 @@ export class Game {
       return;
     }
 
+    this.enterLocationSegmentContent(locationId);
+  }
+
+  // Resolves and enters whichever per-segment content (data/journeys.js)
+  // this location has right now -- combat, event, or a quest choice -- or
+  // "Nothing left here for now." once it's used up. Extracted out of
+  // arriveAt so a location that's ALSO an interior (Bowlarama, Nuclear
+  // Plant -- see the 'segmentContent' special case in onInteriorInteract
+  // below) can reach the exact same segment content from inside its own
+  // menu instead of duplicating this gating logic.
+  enterLocationSegmentContent(locationId) {
+    // This can now be reached mid-interior-visit (Bowlarama/Nuclear Plant's
+    // 'segmentContent' interaction) as well as directly from arriveAt --
+    // clear the interior fields either way so a stale interiorLocationId
+    // never lingers once we've moved on to an event/combat/board screen.
+    this.interiorLocationId = null;
+    this.interiorStateId = null;
+    this.interiorState = null;
     // A few locations stay revisitable this segment even after their normal
     // content is used up, because a quest or callback has put something new
     // there -- First Church of Springfield once Devil Ned corrupts it
@@ -794,6 +812,18 @@ export class Game {
       this.enterBattleForLocationContent(this.interiorLocationId, interaction.combatContent);
       return;
     }
+    if (interaction.special === 'segmentContent') {
+      // Bowlarama/Nuclear Plant aren't dialogue interiors like Moe's/Apu's --
+      // they're ordinary per-segment board locations (data/journeys.js) that
+      // ALSO happen to host a card-upgrade station, so this one interaction
+      // hands off to the exact same combat/event resolution a normal arrival
+      // would have used (enterLocationSegmentContent), instead of
+      // duplicating that gating logic here.
+      this.interiorActionsRemaining -= 1;
+      saveActiveRun(this.runState);
+      this.enterLocationSegmentContent(this.interiorLocationId);
+      return;
+    }
     if (interaction.special === 'abilityDraft') {
       // Taking this ends the visit on the spot (same as the old rest-node
       // "LEARN ABILITY" option) -- mark the location visited now, since
@@ -902,8 +932,17 @@ export class Game {
 
   leaveInterior() {
     const locationId = this.interiorLocationId;
-    markLocationVisited(this.runState, locationId);
-    this.increaseMayhem(5);
+    // Bowlarama/Nuclear Plant (INTERIORS entries with deferVisitToContent)
+    // still have real per-segment content gated behind segmentContent (see
+    // onInteriorInteract) -- marking them visited/spending Mayhem just for
+    // walking in to browse the upgrade station and walking back out would
+    // silently burn that segment's fight/event for nothing. Every other
+    // interior (Moe's, Apu's) is a standing service with no scarce content
+    // of its own, so leaving it has always meant "spent time here."
+    if (!INTERIORS[locationId].deferVisitToContent) {
+      markLocationVisited(this.runState, locationId);
+      this.increaseMayhem(5);
+    }
     this.interiorLocationId = null;
     this.interiorStateId = null;
     this.interiorState = null;
