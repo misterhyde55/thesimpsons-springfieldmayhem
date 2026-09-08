@@ -21,7 +21,7 @@ import { CHARACTERS } from './data/characters.js';
 import { ENEMIES } from './data/enemies.js';
 import { BOSSES, ZOMBIE_NED_REWARD } from './data/bosses.js';
 import { LOCATIONS } from './data/locations.js';
-import { getEvent } from './data/events.js';
+import { getEvent, SNAKE_DEFEAT_REWARD } from './data/events.js';
 import { ABILITIES, STARTER_ABILITY_IDS, RARITY } from './data/abilities.js';
 import { ITEMS } from './data/items.js';
 import { HORROR_RULES } from './data/horrorRules.js';
@@ -629,13 +629,30 @@ export class Game {
     saveActiveRun(this.runState);
 
     screens.showScreen('screen-travel');
-    screens.populateTravelScreen(scene, sceneLine, LOCATIONS[locationId].name, outcome, () => {
+    // TRAVEL ENCOUNTER SYSTEM: a decision-shaped outcome (data/
+    // travelEvents.js ralphEncounter/wiggumRoadblock) shows the travel
+    // scene as the paused backdrop ("MAP EVENTS SHOULD APPEAR VISUALLY...
+    // pause map movement... background remains visible") with the actual
+    // decision as a compact overlay on top -- the same generic
+    // showChoiceModal every other reward/deal choice already uses -- then
+    // continues to the original destination once resolved. The
+    // destination never changes just from picking an option here.
+    screens.populateTravelScreen(scene, sceneLine, LOCATIONS[locationId].name, outcome?.decision ? null : outcome, () => {
       if (outcome?.ambushCombat) {
         this.enterAmbushBattle(fromId, locationId, outcome.ambushCombat);
       } else {
         this.arriveAt(locationId);
       }
     });
+    if (outcome?.decision) {
+      screens.showChoiceModal(outcome.decision, (choice) => {
+        const resultText = choice.apply(this.runState);
+        saveActiveRun(this.runState);
+        screens.hideChoiceModal();
+        screens.showBanner(resultText, 3200);
+        this.arriveAt(locationId);
+      });
+    }
   }
 
   // A travel event (data/travelEvents.js) can detour into a fight before
@@ -986,20 +1003,27 @@ export class Game {
   // A location's own random event (e.g. Snake robbing the Kwik-E-Mart mid-
   // visit) -- reuses data/events.js's {prompt, options[{label, apply,
   // resultText}]} shape, rendered through the same result/follow-up panel
-  // as an ordinary conversation.
+  // as an ordinary conversation. An option can also carry `special:
+  // 'combat'` + `combatContent` (REMOVE THE BLUE "FIGHT SNAKE" STYLE
+  // BOXES: Snake's INTERVENE option launches a real fight instead of
+  // instantly resolving text) -- mirrors onInteriorInteract/
+  // onInteriorFollowUp's identical combat branch above.
   showInteriorRandomEvent(event) {
-    const followUps = event.options.map((option) => ({
-      id: option.id,
-      label: option.label,
-      run: (runState) => ({ text: option.apply(runState) || option.resultText || '' }),
-    }));
     screens.showInteriorResult(
       event.prompt,
-      followUps,
-      (followUp) => {
-        const result = followUp.run(this.runState);
+      event.options,
+      (option) => {
+        if (option.special === 'combat') {
+          markLocationVisited(this.runState, this.interiorLocationId);
+          this.currentLocationId = this.interiorLocationId;
+          this.currentLocation = LOCATIONS[this.interiorLocationId];
+          saveActiveRun(this.runState);
+          this.enterBattleForLocationContent(this.interiorLocationId, option.combatContent);
+          return;
+        }
+        const text = option.apply(this.runState) || option.resultText || '';
         saveActiveRun(this.runState);
-        screens.showInteriorResult(result.text, null, null, () => this.refreshInteriorScreen());
+        screens.showInteriorResult(text, null, null, () => this.refreshInteriorScreen());
       },
       () => this.refreshInteriorScreen()
     );
@@ -1468,10 +1492,21 @@ export class Game {
     });
   }
 
+  // FIX ENEMIES THAT DON'T FIGHT BACK: every intent type systems/enemyAI.js
+  // can resolve (attack/attackTwice/defend/buff/infect/phase/heal/
+  // friendlyFire/buffAlly/weaken/confuse/steal/summon/prayer/distract/
+  // bewilder) needs its OWN visible pop here -- before this fix, only
+  // attack/attackTwice/prayer/distract had any animation or floating number
+  // at all, so an enemy that rolled Defend/Buff/Infect/Heal/etc (a large
+  // share of the roster's weighted intents, e.g. Zombie Carl's 55% Defend)
+  // resolved with nothing but a buried battle-log line -- reading exactly
+  // like "the enemy didn't actually do anything." Every branch below plays
+  // an animation and a floating number so no intent can resolve silently.
   animateEnemyActions(enemyActions) {
     for (const action of enemyActions) {
       const name = this.enemyName(action.enemyId);
       if (action.stunned) {
+        screens.showFloatingNumber(action.enemyId, 'STUNNED', 'debuff');
         screens.appendBattleLog(`${name} is Stunned and skips their turn.`);
         continue;
       }
@@ -1483,14 +1518,14 @@ export class Game {
       }
       const r = action.result;
       if (r && (r.type === 'attack' || r.type === 'attackTwice')) {
-        if (r.dealt > 0 || r.dodged) {
-          // Enemy visibly lunges toward Homer FIRST, impact/recoil/damage
-          // land a beat later -- "enemy turns must feel like actual
-          // actions, not hidden calculations." Single-enemy fights only
-          // (this session's scoped target); a multi-enemy stagger is a
-          // follow-up, not needed for Zombie Ned alone.
-          screens.playCombatantAnimation(action.enemyId, 'lunge');
-        }
+        // Enemy visibly lunges toward Homer FIRST, impact/recoil/damage
+        // land a beat later -- "enemy turns must feel like actual
+        // actions, not hidden calculations." Lunges even on a fully-
+        // blocked hit (dealt 0, not dodged) -- Homer's Armor stopping it
+        // is still the enemy visibly attacking, not the enemy doing
+        // nothing; a silent no-op there was the single biggest source of
+        // "this enemy isn't fighting back."
+        screens.playCombatantAnimation(action.enemyId, 'lunge');
         setTimeout(() => {
           if (r.dealt > 0) {
             screens.showFloatingNumber(null, `-${r.dealt}`, 'damage');
@@ -1498,8 +1533,57 @@ export class Game {
             screens.shakeBattleStage();
           } else if (r.dodged) {
             screens.showFloatingNumber(null, 'DODGE', 'heal');
+          } else {
+            screens.showFloatingNumber(null, 'BLOCKED', 'armor');
+            screens.playCombatantAnimation(null, 'cast');
           }
         }, 260);
+      } else if (r && r.type === 'defend') {
+        screens.playCombatantAnimation(action.enemyId, 'cast');
+        screens.showFloatingNumber(action.enemyId, `+${r.value} ARMOR`, 'armor');
+      } else if (r && r.type === 'buff') {
+        screens.playCombatantAnimation(action.enemyId, 'cast');
+        screens.showFloatingNumber(action.enemyId, `+${r.value} STR`, 'buff');
+      } else if (r && r.type === 'phase') {
+        screens.playCombatantAnimation(action.enemyId, 'phase');
+        screens.showFloatingNumber(action.enemyId, 'PHASED OUT', 'phase');
+      } else if (r && r.type === 'infect') {
+        screens.playCombatantAnimation(action.enemyId, 'lunge');
+        setTimeout(() => {
+          screens.showFloatingNumber(null, `+${r.value} INFECTION`, 'infect');
+          screens.playCombatantAnimation(null, 'hit');
+        }, 260);
+      } else if (r && r.type === 'heal') {
+        screens.playCombatantAnimation(action.enemyId, 'cast');
+        if (r.value > 0) {
+          screens.showFloatingNumber(r.targetId, `+${r.value}`, 'heal');
+          screens.playCombatantAnimation(r.targetId, 'heal');
+        }
+      } else if (r && r.type === 'friendlyFire') {
+        screens.playCombatantAnimation(action.enemyId, 'lunge');
+        if (r.value > 0) {
+          screens.showFloatingNumber(r.targetId, `-${r.value}`, 'damage');
+          screens.playCombatantAnimation(r.targetId, 'hit');
+        }
+      } else if (r && r.type === 'buffAlly') {
+        screens.playCombatantAnimation(action.enemyId, 'cast');
+        screens.showFloatingNumber(r.targetId, `+${r.value} STR`, 'buff');
+        screens.playCombatantAnimation(r.targetId, 'cast');
+      } else if (r && (r.type === 'weaken' || r.type === 'confuse' || r.type === 'bewilder')) {
+        screens.playCombatantAnimation(action.enemyId, 'lunge');
+        const label = r.type === 'weaken' ? 'WEAK' : r.type === 'confuse' ? 'VULNERABLE' : 'CONFUSED';
+        setTimeout(() => {
+          screens.showFloatingNumber(null, label, 'debuff');
+          screens.playCombatantAnimation(null, 'hit');
+        }, 260);
+      } else if (r && r.type === 'steal') {
+        screens.playCombatantAnimation(action.enemyId, 'lunge');
+        setTimeout(() => {
+          screens.showFloatingNumber(null, `-$${r.stolenAmount || 0}`, 'debuff');
+          screens.playCombatantAnimation(null, 'hit');
+        }, 260);
+      } else if (r && r.type === 'summon') {
+        if (r.summonedName) screens.showBanner(`${r.summonedName.toUpperCase()} JOINS THE FIGHT!`, 2200);
       } else if (r && r.type === 'prayer') {
         if (r.interrupted) {
           this.battle.flags.interruptsLanded = (this.battle.flags.interruptsLanded || 0) + 1;
@@ -1563,6 +1647,20 @@ export class Game {
     // instead of going straight into the ordinary ability draft.
     if (content.bossId === 'zombieNed') {
       this.showEncounterSummary(zombieNedStats, () => this.showZombieNedReward());
+      return;
+    }
+
+    // Snake's INTERVENE reward (data/events.js kwikEMartRobbery ->
+    // SNAKE_DEFEAT_REWARD): a real 3-way choice instead of the ordinary
+    // ability draft, matching Devil Ned's own reward flow below.
+    if (content.rewardChoiceId === 'snakeDefeated') {
+      screens.showChoiceModal(SNAKE_DEFEAT_REWARD, (choice) => {
+        const resultText = choice.apply(this.runState);
+        screens.hideChoiceModal();
+        saveActiveRun(this.runState);
+        screens.showBanner(resultText, 3200);
+        this.showBoard();
+      });
       return;
     }
 

@@ -1304,6 +1304,15 @@ body:not(.header-hidden) .location-interior-screen {
 .floating-crit { color: #f6d217; font-size: 2rem; }
 .floating-break { color: #f6d217; font-size: 1.3rem; }
 .floating-phase { color: #ff5a3c; font-size: 1.4rem; text-transform: uppercase; }
+/* FIX ENEMIES THAT DON'T FIGHT BACK: every enemy intent needs its own
+   visible pop, not just attack -- Armor/Strength/Infection/Weak-Vulnerable-
+   Confused-stolen-cash previously had NO floating number at all (see
+   game.js animateEnemyActions), so a Defend- or Infect-heavy enemy's turn
+   looked like nothing happened. */
+.floating-armor { color: #6fc7ff; }
+.floating-buff { color: #ff9d4d; }
+.floating-infect { color: #9dff5c; }
+.floating-debuff { color: #b34bf0; text-transform: uppercase; }
 @keyframes floatUp {
   0% { opacity: 0; transform: translate(-50%, 8px) scale(0.85); }
   15% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }

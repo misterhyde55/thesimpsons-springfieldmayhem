@@ -95,9 +95,14 @@ export const JOURNEYS = {
           // By the finale even Wiggum and Krusty have turned.
           policeStation: { type: 'combat', enemyIds: ['zombieWiggum'] },
           krustyBurger: { type: 'combat', enemyIds: ['zombieKrusty'] },
-          // glowingDonut/kwikEMartRobbery moved here from springfieldElementary
-          // now that it's the School combo fight above.
-          androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble', 'glowingDonut', 'kwikEMartRobbery'] },
+          // glowingDonut moved here from springfieldElementary now that it's
+          // the School combo fight above. kwikEMartRobbery (REMOVE THE BLUE
+          // "FIGHT SNAKE" STYLE BOXES) is now a real-combat Kwik-E-Mart
+          // interior random event (data/interiors.js randomInterrupt) that
+          // this generic board-event screen can't launch a battle from --
+          // snakesShakedown (already text-only, no combat branch) fills the
+          // slot instead.
+          androidsDungeon: { type: 'event', eventPool: ['androidsDungeonGamble', 'glowingDonut', 'snakesShakedown'] },
           bowlarama: { type: 'event', eventPool: ['bowlaramaFrame', 'cursedDonut'] },
           // The "Hospital" encounter combo: Hibbert keeps healing the
           // Nurses, changing who's worth focusing down first.

@@ -87,17 +87,39 @@ function pct(n) {
   return `${(n * 100).toFixed(3)}%`;
 }
 
+// FIX BURNS MANSION MAP POSITION: the Springfield Intel sidebar
+// (#map-sidebar-left) is a sibling of .map-viewport that overlays the map's
+// left edge rather than shrinking it (see the "Real, live-filtering
+// sidebar" comment in style.css) -- so any location whose coordinate sits
+// close enough to the art's own left edge (Burns Manor was x:0.038, right
+// at the corner) could get pinned, by the no-blank-gutters clamp below,
+// directly underneath that overlay with no way to pan or center it out
+// from under there. The fix is to make the sidebar's actual rendered width
+// (0 with no sidebar mounted, ~52px collapsed, ~220-300px expanded -- read
+// live off the DOM since it changes with viewport width and the collapse
+// toggle) a permanent inset on the pannable/visible area, exactly like the
+// viewport's own edges: nothing is ever allowed to render under that strip
+// in the first place, for every location near that edge, not just this one.
+function sidebarInsetPx() {
+  const sidebar = document.getElementById('map-sidebar-left');
+  if (!sidebar) return 0;
+  return sidebar.getBoundingClientRect().width || 0;
+}
+
 // The map must never show a gap around the art (no blank gutters) --
 // so the effective minimum zoom is whatever "covers" the current
 // viewport in both dimensions (like CSS background-size:cover), not a
 // fixed constant. A phone-sized viewport and an ultrawide monitor need
 // different minimums; this recomputes it from the real viewport every
 // time instead of guessing one number that only works for one screen.
+// The sidebar inset (see above) narrows the width side of that "cover"
+// target -- covering the AREA NEXT TO the sidebar, not the raw viewport.
 function minZoomForViewport() {
   if (!dom) return MIN_ZOOM;
   const rect = dom.viewport.getBoundingClientRect();
   if (!rect.width || !rect.height) return MIN_ZOOM;
-  return Math.max(MIN_ZOOM, rect.width / MAP_WIDTH, rect.height / MAP_HEIGHT);
+  const visibleW = Math.max(1, rect.width - sidebarInsetPx());
+  return Math.max(MIN_ZOOM, visibleW / MAP_WIDTH, rect.height / MAP_HEIGHT);
 }
 
 function clampZoom(z) {
@@ -107,15 +129,22 @@ function clampZoom(z) {
 // Keeps the scaled image's edges at or beyond the viewport's edges on
 // every side, at the current zoom -- the general fix for the "blank
 // black bar" bug: any pan/zoom that would reveal the raw viewport
-// background past the art's edge gets pulled back in instead.
+// background past the art's edge gets pulled back in instead. The sidebar
+// inset (see sidebarInsetPx above) shifts the LEFT bound in from 0 to the
+// sidebar's own width, so the art's left edge can never be dragged/
+// centered underneath it -- the same treatment the viewport's own edges
+// already get, just offset by however much of the left edge the sidebar
+// currently occupies.
 function clampCameraPosition(cam) {
   if (!dom) return cam;
   const rect = dom.viewport.getBoundingClientRect();
+  const inset = sidebarInsetPx();
   const scaledW = MAP_WIDTH * cam.zoom;
   const scaledH = MAP_HEIGHT * cam.zoom;
-  const minX = Math.min(0, rect.width - scaledW);
+  const visibleW = rect.width - inset;
+  const minX = Math.min(inset, inset + visibleW - scaledW);
   const minY = Math.min(0, rect.height - scaledH);
-  const x = scaledW <= rect.width ? (rect.width - scaledW) / 2 : Math.min(0, Math.max(minX, cam.x));
+  const x = scaledW <= visibleW ? inset + (visibleW - scaledW) / 2 : Math.min(inset, Math.max(minX, cam.x));
   const y = scaledH <= rect.height ? (rect.height - scaledH) / 2 : Math.min(0, Math.max(minY, cam.y));
   return { zoom: cam.zoom, x, y };
 }
@@ -138,12 +167,17 @@ export function setCameraState(state) {
 function centerCameraOn(locationId, zoom) {
   const loc = WORLD_LOCATIONS[locationId];
   const rect = dom.viewport.getBoundingClientRect();
+  const inset = sidebarInsetPx();
   const targetZoom = clampZoom(zoom ?? camera.zoom);
   const worldX = loc.x * MAP_WIDTH;
   const worldY = loc.y * MAP_HEIGHT;
+  // Center within the AREA NEXT TO the sidebar, not the raw viewport --
+  // otherwise a location near the left edge (Burns Manor) centers toward
+  // screen x=0 and the no-blank-gutters clamp above pins it right back
+  // underneath the sidebar it was trying to clear.
   camera = clampCameraPosition({
     zoom: targetZoom,
-    x: rect.width / 2 - worldX * targetZoom,
+    x: inset + (rect.width - inset) / 2 - worldX * targetZoom,
     y: rect.height / 2 - worldY * targetZoom,
   });
   applyCameraTransform();

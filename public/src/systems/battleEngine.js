@@ -231,6 +231,13 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss, envir
     if (enemy.template.onBattleStart) enemy.template.onBattleStart(battle, runState, enemy);
   }
   fireHooks(runState, 'onBattleStart', battle);
+  // Snake's event-reward relic (data/relics.js quickHands): "draw 1
+  // additional card on the first turn of combat." Every source's own
+  // return value is summed rather than short-circuited, same as every
+  // other fireHooks call site, so this still adds up correctly if more
+  // than one source ever grants extra first-turn draws.
+  const extraDraws = fireHooks(runState, 'onFirstTurnExtraDraw', battle).reduce((sum, n) => sum + (typeof n === 'number' ? n : 0), 0);
+  if (extraDraws > 0) drawCards(battle, extraDraws);
   fireHooks(runState, 'onPlayerTurnStart', battle);
   return battle;
 }
@@ -356,9 +363,14 @@ function buildBattleApi(battle, runState, targetEnemy, events) {
       }
       const target = resolveWho(who);
       const healed = healCombatant(target, amt);
+      if (target === battle.player && healed > 0) battle.flags.healedThisTurn = true;
       events.push({ kind: 'heal', who, amount: healed });
       return healed;
     },
+    // Snake's event-reward ability (data/abilities.js hotDogPunch): "if
+    // Homer healed this turn, deal +6 damage instead." Reset every player
+    // turn alongside the other per-round trackers in endPlayerTurn below.
+    healedThisTurn: () => !!battle.flags.healedThisTurn,
     ateFood() {
       battle.flags.foodEatenCount = (battle.flags.foodEatenCount || 0) + 1;
       fireHooks(runState, 'onAteFood', battle, battle.flags.foodEatenCount);
@@ -458,7 +470,13 @@ export function endPlayerTurn(battle, runState) {
   }
 
   const enemyActions = [];
+  // getAliveEnemies is a snapshot taken once, before this loop runs -- an
+  // earlier enemy's own turn (friendlyFire, a location event's reaction)
+  // can kill a LATER enemy in this same snapshot before its turn comes up.
+  // Without this guard that dead enemy still took its turn (DEBUG ALL
+  // ENEMY AI: "enemy dies but remains in turn queue").
   for (const enemy of getAliveEnemies(battle)) {
+    if (enemy.hp <= 0) continue;
     const { stunned } = tickTurnStart(enemy);
     if (stunned) {
       enemyActions.push({ enemyId: enemy.instanceId, stunned: true, intent: enemy.intent });
@@ -527,6 +545,9 @@ export function endPlayerTurn(battle, runState) {
   // Ski Nightmare only locks one card for the turn it's cast -- cleared the
   // instant a fresh player turn begins, whether or not it was ever hit.
   battle.distractedAbilityId = null;
+  // hotDogPunch's "healed this turn" check (see api.healedThisTurn above)
+  // only ever means THIS turn -- clear it for the fresh one about to start.
+  battle.flags.healedThisTurn = false;
 
   battle.turnNumber += 1;
   const { stunned } = tickTurnStart(battle.player);

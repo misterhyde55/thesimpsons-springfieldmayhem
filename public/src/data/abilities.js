@@ -818,6 +818,27 @@ export const ABILITIES = {
       api.status(STATUS.ARMOR, 4, 'self');
     },
   },
+  // Snake's Kwik-E-Mart Robbery event reward (data/events.js
+  // kwikEMartRobbery, INTERVENE -> victory) -- granted directly via
+  // learnAbility, never drafted normally (see eventReward: true below and
+  // getDraftPool's filter), same "reward-only, not in the ordinary pool"
+  // treatment as an upgraded ("+") card.
+  hotDogPunch: {
+    id: 'hotDogPunch',
+    name: 'Hot Dog Punch',
+    emoji: '🌭',
+    icon: { category: 'combat', id: 'attack' },
+    cost: 1,
+    rarity: RARITY.RARE,
+    characterId: 'homer',
+    archetype: 'universal',
+    target: 'enemy',
+    eventReward: true,
+    description: 'Deal 10 damage. If Homer healed this turn, deal +6 damage instead.',
+    effect(api) {
+      api.damage(api.healedThisTurn() ? 16 : 10);
+    },
+  },
   // Maggie's own cast-gated ability (WHERE'S MAGGIE?, data/quests.js) --
   // deliberately just one, rare and a little absurd rather than a full kit
   // ("Maggie's assists should feel rare and funny").
@@ -847,7 +868,9 @@ export function getDraftPool(castIds) {
   return Object.values(ABILITIES).filter(
     // Upgraded ("+") cards are never drafted directly -- they're only ever
     // reached by upgrading the owned base card (systems/cardUpgrades.js) at
-    // an upgrade station (Bowlarama, Moe's, Nuclear Plant).
-    (a) => !a.upgraded && !STARTER_ABILITY_IDS.includes(a.id) && (a.characterId === null || castIds.includes(a.characterId))
+    // an upgrade station (Bowlarama, Moe's, Nuclear Plant). Event-reward
+    // cards (hotDogPunch) are the same deal -- only ever granted directly
+    // by the specific event that offers them.
+    (a) => !a.upgraded && !a.eventReward && !STARTER_ABILITY_IDS.includes(a.id) && (a.characterId === null || castIds.includes(a.characterId))
   );
 }
