@@ -113,7 +113,6 @@ export const ICON_MANIFEST = {
     secret: `${BASE}/map/secret.png`,
     danger: `${BASE}/map/danger.png`,
     blockedRoad: `${BASE}/map/blocked.png`,
-    rumor: `${BASE}/map/rumor.png`,
     unknownLocation: `${BASE}/map/unknown.png`,
   },
   // Decision-card categories (ui/screens.js populateStoryScene /

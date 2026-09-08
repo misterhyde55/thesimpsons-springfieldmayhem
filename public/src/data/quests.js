@@ -288,58 +288,92 @@ export function whereIsMaggieKrustyBurgerContent() {
 // applyQuestResolution and interiors.js's report interactions) the instant
 // that single objective is actually done, before any "now go report back"
 // second leg would need its own map target.
+// `kind` groups quests in the Quest Journal (ui/screens.js
+// showQuestTrackerModal) -- 'side' for the original three, 'family' for
+// the Simpson-family rescues. There's no separate "main quest" system
+// (that would be its own feature); the journal's MAIN OBJECTIVE line
+// instead comes straight from the segment's own `objective` text
+// (data/journeys.js), shown alongside these regardless of kind.
 export const QUEST_DISPLAY = {
   wheresBarney: {
     title: "WHERE'S BARNEY?",
     hint: 'Last seen: Springfield Cemetery.',
     reward: 'Moe Relationship • ???',
     locationId: 'springfieldCemetery',
+    kind: 'side',
   },
   helpApu: {
     title: "APU'S FAVOR",
     hint: 'Search Springfield Elementary, then report back to Apu at the Kwik-E-Mart.',
     reward: 'Apu Relationship • Cash',
     locationId: 'springfieldElementary',
+    kind: 'side',
   },
   missingOfficers: {
     title: 'THE MISSING OFFICERS',
     hint: 'Search Burns Manor, then report to the Police Station.',
     reward: 'Cash • Relic • Safer Police Station',
     locationId: 'burnsManor',
+    kind: 'side',
   },
   whereIsBart: {
     title: "WHERE'S BART?",
     hint: 'Last seen near Springfield Elementary.',
     reward: 'Bart Joins the Cast',
     locationId: 'springfieldElementary',
+    kind: 'family',
   },
   whereIsLisa: {
     title: "WHERE'S LISA?",
     hint: 'Try First Church of Springfield.',
     reward: 'Lisa Joins the Cast',
     locationId: 'springfieldChurch',
+    kind: 'family',
   },
   whereIsMarge: {
     title: "WHERE'S MARGE?",
     hint: 'She went to check on Grampa. Try the Retirement Castle.',
     reward: 'Marge Joins the Cast',
     locationId: 'retirementCastle',
+    kind: 'family',
   },
   whereIsMaggie: {
     title: "WHERE'S MAGGIE?",
     hint: "She's been missing since the outbreak began. Try Krusty Burger.",
     reward: 'Maggie Joins the Cast',
     locationId: 'krustyBurger',
+    kind: 'family',
   },
 };
 
-// Only 'active' quests show -- once resolved, the reward toast/banner at
-// the resolution point already told the player what happened, so the
-// tracker doesn't need a second "completed" list cluttering it up.
+// The single most relevant thing to do right now (Springfield Intel's
+// CURRENT OBJECTIVE card, ui/worldMapView.js) -- the first active quest, in
+// the same insertion order the Quest Journal itself uses. `null` when
+// nothing is active, so the caller falls back to the segment's own
+// objective text instead (there's no ranking between quests -- whichever
+// started first stays "current" until it resolves).
+export function getCurrentObjective(runState) {
+  return getActiveQuestsSummary(runState)[0] || null;
+}
+
+// Only 'active' quests -- Springfield Intel's ACTIVE QUESTS count and the
+// Quest Journal's SIDE QUESTS/FAMILY QUESTS sections (ui/screens.js
+// showQuestTrackerModal).
 export function getActiveQuestsSummary(runState) {
   return Object.entries(runState.quests)
     .filter(([, status]) => status === 'active')
     .map(([id]) => QUEST_DISPLAY[id])
+    .filter(Boolean);
+}
+
+// Any quest with a real outcome (not 'active', not undefined/never-started)
+// -- the Quest Journal's COMPLETED section. `outcome` is the raw status
+// string ('resolved'/'killed'/'saved'/etc.) since not every ending is a
+// plain success.
+export function getResolvedQuestsSummary(runState) {
+  return Object.entries(runState.quests)
+    .filter(([, status]) => status && status !== 'active')
+    .map(([id, status]) => (QUEST_DISPLAY[id] ? { ...QUEST_DISPLAY[id], outcome: status } : null))
     .filter(Boolean);
 }
 

@@ -439,14 +439,13 @@ body:not(.header-hidden) .location-interior-screen {
    Springfield, Homer, reachable destinations" (map-rebuild spec), not
    twenty building names shouting at once. A name appears only on hover,
    for the current/selected location, or for something urgent enough that
-   silence would be misleading (invaded/Devil Ned/an active filter match). */
+   silence would be misleading (invaded/Devil Ned). */
 .map-hotspot-label { display: none; }
 .map-hotspot:hover .map-hotspot-label,
 .map-hotspot.state-current .map-hotspot-label,
 .map-hotspot.selected .map-hotspot-label,
 .map-hotspot.is-invaded .map-hotspot-label,
-.map-hotspot.is-devil-hunting .map-hotspot-label,
-.map-hotspot.filter-match .map-hotspot-label {
+.map-hotspot.is-devil-hunting .map-hotspot-label {
   display: block;
   font-size: 0.6rem;
   font-weight: 800;
@@ -480,18 +479,12 @@ body:not(.header-hidden) .location-interior-screen {
   animation: hotspotDevilPulse 1.3s ease-in-out infinite;
 }
 .map-hotspot.is-devil-hunting .map-hotspot-label { background: rgba(60, 8, 90, 0.9); color: #e9c8ff; }
-/* Sidebar filter results (ui/worldMapView.js applyFilterHighlights) --
-   dim everything not matching the active filter set(s) rather than
-   hiding it outright, so the map still reads as one continuous place. */
-.map-hotspot.filter-dim { opacity: 0.25; filter: grayscale(0.5); }
-.map-hotspot.filter-match .map-hotspot-pin {
-  box-shadow: 0 0 0 4px rgba(246, 210, 23, 0.6);
-  transform: scale(1.18);
-}
-.map-hotspot.filter-match.filter-urgent .map-hotspot-pin { box-shadow: 0 0 0 4px rgba(255, 90, 60, 0.7); }
 .map-hotspot:hover .map-hotspot-pin { transform: scale(1.12); }
-.map-hotspot.you-are-here-pulse .map-hotspot-pin { animation: youAreHerePulse 0.6s ease-out 2; }
-@keyframes youAreHerePulse {
+/* Springfield Intel's SHOW LOCATION / the Quest Journal's SHOW ON MAP
+   (ui/worldMapView.js focusCameraOnLocation) -- a brief ring pulse so the
+   player's eye lands on the destination once the camera pans there. */
+.map-hotspot.location-focus-pulse .map-hotspot-pin { animation: locationFocusPulse 0.6s ease-out 2; }
+@keyframes locationFocusPulse {
   0% { box-shadow: 0 0 0 0 rgba(62, 194, 255, 0.9); }
   100% { box-shadow: 0 0 0 22px rgba(62, 194, 255, 0); }
 }
@@ -570,79 +563,42 @@ body:not(.header-hidden) .location-interior-screen {
 }
 .sidebar-collapse-btn:hover { background: #4a4a56; }
 .map-sidebar.collapsed .sidebar-collapse-btn { transform: rotate(180deg); }
-.sidebar-you-are-here-btn {
-  width: 100%;
-  text-align: left;
-  padding: 8px 10px;
-  border-radius: 8px;
+/* SIMPLIFY THE SPRINGFIELD INTEL SIDEBAR: three compact sections, nothing
+   else -- CURRENT OBJECTIVE, MAYHEM, ACTIVE QUESTS (ui/worldMapView.js
+   renderSidebarIntel). Collapses down to just the header/toggle. */
+.sidebar-section { display: flex; flex-direction: column; gap: 3px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.sidebar-section:first-of-type { border-top: none; padding-top: 0; }
+.sidebar-section-label { color: #8c8c99; font-weight: 800; font-size: 0.62rem; letter-spacing: 1px; }
+.sidebar-objective-title { color: #f6d217; font-weight: 800; font-size: 0.82rem; line-height: 1.2; }
+.sidebar-objective-hint { color: #c9c9d3; font-size: 0.72rem; line-height: 1.3; }
+.sidebar-show-location-btn,
+.sidebar-view-quests-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 5px 10px;
+  border-radius: 14px;
   border: 1px solid rgba(62, 194, 255, 0.5);
   background: rgba(62, 194, 255, 0.12);
   color: #dff2ff;
   font-weight: 800;
-  font-size: 0.78rem;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.sidebar-you-are-here-btn:hover { background: rgba(62, 194, 255, 0.22); }
-.sidebar-filter-list { display: flex; flex-direction: column; gap: 4px; }
-.sidebar-filter-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  width: 100%;
-  padding: 7px 10px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.04);
-  color: #d6d6de;
-  font-weight: 700;
-  font-size: 0.74rem;
+  font-size: 0.66rem;
   letter-spacing: 0.3px;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
 }
-.sidebar-filter-btn:hover { background: rgba(255, 255, 255, 0.1); }
-.sidebar-filter-btn.active {
-  border-color: #f6d217;
-  background: rgba(246, 210, 23, 0.16);
-  color: #fff8ea;
-  box-shadow: 0 0 10px rgba(246, 210, 23, 0.25);
+.sidebar-show-location-btn:hover,
+.sidebar-view-quests-btn:hover { background: rgba(62, 194, 255, 0.22); }
+.sidebar-mayhem-row { display: flex; align-items: baseline; gap: 8px; cursor: help; }
+.sidebar-mayhem-pct { color: #ff8a70; font-weight: 800; font-size: 1.1rem; }
+.sidebar-mayhem-label { color: #c9c9d3; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.4px; }
+.sidebar-quest-row { display: flex; align-items: center; gap: 10px; }
+.sidebar-quest-count { color: #fff8ea; font-weight: 800; font-size: 1.1rem; }
+.map-sidebar.collapsed .sidebar-section { display: none; }
+/* Mobile: "do NOT permanently display Springfield Intel" -- collapsed is
+   already the default (see worldMapView.js mountMapView), this just keeps
+   an intentionally-expanded panel from eating the map on a small screen. */
+@media (max-width: 700px) {
+  .map-sidebar:not(.collapsed) { width: min(84vw, 300px); }
 }
-.sidebar-filter-label { display: flex; align-items: center; gap: 7px; overflow: hidden; text-overflow: ellipsis; }
-.sidebar-filter-count { color: #9c9ca6; font-size: 0.7rem; font-weight: 800; }
-.sidebar-filter-btn.active .sidebar-filter-count { color: #f6d217; }
-.map-sidebar.collapsed .sidebar-filter-count,
-.map-sidebar.collapsed .sidebar-clear-btn,
-.map-sidebar.collapsed .sidebar-info-panel,
-.map-sidebar.collapsed .sidebar-filter-label span:last-child { display: none; }
-.sidebar-clear-btn {
-  padding: 7px 10px;
-  border-radius: 8px;
-  border: 1px solid #ff5a3c;
-  background: rgba(255, 90, 60, 0.12);
-  color: #ff8a70;
-  font-weight: 800;
-  font-size: 0.72rem;
-  cursor: pointer;
-}
-.sidebar-clear-btn:hover { background: rgba(255, 90, 60, 0.22); }
-.sidebar-info-panel {
-  margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.sidebar-info-card { background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 7px 9px; cursor: pointer; }
-.sidebar-info-card:hover { background: rgba(255, 255, 255, 0.1); }
-.sidebar-info-card-name { color: #f6d217; font-weight: 800; font-size: 0.75rem; }
-.sidebar-info-card-line { color: #c9c9d3; font-size: 0.7rem; margin-top: 2px; }
-.sidebar-info-card.urgent { border: 1px solid #ff5a3c; }
-.sidebar-info-card.urgent .sidebar-info-card-line { color: #ff8a70; }
 
 /* Both HUD groups anchor to the right, stacked -- the art's own baked-in
    title banner and legend live along the whole left edge, so the real,
@@ -1594,8 +1550,25 @@ body:not(.header-hidden) .location-interior-screen {
 }
 .quest-tracker-toggle:hover { background: rgba(246, 210, 23, 0.3); }
 #quest-tracker-count { color: #ff8a70; }
+/* QUEST JOURNAL (game.js openQuestJournal): MAIN OBJECTIVE sits outside the
+   scrolling list (#quest-tracker-objective, always visible), then SIDE
+   QUESTS / FAMILY QUESTS / COMPLETED render as labeled groups inside it. */
+.quest-tracker-objective {
+  text-align: left;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.quest-tracker-section-label {
+  color: #8c8c99;
+  font-weight: 800;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
 .quest-tracker-list { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; text-align: left; }
 .quest-tracker-card { background: #1b1b22; border: 2px solid #3a3a44; border-radius: 8px; padding: 10px 12px; }
+.quest-tracker-card-resolved { opacity: 0.65; border-color: #2c2c34; }
 .quest-tracker-title { font-weight: 800; color: #f6d217; font-size: 0.95rem; }
 .quest-tracker-hint { font-size: 0.85rem; color: #d6d6de; margin: 4px 0; }
 .quest-tracker-reward { font-size: 0.78rem; color: #8fd18a; }
