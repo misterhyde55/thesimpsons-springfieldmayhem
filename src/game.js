@@ -1592,13 +1592,13 @@ export class Game {
   }
 
   showZombieNedReward() {
-    screens.showChoiceModal(ZOMBIE_NED_REWARD, (choice) => {
-      const resultText = choice.apply(this.runState);
+    screens.showScreen('screen-boss-reward');
+    screens.populateBossReward(ZOMBIE_NED_REWARD, this.runState, (option, content) => {
+      const resultText = option.apply(this.runState);
       recordDiscoveries(this.meta, ['leftHandedUppercut', 'neighborlyShield', 'flandersFirstAidKit']);
       saveMeta(this.meta);
-      screens.hideChoiceModal();
       saveActiveRun(this.runState);
-      screens.showBanner(resultText, 3200);
+      screens.showBanner(`${resultText} ${content.name.toUpperCase()} JOINS YOUR ${content.kind === 'ability' ? 'ABILITIES' : content.kind === 'relic' ? 'RELICS' : 'ITEMS'}.`, 3200);
       this.showBoard();
     });
   }

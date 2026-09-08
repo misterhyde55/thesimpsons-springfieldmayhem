@@ -30,6 +30,7 @@ const SCREEN_IDS = [
   'screen-boss-intro',
   'screen-battle',
   'screen-ability-draft',
+  'screen-boss-reward',
   'screen-commercial-break',
   'screen-event',
   'screen-run-complete',
@@ -1158,6 +1159,170 @@ export function populateAbilityDraft(summary, abilities, onPick, options = {}) {
     skipBtn.textContent = 'SKIP';
     skipBtn.classList.toggle('hidden', abilities.length === 0);
     skipBtn.addEventListener('click', () => onPick(null));
+  }
+}
+
+// ---------- BOSS REWARD (REDESIGN REWARD CHOICE SCREEN) ----------
+// Game concepts that come up in ability/relic/item text but aren't a
+// combat status (so they're not in data/statusEffects.js STATUS_INFO) --
+// scanKeywordsIn below checks both dictionaries against the same text.
+const EXTRA_KEYWORD_INFO = {
+  Break: { description: "A boss's second resource, separate from HP. Depleting it Stuns them and applies Vulnerable." },
+  Energy: { description: 'What playing a card costs. Refills to your max every turn.' },
+};
+
+function scanKeywordsIn(text) {
+  const found = [];
+  const haystack = text.toLowerCase();
+  for (const info of Object.values(STATUS_INFO)) {
+    if (haystack.includes(info.name.toLowerCase())) found.push({ label: info.name, description: info.description });
+  }
+  for (const [label, info] of Object.entries(EXTRA_KEYWORD_INFO)) {
+    if (haystack.includes(label.toLowerCase()) && !found.some((k) => k.label === label)) found.push({ label, description: info.description });
+  }
+  return found;
+}
+
+// Normalizes one reward option (data/bosses.js ZOMBIE_NED_REWARD `options`,
+// {kind: 'ability'|'relic'|'item', id, goodFor, apply}) into everything a
+// reward card needs to show -- always pulled from the REAL live ability/
+// relic/item data (never a second hand-typed copy of a number), so a
+// balance tweak there can never leave the reward screen's numbers stale.
+function buildRewardCardContent(option, runState) {
+  if (option.kind === 'ability') {
+    const ability = ABILITIES[option.id];
+    const alreadyOwned = runState.abilityDeck.includes(option.id);
+    const sameArchetype = runState.abilityDeck.map((id) => ABILITIES[id]).filter((a) => a && a.archetype === ability.archetype && a.id !== ability.id);
+    return {
+      kind: 'ability',
+      icon: ability.emoji,
+      name: ability.name,
+      typeLabel: 'ABILITY',
+      typeSubLabel: ability.target === 'self' ? 'SKILL' : 'ATTACK',
+      rarityLabel: ability.rarity.toUpperCase(),
+      rarityColor: RARITY_COLOR[ability.rarity],
+      metaLines: [`Cost: ${ability.cost} Energy`],
+      effectText: ability.description,
+      permanenceLabel: alreadyOwned ? 'ALREADY IN YOUR DECK' : 'ADDED TO DECK',
+      permanenceDetail: alreadyOwned ? 'Picking this does nothing extra -- you already know it.' : 'Available for the rest of this episode.',
+      keywords: scanKeywordsIn(ability.description),
+      synergyLabel: sameArchetype.length >= 2 ? 'HIGH' : sameArchetype.length === 1 ? 'MEDIUM' : 'LOW',
+      synergyDetail: sameArchetype.length
+        ? `Works with: ${sameArchetype.map((a) => a.name).join(', ')}`
+        : `No other ${ability.archetype} abilities in your deck yet.`,
+      goodFor: option.goodFor,
+      isNew: !alreadyOwned,
+      takeLabel: 'TAKE ABILITY',
+    };
+  }
+  if (option.kind === 'relic') {
+    const relic = RELICS[option.id];
+    const alreadyOwned = runState.relics.includes(option.id);
+    return {
+      kind: 'relic',
+      icon: relic.emoji,
+      name: relic.name,
+      typeLabel: 'RELIC',
+      typeSubLabel: null,
+      rarityLabel: option.rarityLabel || 'RARE',
+      rarityColor: RARITY_COLOR.rare,
+      metaLines: ['Relics do not use Energy.'],
+      effectText: relic.description,
+      permanenceLabel: alreadyOwned ? 'ALREADY OWNED' : 'PASSIVE FOR REST OF EPISODE',
+      permanenceDetail: alreadyOwned ? "Picking this does nothing extra -- it's already active." : 'Its effect applies automatically, every battle, no upkeep.',
+      keywords: scanKeywordsIn(relic.description),
+      synergyLabel: null,
+      synergyDetail: runState.relics.length ? `Current relics: ${runState.relics.map((id) => RELICS[id].name).join(', ')}` : 'This would be your first relic.',
+      goodFor: option.goodFor,
+      isNew: !alreadyOwned,
+      takeLabel: 'TAKE RELIC',
+    };
+  }
+  // 'item'
+  const item = ITEMS[option.id];
+  const heldCount = runState.consumables[option.id] || 0;
+  return {
+    kind: 'item',
+    icon: item.emoji,
+    name: item.name,
+    typeLabel: 'CONSUMABLE ITEM',
+    typeSubLabel: null,
+    rarityLabel: null,
+    rarityColor: '#b7b7c0',
+    metaLines: [`You currently have: ${heldCount}`, `Your HP right now: ${Math.round(runState.hp)} / ${runState.maxHp}`],
+    effectText: item.description,
+    permanenceLabel: 'ONE-TIME USE',
+    permanenceDetail: 'Goes into your bag. Use it any time from an interior or mid-battle; gone after one use.',
+    keywords: scanKeywordsIn(item.description),
+    synergyLabel: null,
+    synergyDetail: null,
+    goodFor: option.goodFor,
+    isNew: heldCount === 0,
+    takeLabel: 'TAKE ITEM',
+  };
+}
+
+function rewardCardHtml(content, index) {
+  const keywordsHtml = content.keywords.length
+    ? `<div class="reward-card-keywords">${content.keywords
+        .map((k) => `<span class="reward-card-keyword" title="${k.description}">${k.label.toUpperCase()}</span>`)
+        .join('')}</div>`
+    : '';
+  const synergyHtml = content.synergyLabel
+    ? `<div class="reward-card-synergy"><span class="reward-card-synergy-label synergy-${content.synergyLabel.toLowerCase()}">SYNERGY: ${content.synergyLabel}</span><span class="reward-card-synergy-detail">${content.synergyDetail}</span></div>`
+    : content.synergyDetail
+      ? `<div class="reward-card-synergy"><span class="reward-card-synergy-detail">${content.synergyDetail}</span></div>`
+      : '';
+  return `
+    <div class="reward-card" data-index="${index}" style="--reward-rarity-color:${content.rarityColor}">
+      ${content.isNew ? '<div class="reward-card-new-tag">NEW</div>' : ''}
+      <div class="reward-card-icon">${content.icon}</div>
+      <div class="reward-card-name">${content.name}</div>
+      <div class="reward-card-badges">
+        <span class="reward-card-type-badge">${content.typeLabel}${content.typeSubLabel ? ` &mdash; ${content.typeSubLabel}` : ''}</span>
+        ${content.rarityLabel ? `<span class="reward-card-rarity-badge">${content.rarityLabel}</span>` : ''}
+      </div>
+      ${content.metaLines.map((l) => `<div class="reward-card-meta">${l}</div>`).join('')}
+      <div class="reward-card-effect">${content.effectText}</div>
+      ${keywordsHtml}
+      <div class="reward-card-permanence">
+        <span class="reward-card-permanence-label">${content.permanenceLabel}</span>
+        <span class="reward-card-permanence-detail">${content.permanenceDetail}</span>
+      </div>
+      ${synergyHtml}
+      ${content.goodFor ? `<div class="reward-card-good-for"><span>GOOD FOR:</span> ${content.goodFor}</div>` : ''}
+      <button type="button" class="reward-card-take-btn hidden">${content.takeLabel}</button>
+    </div>
+  `;
+}
+
+// `reward`: {headline, title, prompt, options: [{kind, id, goodFor,
+// rarityLabel?, apply(runState) => resultText}]} -- see data/bosses.js
+// ZOMBIE_NED_REWARD. Select-then-confirm (REDESIGN REWARD CHOICE SCREEN:
+// "do not make the player choose immediately... do not instantly select
+// from one accidental click"): the first click on a card selects/enlarges
+// it and reveals ITS take button; every other card's button stays hidden.
+// A second click, on the take button, actually commits via onPick.
+export function populateBossReward(reward, runState, onPick) {
+  $('boss-reward-headline').textContent = reward.headline;
+  $('boss-reward-title').textContent = reward.title;
+  $('boss-reward-prompt').textContent = reward.prompt;
+  const container = $('boss-reward-cards');
+  const contents = reward.options.map((option) => buildRewardCardContent(option, runState));
+  container.innerHTML = contents.map((c, i) => rewardCardHtml(c, i)).join('');
+
+  const cards = Array.from(container.querySelectorAll('.reward-card'));
+  for (const card of cards) {
+    const idx = Number(card.dataset.index);
+    const takeBtn = card.querySelector('.reward-card-take-btn');
+    card.addEventListener('click', (e) => {
+      if (e.target === takeBtn) return;
+      for (const other of cards) {
+        other.classList.toggle('selected', other === card);
+        other.querySelector('.reward-card-take-btn').classList.toggle('hidden', other !== card);
+      }
+    });
+    takeBtn.addEventListener('click', () => onPick(reward.options[idx], contents[idx]));
   }
 }
 
