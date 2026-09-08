@@ -1,6 +1,8 @@
 import { shiftRelationship } from '../systems/relationships.js';
 import { setCallbackFlag } from '../systems/callbackEngine.js';
 import { getRelicShopPool } from './relics.js';
+import { learnAbility } from '../systems/abilityDraft.js';
+import { ABILITIES } from './abilities.js';
 
 // Event nodes present a prompt and a small set of options, each with its own
 // outcome. `apply(runState)` mutates the run; `resultText` is shown after
@@ -125,35 +127,47 @@ export const EVENTS = {
       },
     ],
   },
+  // SNAKE SHOULD BE AN EVENT / REMOVE THE BLUE "FIGHT SNAKE" STYLE BOXES:
+  // triggers as a Kwik-E-Mart interior random event (data/interiors.js
+  // kwikEMart.randomInterrupt), not a permanent menu button. INTERVENE
+  // launches a real fight (game.js showInteriorRandomEvent's `special:
+  // 'combat'` branch) instead of instantly resolving text; STAY OUT OF IT
+  // has a real, understandable cost instead of a free non-choice.
   kwikEMartRobbery: {
     id: 'kwikEMartRobbery',
     title: 'Kwik-E-Mart Robbery',
     emoji: '🏪',
     npcId: 'apu',
-    prompt: 'You duck into the Kwik-E-Mart for supplies. Snake is robbing the place mid-outbreak. Apu looks terrified.',
+    prompt: 'CRASH. Apu: "Oh no. Not again." Snake shoulders through the door, tire iron in hand. Snake: "Alright, everybody chill. This is a robbery."',
     options: [
       {
-        id: 'fight',
-        label: 'Fight Snake',
-        resultText: 'Snake bolts, dropping a fistful of donut currency.',
-        apply(runState) {
-          runState.donutsCurrency += 3;
-        },
+        id: 'intervene',
+        label: 'INTERVENE (Fight Snake)',
+        special: 'combat',
+        combatContent: { type: 'combat', enemyIds: ['zombieSnake'], rewardChoiceId: 'snakeDefeated' },
       },
       {
-        id: 'steal',
-        label: 'Steal a Squishee during the robbery',
-        resultText: 'You grab a Squishee mid-chaos and heal up. Apu will remember this.',
+        id: 'stayOut',
+        label: 'STAY OUT OF IT',
+        // Real, telegraphed consequence rather than a free non-choice
+        // (EVENT CHOICES MUST EXPLAIN CONSEQUENCES): Snake gets away with
+        // some donuts AND a shelf item, and Apu's souring mood raises
+        // Kwik-E-Mart prices via the existing relationship-tier pricing
+        // (systems/economy.js apuPriceModifier) -- no new pricing system
+        // needed, just a real hit to a lever that already moves prices.
         apply(runState) {
-          runState.hp = Math.min(runState.maxHp, runState.hp + 15);
-          shiftRelationship(runState, 'apu', -2);
+          const stolen = Math.min(runState.donutsCurrency, 3 + Math.floor(Math.random() * 4));
+          runState.donutsCurrency -= stolen;
+          shiftRelationship(runState, 'apu', -1);
+          const inventory = runState.world.kwikEMartInventory;
+          const inStock = inventory ? inventory.filter((entry) => entry.stock > 0) : [];
+          let vanishedLine = '';
+          if (inStock.length) {
+            inStock[Math.floor(Math.random() * inStock.length)].stock = 0;
+            vanishedLine = ' Something vanishes off the shelves in the chaos.';
+          }
+          return `Snake cleans out the register and bolts before you can react. Apu: "This is coming out of YOUR tab, Simpson." (-${stolen} donuts)${vanishedLine}`;
         },
-      },
-      {
-        id: 'hide',
-        label: 'Hide behind the counter',
-        resultText: 'You avoid the chaos entirely. Your dignity does not survive.',
-        apply() {},
       },
     ],
   },
@@ -486,6 +500,42 @@ export const EVENTS = {
         apply() {},
       },
     ],
+  },
+};
+
+// Snake's INTERVENE reward (kwikEMartRobbery above) -- reuses the exact
+// {title, prompt, choiceA/B/C} shape Devil Ned's deals already established
+// (data/devilDeals.js), so it renders through the same generic
+// ui/screens.js showChoiceModal; kept alongside its own event rather than
+// inside EVENTS since it's a reward-choice deal, not itself an event
+// getEvent(id) would ever be asked to resolve. Mixes a passive (relic) and
+// a new playable card on purpose -- "quality > quantity" over a whole
+// speculative catalog.
+export const SNAKE_DEFEAT_REWARD = {
+  id: 'snakeDefeated',
+  title: 'SNAKE DEFEATED',
+  speaker: 'Apu',
+  prompt: '"Your bravery was reckless, unnecessary, and surprisingly useful." Pick one:',
+  choiceA: {
+    label: 'QUICK HANDS (Draw 1 extra card on the first turn of combat)',
+    apply(runState) {
+      if (!runState.relics.includes('quickHands')) runState.relics.push('quickHands');
+      return 'You feel a little faster on the draw from now on. QUICK HANDS learned.';
+    },
+  },
+  choiceB: {
+    label: 'KWIK-E DISCOUNT (20% off Kwik-E-Mart for the rest of this episode)',
+    apply(runState) {
+      if (!runState.relics.includes('kwikEDiscount')) runState.relics.push('kwikEDiscount');
+      return 'Apu begrudgingly marks down a few prices, just for you. KWIK-E DISCOUNT learned.';
+    },
+  },
+  choiceC: {
+    label: 'HOT DOG PUNCH (New ability: 1 Energy, 10 damage, +6 if healed this turn)',
+    apply(runState) {
+      learnAbility(runState, ABILITIES.hotDogPunch);
+      return 'You add a new trick to your repertoire. HOT DOG PUNCH learned.';
+    },
   },
 };
 

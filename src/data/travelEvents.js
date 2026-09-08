@@ -261,15 +261,139 @@ export const TRAVEL_EVENTS = {
       return { text: 'A donut sits in the middle of the road, suspiciously undisturbed. You take it anyway. (+2 donuts)' };
     },
   },
+
+  // ---- MAJOR MAP + ENCOUNTER GAMEPLAY UPDATE: decision-based travel
+  // events, not just flavor text or an automatic ambush. `apply` returns
+  // `{decision: {title, speaker, prompt, choiceA/B/C}}` -- the exact same
+  // shape Devil Ned's deals and Snake's reward already use (data/
+  // devilDeals.js, data/events.js SNAKE_DEFEAT_REWARD), rendered through
+  // the same generic ui/screens.js showChoiceModal (game.js travelTo).
+  // "EVENT CHOICES MUST EXPLAIN CONSEQUENCES" -- every label says exactly
+  // what it costs/risks, not a blind guess.
+  ralphEncounter: {
+    id: 'ralphEncounter',
+    weight: 2,
+    condition: () => true,
+    apply() {
+      return {
+        decision: {
+          title: 'RALPH WIGGUM',
+          speaker: 'Ralph',
+          prompt: '"I\'m helping!" Ralph stands alone in the middle of the street, seemingly unaware that anything is wrong at all.',
+          choiceA: {
+            label: 'HELP RALPH (walk him somewhere safer)',
+            apply() {
+              return 'You walk Ralph back toward a lit porch. He waves as you go. "Bye, doggy!" There is no dog.';
+            },
+          },
+          choiceB: {
+            label: 'GIVE HIM A DONUT (-2 donuts, ??? chance of a strange reward)',
+            apply(runState) {
+              if (runState.donutsCurrency < 2) return 'You check your pockets. You have nothing to give him. Ralph looks disappointed but not surprised.';
+              runState.donutsCurrency -= 2;
+              const pool = getRelicShopPool().filter((r) => !runState.relics.includes(r.id));
+              if (pool.length && Math.random() < 0.5) {
+                const relic = pool[Math.floor(Math.random() * pool.length)];
+                runState.relics.push(relic.id);
+                return `Ralph eats the whole thing in one bite. "My cat's breath smells like cat food." RALPH'S BLESSING: ${relic.emoji} ${relic.name}. (-2 donuts)`;
+              }
+              return 'Ralph eats the whole thing in one bite. "My cat\'s breath smells like cat food." Nothing else happens. Probably. (-2 donuts)';
+            },
+          },
+          choiceC: {
+            label: 'KEEP MOVING',
+            apply() {
+              return 'You keep moving. Ralph waves at nothing in particular.';
+            },
+          },
+        },
+      };
+    },
+  },
+  wiggumRoadblock: {
+    id: 'wiggumRoadblock',
+    weight: 2,
+    condition: () => true,
+    apply() {
+      return {
+        decision: {
+          title: 'SPRINGFIELD POLICE ROADBLOCK',
+          speaker: 'Chief Wiggum',
+          prompt: '"Road\'s closed. Mostly because I parked sideways."',
+          choiceA: {
+            label: 'PAY $5 (continue immediately)',
+            apply(runState) {
+              if (runState.donutsCurrency < 5) return 'You check your pockets. Wiggum shrugs and waves you through anyway, bored. "Eh, go on."';
+              runState.donutsCurrency -= 5;
+              return 'Wiggum pockets the cash without looking up. "Never happened." (-5 donuts)';
+            },
+          },
+          choiceB: {
+            label: 'HELP WIGGUM find his donut',
+            apply(runState) {
+              runState.donutsCurrency += 3;
+              return 'You find his donut under the cruiser in about four seconds. Grateful (and a little embarrassed), he waves you through and hands you a couple of his own. (+3 donuts)';
+            },
+          },
+          choiceC: {
+            label: 'TAKE THE DETOUR',
+            apply() {
+              return 'You backtrack and find another way around. It costs you a few minutes and nothing else.';
+            },
+          },
+        },
+      };
+    },
+  },
 };
 
+// FIX BURNS MANSION MAP POSITION's sibling ask for encounters: "use a
+// controlled/random encounter system... implement protection against
+// repeated events." Two knobs, both driven by runState so they persist
+// across the whole run rather than resetting every hop:
+//
+// 1. Mayhem-scaled encounter chance (LOW ~22%, MID ~35%, HIGH ~45%,
+//    matching data/episodes.js's own MAYHEM_BANDS tiers) -- achieved by
+//    solving for whatever 'nothing' weight makes the CURRENT eligible
+//    pool (conditions already narrow it a lot early-run) land on that
+//    target percentage, rather than 'nothing' staying a flat constant
+//    that drifts wildly high or low as more events become eligible.
+// 2. A short memory of the last two non-'nothing' event ids
+//    (runState.recentTravelEventIds) that halves those events' weight
+//    the next time they're eligible -- "if the player just experienced a
+//    travel encounter, reduce the chance of another immediately
+//    afterward" AND "prevent the same encounter from repeating
+//    constantly," without banning a small pool down to nothing.
+const RECENT_EVENT_MEMORY = 2;
+
+function targetEncounterChance(mayhem) {
+  if (mayhem <= 40) return 0.22;
+  if (mayhem <= 80) return 0.35;
+  return 0.45;
+}
+
 export function rollTravelEvent(runState, fromId, toId) {
-  const pool = Object.values(TRAVEL_EVENTS).filter((e) => e.condition(runState, fromId, toId));
-  const totalWeight = pool.reduce((sum, e) => sum + e.weight, 0);
+  const recent = runState.recentTravelEventIds || [];
+  const eligible = Object.values(TRAVEL_EVENTS).filter((e) => e.id !== 'nothing' && e.condition(runState, fromId, toId));
+  // Pity/variety: an event seen in the last RECENT_EVENT_MEMORY hops rolls
+  // at half weight instead of being banned outright -- still possible
+  // (a 2-3 event eligible pool shouldn't ever hard-lock), just less likely
+  // to repeat back-to-back.
+  const weighted = eligible.map((e) => ({ event: e, weight: recent.includes(e.id) ? e.weight / 2 : e.weight }));
+  const nonNothingWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
+  const target = targetEncounterChance(runState.mayhem || 0);
+  // Solve for the 'nothing' weight that makes THIS pool land on the target
+  // chance: nonNothing / (nonNothing + nothingWeight) = target.
+  const nothingWeight = nonNothingWeight > 0 ? nonNothingWeight * (1 - target) / target : 1;
+
+  const totalWeight = nonNothingWeight + nothingWeight;
   let roll = Math.random() * totalWeight;
-  for (const event of pool) {
-    roll -= event.weight;
-    if (roll <= 0) return event;
+  for (const { event, weight } of weighted) {
+    roll -= weight;
+    if (roll <= 0) {
+      runState.recentTravelEventIds = [event.id, ...recent].slice(0, RECENT_EVENT_MEMORY);
+      return event;
+    }
   }
   return TRAVEL_EVENTS.nothing;
 }

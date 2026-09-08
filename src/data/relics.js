@@ -138,6 +138,33 @@ export const RELICS = {
       },
     },
   },
+  // Snake's Kwik-E-Mart Robbery event reward pool (data/events.js
+  // kwikEMartRobbery, INTERVENE -> victory) -- these two plus the
+  // hotDogPunch ability (data/abilities.js) are the SPRINGFIELD PERKS/
+  // SKILLS the event grants, mechanically implemented as relics since
+  // relics already ARE exactly "a run-only passive bonus earned through
+  // exploration" -- see systems/passiveHooks.js's fireHooks, which battle-
+  // Engine.js's createBattle already calls with a new 'onFirstTurnExtraDraw'
+  // hook name for this one.
+  quickHands: {
+    id: 'quickHands',
+    name: 'Quick Hands',
+    emoji: '⚡',
+    description: 'Draw 1 additional card on the first turn of combat.',
+    hooks: {
+      onFirstTurnExtraDraw() {
+        return 1;
+      },
+    },
+  },
+  // No combat hook -- read directly by systems/economy.js's
+  // apuPriceModifier, since shop pricing happens outside any battle.
+  kwikEDiscount: {
+    id: 'kwikEDiscount',
+    name: 'Kwik-E Discount',
+    emoji: '💸',
+    description: '20% off Kwik-E-Mart prices for the rest of this episode.',
+  },
 };
 
 export function getRelicShopPool() {

@@ -67,14 +67,19 @@ export function getKwikEMartInventory(runState) {
 }
 
 // Apu's relationship with Homer moves prices -- a friend gets a discount, an
-// enemy gets gouged (or banned outright, see canUseKwikEMartShop).
+// enemy gets gouged (or banned outright, see canUseKwikEMartShop). The
+// Kwik-E-Mart Robbery event's INTERVENE reward (data/relics.js
+// kwikEDiscount) stacks a flat 20% on top of whatever the relationship
+// tier already gives, rather than overriding it.
 export function apuPriceModifier(runState) {
   const level = runState.relationships.apu;
-  if (level === 'bestFriend') return 0.5;
-  if (level === 'friendly') return 0.75;
-  if (level === 'annoyed') return 1.25;
-  if (level === 'angry') return 1.5;
-  return 1;
+  let modifier = 1;
+  if (level === 'bestFriend') modifier = 0.5;
+  else if (level === 'friendly') modifier = 0.75;
+  else if (level === 'annoyed') modifier = 1.25;
+  else if (level === 'angry') modifier = 1.5;
+  if (runState.relics.includes('kwikEDiscount')) modifier *= 0.8;
+  return modifier;
 }
 
 // If Apu considers Homer an outright enemy he bans him from the store --
