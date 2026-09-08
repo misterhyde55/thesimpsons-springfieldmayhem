@@ -10,13 +10,22 @@
 import { blockRoad } from './worldMap.js';
 import { getRelicShopPool } from './relics.js';
 
-// Shared by both ambush tiers below -- low-HP, no-name zombies (the same
-// sprites the board's generic mob encounters use), appropriate for a fast
-// "something jumped out of the dark" fight rather than a scripted one.
+// Shared by both zombie ambush tiers below -- low-HP, no-name zombies (the
+// same sprites the board's generic mob encounters use), appropriate for a
+// fast "something jumped out of the dark" fight rather than a scripted one.
 const AMBUSH_ENEMY_POOL = ['zombieBarfly', 'zombieMobGuy', 'shamblingIntern', 'undeadCafeteriaLady', 'zombieGroundskeeper'];
+// Same idea for the Segment II+ alien ambushes -- only two non-elite alien
+// templates exist (data/enemies.js), so this pool is smaller than the
+// zombie one on purpose; alienEnforcer stays reserved for the scripted
+// elite/boss fights, never a random road ambush.
+const ALIEN_AMBUSH_ENEMY_POOL = ['alienProbe', 'abductedCitizen'];
+
+function randomEnemyIds(pool, count) {
+  return Array.from({ length: count }, () => pool[Math.floor(Math.random() * pool.length)]);
+}
 
 function randomAmbushEnemyIds(count) {
-  return Array.from({ length: count }, () => AMBUSH_ENEMY_POOL[Math.floor(Math.random() * AMBUSH_ENEMY_POOL.length)]);
+  return randomEnemyIds(AMBUSH_ENEMY_POOL, count);
 }
 
 export const TRAVEL_EVENTS = {
@@ -70,6 +79,63 @@ export const TRAVEL_EVENTS = {
     apply(runState, fromId, toId) {
       blockRoad(runState, fromId, toId);
       return { text: 'A shambling mass fills the road ahead, packed in too tight to push through. This route is a dead end now -- literally.', blocked: true };
+    },
+  },
+  // ---- Segment II+ alien-themed ambushes, mirroring the zombie pair above
+  // -- Segment II ("Invasion of the Homer Snatchers") had a real Horror
+  // Rule of its own but no road encounters of its own flavor; every ambush
+  // a player hit was still zombie-themed even mid-invasion.
+  alienAmbush: {
+    id: 'alienAmbush',
+    weight: 4,
+    condition: (runState) => runState.activeHorrorRuleIds.includes('alienInvasion'),
+    apply() {
+      return {
+        text: 'A beam of white light pins you in place for a half-second before something solid slams into you.',
+        ambushCombat: { enemyIds: randomEnemyIds(ALIEN_AMBUSH_ENEMY_POOL, 1) },
+      };
+    },
+  },
+  alienHordeAmbush: {
+    id: 'alienHordeAmbush',
+    weight: 2,
+    condition: (runState) => runState.activeHorrorRuleIds.includes('alienInvasion') && runState.segmentIndex >= 1,
+    apply() {
+      return {
+        text: '⚠ The sky flickers green. A whole squad decloaks around you at once, cutting off every direction but one.',
+        ambushCombat: { enemyIds: randomEnemyIds(ALIEN_AMBUSH_ENEMY_POOL, 3 + Math.floor(Math.random() * 2)) },
+      };
+    },
+  },
+  // Segment III's whole premise ("When Horrors Collide") made real on the
+  // road itself, not just in its title card -- only fires once BOTH Horror
+  // Rules are stacked (Horror Rules never turn back off, see
+  // data/journeys.js), so it's exclusive to Segment II's tail end onward.
+  collidingHorrorsAmbush: {
+    id: 'collidingHorrorsAmbush',
+    weight: 3,
+    condition: (runState) => runState.activeHorrorRuleIds.includes('zombieOutbreak') && runState.activeHorrorRuleIds.includes('alienInvasion'),
+    apply() {
+      return {
+        text: "A zombie shambles directly into a beam of alien light -- and doesn't fall. It just keeps coming, faster now, wrong in a whole new way.",
+        ambushCombat: { enemyIds: [...randomEnemyIds(AMBUSH_ENEMY_POOL, 1), ...randomEnemyIds(ALIEN_AMBUSH_ENEMY_POOL, 1)] },
+      };
+    },
+  },
+  // The one ambush that isn't gated behind either Horror Rule -- Springfield
+  // had ordinary dangers before the sky/ground opened up, and keeps having
+  // them the whole run. Low weight (unconditional pool competes with
+  // 'nothing' every single hop) and a mundane, non-horror enemy so it never
+  // reads as a diluted version of the "real" ambushes above.
+  strayAnimalAmbush: {
+    id: 'strayAnimalAmbush',
+    weight: 2,
+    condition: () => true,
+    apply() {
+      return {
+        text: "Something snarls from behind a chain-link fence. It's just a dog. An extremely committed dog.",
+        ambushCombat: { enemyIds: ['rabidStrayDog'] },
+      };
     },
   },
   smallFind: {

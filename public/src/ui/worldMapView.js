@@ -163,6 +163,14 @@ export function resetViewToCurrentLocation(runState) {
   centerCameraOn(runState.world.currentLocationId || START_LOCATION_ID, START_ZOOM);
 }
 
+// Quest tracker's "SHOW ON MAP" (data/quests.js QUEST_DISPLAY locationId) --
+// pans/zooms straight to an arbitrary location, same framing
+// resetViewToCurrentLocation uses, so game.js can then drive the exact same
+// select-and-inspect flow a real hotspot click would (see onHotspotClick).
+export function focusCameraOnLocation(locationId) {
+  centerCameraOn(locationId, START_ZOOM);
+}
+
 function zoomAtPoint(clientX, clientY, factor) {
   const rect = dom.viewport.getBoundingClientRect();
   const px = clientX - rect.left;

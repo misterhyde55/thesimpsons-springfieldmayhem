@@ -451,7 +451,7 @@ export class Game {
     screens.populateBoardInfo(this.runState, segment, reachableIds.length);
     screens.applyMapMayhemVisuals(this.runState.mayhem);
     screens.populateQuestTrackerToggle(getActiveQuestsSummary(this.runState), () => {
-      screens.showQuestTrackerModal(getActiveQuestsSummary(this.runState));
+      screens.showQuestTrackerModal(getActiveQuestsSummary(this.runState), null, (locationId) => this.onQuestShowOnMap(locationId));
     });
     screens.freshButton('btn-board-pause').addEventListener('click', () => this.openPauseMenu());
     mapView.mountMapView({
@@ -537,6 +537,16 @@ export class Game {
         mapView.setSelectedLocation(null);
       }
     );
+  }
+
+  // Quest tracker's SHOW ON MAP (data/quests.js QUEST_DISPLAY locationId) --
+  // pans to the quest's target location and opens the exact same inspect
+  // panel a real hotspot click would, rather than a special-purpose popup.
+  onQuestShowOnMap(locationId) {
+    screens.hideQuestTrackerModal();
+    mapView.focusCameraOnLocation(locationId);
+    this.saveMapCamera();
+    this.onHotspotClick(locationId);
   }
 
   confirmTravelTo(locationId) {
