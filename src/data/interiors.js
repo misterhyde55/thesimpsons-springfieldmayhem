@@ -284,6 +284,11 @@ function unlockStorageCageInteraction() {
 export const INTERIORS = {
   kwikEMart: {
     npcId: 'apu',
+    // The uploaded Kwik-E-Mart scene photo (Apu behind the counter) -- same
+    // treatment as moesTavern's `image` below (see ui/screens.js
+    // populateLocationInterior), so both fast-pit-stop locations show real
+    // art instead of the small emoji `background` glyph.
+    image: 'apuChat',
     // Checked once after any interaction while the visit is in this state
     // (see systems/locationInterior.js) -- fires at most once per run.
     // 'normal' is only ever showing before Segment I's Horror Rule activates
