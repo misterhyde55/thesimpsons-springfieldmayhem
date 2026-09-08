@@ -187,7 +187,7 @@ function instantiateEnemy(template) {
   };
 }
 
-export function createBattle(runState, enemyTemplates, locationId, isBoss, environmentId) {
+export function createBattle(runState, enemyTemplates, locationId, isBoss, environmentId, isElite) {
   const battle = {
     player: {
       hp: runState.hp,
@@ -202,6 +202,8 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss, envir
     log: [],
     locationId,
     isBoss: !!isBoss,
+    // Springfield Survivor (data/relics.js) reads this at onBattleStart.
+    isElite: !!isElite,
     outcome: null,
     // Battlefield objects the player can interact with outside their
     // normal ability deck (see playEnvironmentAction below and
@@ -275,8 +277,12 @@ export function canPlayAbility(battle, runState, abilityId) {
 // (a thrown garden gnome, a kicked-over grill) can do everything a card
 // can -- damage, status, break, heal -- through the exact same rules
 // (Strength/Weak on the way out, Vulnerable/Soaked/Armor on the way in),
-// rather than a second, drifting copy of this math.
-function buildBattleApi(battle, runState, targetEnemy, events) {
+// rather than a second, drifting copy of this math. `effectSource` (only
+// set by playAbility/playEnvironmentAction below) tells an 'onDamageDealt'
+// hook (data/relics.js bowlingLeagueChamp) what's actually dealing this
+// damage -- {kind:'ability', archetype} or {kind:'environment'} -- so an
+// archetype-specific bonus doesn't need its own bespoke plumbing.
+function buildBattleApi(battle, runState, targetEnemy, events, effectSource = null) {
   function resolveWho(who) {
     if (who === 'self') return battle.player;
     if (who === 'target') return targetEnemy;
@@ -321,6 +327,9 @@ function buildBattleApi(battle, runState, targetEnemy, events) {
         dmg = Math.round(dmg * 1.5);
         clearStatus(battle.player, STATUS.ANGRY);
       }
+      for (const bonus of fireHooks(runState, 'onDamageDealt', battle, effectSource)) {
+        if (typeof bonus === 'number') dmg += bonus;
+      }
       const outgoing = computeOutgoingDamage(battle.player, dmg);
       const { dealt, dodged } = applyIncomingDamage(targetEnemy, outgoing);
       targetEnemy.damageTakenThisTurn += dealt;
@@ -339,6 +348,9 @@ function buildBattleApi(battle, runState, targetEnemy, events) {
       if (getStatus(battle.player, STATUS.ANGRY) > 0) {
         dmg = Math.round(dmg * 1.5);
         clearStatus(battle.player, STATUS.ANGRY);
+      }
+      for (const bonus of fireHooks(runState, 'onDamageDealt', battle, effectSource)) {
+        if (typeof bonus === 'number') dmg += bonus;
       }
       for (const enemy of getAliveEnemies(battle)) {
         const outgoing = computeOutgoingDamage(battle.player, dmg);
@@ -405,7 +417,7 @@ export function playAbility(battle, runState, abilityId, targetInstanceId) {
   }
 
   const events = [];
-  const api = buildBattleApi(battle, runState, targetEnemy, events);
+  const api = buildBattleApi(battle, runState, targetEnemy, events, { kind: 'ability', archetype: ability.archetype });
 
   ability.effect(api);
   fireHooks(runState, 'onAbilityPlayed', battle, ability, targetEnemy);
@@ -442,7 +454,7 @@ export function playEnvironmentAction(battle, runState, actionId, targetInstance
   if (action.target === 'enemy' && !targetEnemy) return { ok: false };
 
   const events = [];
-  const api = buildBattleApi(battle, runState, targetEnemy, events);
+  const api = buildBattleApi(battle, runState, targetEnemy, events, { kind: 'environment' });
 
   action.usesLeft -= 1;
   action.effect(api);

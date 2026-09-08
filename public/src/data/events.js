@@ -539,6 +539,44 @@ export const SNAKE_DEFEAT_REWARD = {
   },
 };
 
+// BURNS MANSION SHOULD BE IMPORTANT: "EXCELLENTLY EVIL" -- the post-
+// victory choice after the Segment III Burns Manor fight (game.js
+// showBurnsMachineIntro sets it up, onBattleVictory shows this). Each
+// `apply` returns `{text, mayhemDelta}` (the same shape onStorySceneChoice
+// already uses for decision-card scenes) since, unlike Snake's or Otto's
+// reward, this one genuinely needs to move Mayhem up or down depending on
+// the choice -- three real risk/reward profiles, not three flavors of the
+// same outcome.
+export const BURNS_MACHINE_CHOICE = {
+  title: 'THE MACHINE',
+  prompt: 'It hums, half-built, wires spilling everywhere. A single red lever juts from the side. Whatever this actually does, it does not look FDA approved.',
+  choiceA: {
+    label: 'ACTIVATE IT (-20 HP now, -15 Mayhem)',
+    apply(runState) {
+      runState.hp = Math.max(1, runState.hp - 20);
+      return { text: 'You pull the lever. Something in the machine SCREAMS, then goes quiet. So does a good chunk of Springfield\'s problem, somehow. (-20 HP, -15 Mayhem)', mayhemDelta: -15 };
+    },
+  },
+  choiceB: {
+    label: 'DESTROY IT (safe; Burns is furious, +5 Mayhem)',
+    apply() {
+      return { text: 'You put your foot through it. Burns shrieks like you\'ve killed a pet. Whatever it was going to do, it won\'t now. (+5 Mayhem)', mayhemDelta: 5 };
+    },
+  },
+  choiceC: {
+    label: 'STEAL A COMPONENT (random relic; risky, +10 Mayhem)',
+    apply(runState) {
+      const pool = getRelicShopPool().filter((r) => !runState.relics.includes(r.id));
+      if (pool.length) {
+        const relic = pool[Math.floor(Math.random() * pool.length)];
+        runState.relics.push(relic.id);
+        return { text: `You pocket a still-humming component on your way out. ${relic.emoji} ${relic.name} learned. Somewhere behind you, the machine starts making a much worse noise. (+10 Mayhem)`, mayhemDelta: 10 };
+      }
+      return { text: 'You reach for a component, but there\'s nothing left worth taking. The machine starts making a much worse noise anyway. (+10 Mayhem)', mayhemDelta: 10 };
+    },
+  },
+};
+
 export function getEvent(eventId) {
   return EVENTS[eventId];
 }

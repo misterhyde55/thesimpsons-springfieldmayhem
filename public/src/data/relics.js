@@ -151,6 +151,10 @@ export const RELICS = {
     name: 'Quick Hands',
     emoji: '⚡',
     description: 'Draw 1 additional card on the first turn of combat.',
+    // Fixes a real leak: without this, getRelicShopPool below would let
+    // Snake's dedicated reward show up randomly via the Kwik-E-Mart shop,
+    // mysteriousPortal, or Ralph's blessing too.
+    exclusiveReward: true,
     hooks: {
       onFirstTurnExtraDraw() {
         return 1;
@@ -164,6 +168,93 @@ export const RELICS = {
     name: 'Kwik-E Discount',
     emoji: '💸',
     description: '20% off Kwik-E-Mart prices for the rest of this episode.',
+    exclusiveReward: true,
+  },
+  // ---- SPRINGFIELD PERKS: ordinary (non-exclusive) relics, so they flow
+  // through every distribution channel that already exists -- the Kwik-E-
+  // Mart shop (systems/economy.js rollKwikEMartInventory), the
+  // mysteriousPortal travel event, and Ralph's GIVE HIM A DONUT blessing
+  // (data/travelEvents.js) -- all three already draw from
+  // getRelicShopPool() below, so adding these here is the entire
+  // "grant" wiring; no new distribution code needed anywhere.
+  kwikERegular: {
+    id: 'kwikERegular',
+    name: 'Kwik-E Regular',
+    emoji: '🌭',
+    description: 'Hot Dogs heal +5 additional HP.',
+    // No combat hook -- read directly by data/interiors.js's
+    // eatAHotDogInteraction, since it heals outside any battle.
+  },
+  moesFavoriteCustomer: {
+    id: 'moesFavoriteCustomer',
+    name: "Moe's Favorite Customer",
+    emoji: '🍺',
+    description: 'Beer heals +10 additional HP.',
+    // No combat hook -- read directly by data/interiors.js's
+    // haveABeerInteraction, same reason as kwikERegular above.
+  },
+  springfieldSurvivor: {
+    id: 'springfieldSurvivor',
+    name: 'Springfield Survivor',
+    emoji: '🎖️',
+    description: 'Start Elite encounters with 5 Block.',
+    hooks: {
+      onBattleStart(runState, battle) {
+        if (battle.isElite) addStatus(battle.player, STATUS.ARMOR, 5);
+      },
+    },
+  },
+  bowlingLeagueChamp: {
+    id: 'bowlingLeagueChamp',
+    name: 'Bowling League Champ',
+    emoji: '🎳',
+    description: 'Bowling cards deal +2 Damage.',
+    hooks: {
+      onDamageDealt(runState, battle, source) {
+        if (source?.kind === 'ability' && source.archetype === 'bowling') return 2;
+      },
+    },
+  },
+  // Otto's travel encounter reward (data/travelEvents.js ottoEncounter,
+  // HELP OTTO -> victory, granted via combatContent.grantRelicId --
+  // game.js onBattleVictory). Named/specific like quickHands/kwikEDiscount
+  // above, so it's exclusive to its own source rather than diluting the
+  // general shop/portal/Ralph pool.
+  ottosMixtape: {
+    id: 'ottosMixtape',
+    name: "Otto's Mixtape",
+    emoji: '📼',
+    description: 'The first card you play each combat costs 1 less Energy.',
+    exclusiveReward: true,
+    hooks: {
+      // Same "pure read, mark used only on the real play" split
+      // homersWorkBadge above uses -- onAbilityCost previews on every
+      // render, not just when a card is actually played.
+      onAbilityCost(runState, battle, ability) {
+        if (battle.flags.ottosMixtapeUsed) return undefined;
+        return Math.max(0, ability.cost - 1);
+      },
+      onAbilityPlayed(runState, battle) {
+        battle.flags.ottosMixtapeUsed = true;
+      },
+    },
+  },
+  // Grandpa's travel encounter reward (data/travelEvents.js
+  // grandpaEncounter, HELP GRANDPA HOME) -- same exclusivity reasoning as
+  // ottosMixtape above.
+  grandpasWarStory: {
+    id: 'grandpasWarStory',
+    name: "Grandpa's War Story",
+    emoji: '👴',
+    description: 'The first time Homer drops below 25% HP each combat, gain 6 Armor.',
+    exclusiveReward: true,
+    hooks: {
+      onDamageTaken(runState, battle) {
+        if (battle.flags.warStoryUsed || battle.player.hp / battle.player.maxHp >= 0.25) return;
+        battle.flags.warStoryUsed = true;
+        addStatus(battle.player, STATUS.ARMOR, 6);
+      },
+    },
   },
 };
 
