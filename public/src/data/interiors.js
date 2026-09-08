@@ -18,6 +18,8 @@ import { shiftRelationship, moeDuffTerms, moeGreeting } from '../systems/relatio
 import { getRelicShopPool } from './relics.js';
 import { getEvent } from './events.js';
 import { ITEMS } from './items.js';
+import { ABILITIES } from './abilities.js';
+import { getUpgradableAbilities, upgradeAbility } from '../systems/cardUpgrades.js';
 import { sellPriceFor } from '../systems/economy.js';
 import { helpApuReportInteraction } from './quests.js';
 
@@ -153,6 +155,44 @@ function useItemInteraction() {
         };
       });
       return { text: 'What do you want to use?', followUps };
+    },
+  };
+}
+
+// A location-tied upgrade station (REDESIGN COMBAT GAMEPLAY: "locations
+// around Springfield should interact with the deck") -- `archetype` gates
+// which owned cards show up (data/abilities.js `archetype`), `price` is a
+// donut cost, and an optional `risk` (e.g. Nuclear Plant's "risk Radiation",
+// modeled as an immediate HP cost since there's no persisted out-of-combat
+// Radiation meter to spend against) applies alongside it. Every eligible
+// card is offered as its own followUp, same shape as moeServiceFollowUps.
+function upgradeCardInteraction(archetype, { price, risk } = {}) {
+  return {
+    id: 'upgradeCard',
+    label: 'UPGRADE A CARD',
+    cost: 1,
+    run(runState) {
+      const candidates = getUpgradableAbilities(runState, archetype);
+      if (!candidates.length) {
+        return { text: "You check your deck. Nothing here left to upgrade -- or nothing worth upgrading yet." };
+      }
+      const riskLabel = risk ? `, ${risk.label}` : '';
+      const followUps = candidates.map((ability) => {
+        const upgraded = ABILITIES[ability.upgradesToId];
+        return {
+          id: `upgrade_${ability.id}`,
+          label: `${ability.name} -> ${upgraded.name} (${price} donuts${riskLabel})`,
+          run(rs) {
+            if (rs.donutsCurrency < price) return { text: "You're a little short." };
+            rs.donutsCurrency -= price;
+            let riskText = '';
+            if (risk) riskText = ` ${risk.apply(rs)}`;
+            const result = upgradeAbility(rs, ability.id);
+            return { text: `${ability.name} becomes ${result.name}! ${result.description} (-${price} donuts)${riskText}` };
+          },
+        };
+      });
+      return { text: 'Which card?', followUps };
     },
   };
 }
@@ -805,6 +845,68 @@ export const INTERIORS = {
       },
     },
   },
+  // ---- Upgrade-station locations (REDESIGN COMBAT GAMEPLAY: "BOWLARAMA --
+  // Upgrade: BOWLING BALL... NUCLEAR PLANT -- Upgrade: NUCLEAR cards but
+  // risk Radiation"). Unlike kwikEMart/moesTavern above, these two are
+  // ordinary per-segment board locations (data/journeys.js still owns their
+  // combat/event content for every segment) that ALSO now have a menu --
+  // `deferVisitToContent: true` tells game.js's leaveInterior not to burn
+  // that segment content just for walking in to browse the upgrade station
+  // and walking back out (see game.js onInteriorInteract's 'segmentContent'
+  // special case, which is the only thing that actually consumes it). Kept
+  // deliberately minimal (one state, no secrets/rumors) rather than a full
+  // Moe's/Apu's-style dialogue interior -- the upgrade station is the point.
+  bowlarama: {
+    deferVisitToContent: true,
+    states: {
+      normal: {
+        background: '🎳',
+        intro: "The lanes are dim except for one, lit up and humming quietly to itself. Nobody's manning the counter, but the ball return still works.",
+        interactions: [
+          { id: 'bowlAFrame', label: 'SEE WHAT HAPPENS HERE TONIGHT', cost: 1, special: 'segmentContent' },
+          upgradeCardInteraction('bowling', { price: 6 }),
+          {
+            id: 'leaveDialogueBowlarama',
+            label: 'LEAVE',
+            cost: 0,
+            run() {
+              return { text: 'You let the door swing shut behind you.' };
+            },
+          },
+        ],
+      },
+    },
+  },
+  nuclearPlant: {
+    deferVisitToContent: true,
+    states: {
+      normal: {
+        background: '☢️',
+        intro: 'Sector 7-G hums louder than it should. A workbench near the core is scattered with tools someone left in a hurry -- and half-finished modifications to what looks like your gear.',
+        interactions: [
+          { id: 'reactorFloor', label: 'HEAD FOR THE REACTOR FLOOR', cost: 1, special: 'segmentContent' },
+          upgradeCardInteraction('nuclear', {
+            price: 4,
+            risk: {
+              label: '-8 HP',
+              apply(rs) {
+                rs.hp = Math.max(1, rs.hp - 8);
+                return "You lean into the core's warm glow a little too long. (-8 HP)";
+              },
+            },
+          }),
+          {
+            id: 'leaveDialogueNuclearPlant',
+            label: 'LEAVE',
+            cost: 0,
+            run() {
+              return { text: 'You step back out past the "0 DAYS SINCE A REANIMATION" sign.' };
+            },
+          },
+        ],
+      },
+    },
+  },
 };
 
 // Wire the shared bag interactions into every state after the fact, rather
@@ -817,6 +919,12 @@ for (const interior of Object.values(INTERIORS)) {
   for (const state of Object.values(interior.states)) {
     state.interactions.push(useItemInteraction());
   }
+}
+// Moe's is the Duff upgrade station (REDESIGN COMBAT GAMEPLAY: "MOE'S --
+// Upgrade: DUFF RAGE") -- wired onto every state the same way, rather than
+// repeating it in each block above.
+for (const state of Object.values(INTERIORS.moesTavern.states)) {
+  state.interactions.push(upgradeCardInteraction('duff', { price: 5 }));
 }
 
 // Prefers the most-recently-activated Horror Rule that defines a state for
