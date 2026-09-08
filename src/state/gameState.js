@@ -124,7 +124,10 @@ export function createRunState(character) {
     // specific outcome string ('killed'/'saved', see data/quests.js). Absent
     // key means "not started yet" -- quests start silently, from an
     // ordinary dialogue choice or event, not a quest log the player opens.
-    quests: {},
+    // WHERE'S MAGGIE? is the one exception: she's missing from the moment
+    // the outbreak starts, so no NPC needs to mention it first (see
+    // data/quests.js whereIsMaggieKrustyBurgerContent).
+    quests: { whereIsMaggie: 'active' },
     stats: {
       enemiesDefeated: 0,
       elitesDefeated: 0,

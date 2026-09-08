@@ -48,6 +48,34 @@ export const SYNERGIES = {
       },
     },
   },
+  homerLisa: {
+    id: 'homerLisa',
+    name: 'Straight-A Backup',
+    icon: '🎷',
+    requires: ['homer', 'lisa'],
+    description: 'Whenever you apply Vulnerable to an enemy, also apply 1 Weak.',
+    hooks: {
+      onStatusApplied(runState, battle, holder, statusId, newTotal) {
+        if (statusId !== 'vulnerable' || holder === battle.player || battle.flags.lisaSynergyLock) return;
+        battle.flags.lisaSynergyLock = true;
+        holder.statuses.weak = (holder.statuses.weak || 0) + 1;
+        battle.flags.lisaSynergyLock = false;
+      },
+    },
+  },
+  homerMarge: {
+    id: 'homerMarge',
+    name: 'Never Alone',
+    icon: '🧹',
+    requires: ['homer', 'marge'],
+    description: 'Below 50% HP, healing is increased by 50%.',
+    hooks: {
+      onHealAmount(runState, battle, baseAmount) {
+        if (battle.player.hp / battle.player.maxHp >= 0.5) return undefined;
+        return Math.round(baseAmount * 1.5);
+      },
+    },
+  },
 };
 
 export function getActiveSynergies(runState) {

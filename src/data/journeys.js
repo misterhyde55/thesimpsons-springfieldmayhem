@@ -1,4 +1,11 @@
-import { wheresBarneyCemeteryContent, missingOfficersReportContent, whereIsBartSchoolContent } from './quests.js';
+import {
+  wheresBarneyCemeteryContent,
+  missingOfficersReportContent,
+  whereIsBartSchoolContent,
+  whereIsLisaChurchContent,
+  whereIsMargeRetirementCastleContent,
+  whereIsMaggieKrustyBurgerContent,
+} from './quests.js';
 
 // A "journey" is a character's whole episode: three segments, each
 // activating its own Horror Rule (which then stays active -- see
@@ -149,6 +156,27 @@ export function getLocationContent(runState, locationId) {
   // boss fight (Segment I).
   if (locationId === 'springfieldElementary' && runState.quests.whereIsBart === 'active' && segment.bossLocationId !== 'springfieldElementary') {
     return whereIsBartSchoolContent();
+  }
+
+  // Quest 5 (WHERE'S LISA?, started at Moe's Tavern): overrides First
+  // Church of Springfield's normal content -- never a segment boss
+  // location, so no bossLocationId guard needed (only the devilPortal
+  // priority-4 check above can pre-empt it).
+  if (locationId === 'springfieldChurch' && runState.quests.whereIsLisa === 'active') {
+    return whereIsLisaChurchContent();
+  }
+
+  // Quest 6 (WHERE'S MARGE?, started at the Kwik-E-Mart): overrides the
+  // Retirement Castle's normal content.
+  if (locationId === 'retirementCastle' && runState.quests.whereIsMarge === 'active') {
+    return whereIsMargeRetirementCastleContent();
+  }
+
+  // Quest 7 (WHERE'S MAGGIE?, active from the moment the episode begins --
+  // state/gameState.js createRunState): overrides Krusty Burger's normal
+  // content.
+  if (locationId === 'krustyBurger' && runState.quests.whereIsMaggie === 'active') {
+    return whereIsMaggieKrustyBurgerContent();
   }
 
   return segment.content[locationId] || null;
