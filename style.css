@@ -1578,6 +1578,20 @@ body:not(.header-hidden) .location-interior-screen {
 .quest-tracker-hint { font-size: 0.85rem; color: #d6d6de; margin: 4px 0; }
 .quest-tracker-reward { font-size: 0.78rem; color: #8fd18a; }
 .quest-tracker-empty { color: #ccc; font-style: italic; }
+.quest-tracker-show-map-btn {
+  display: block;
+  margin-top: 8px;
+  padding: 5px 10px;
+  background: rgba(56, 182, 255, 0.15);
+  border: 1px solid #38b6ff;
+  border-radius: 6px;
+  color: #38b6ff;
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+.quest-tracker-show-map-btn:hover { background: rgba(56, 182, 255, 0.3); }
 
 /* ---- StoryEventModal / CombatDecisionEvent (REDESIGN ALL STORY / MID-
    COMBAT DECISION POPUPS): a torn comic-panel card instead of a flat SaaS

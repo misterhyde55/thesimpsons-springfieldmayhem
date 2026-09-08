@@ -134,21 +134,31 @@ export function missingOfficersReportContent() {
 // 'resolved', or an outcome like 'saved'/'killed') -- this is the display
 // metadata layer so the board HUD can show WHY a quest matters without the
 // player having to remember dialogue from ten minutes ago.
+// `locationId` is where "go do the thing" currently points -- safe to name
+// just one per quest here since a quest only ever shows in the tracker
+// (getActiveQuestsSummary below) while its status is 'active', and every
+// quest here flips OFF 'active' (to 'resolved'/'killed'/etc, see
+// applyQuestResolution and interiors.js's report interactions) the instant
+// that single objective is actually done, before any "now go report back"
+// second leg would need its own map target.
 export const QUEST_DISPLAY = {
   wheresBarney: {
     title: "WHERE'S BARNEY?",
     hint: 'Last seen: Springfield Cemetery.',
     reward: 'Moe Relationship • ???',
+    locationId: 'springfieldCemetery',
   },
   helpApu: {
     title: "APU'S FAVOR",
     hint: 'Search Springfield Elementary, then report back to Apu at the Kwik-E-Mart.',
     reward: 'Apu Relationship • Cash',
+    locationId: 'springfieldElementary',
   },
   missingOfficers: {
     title: 'THE MISSING OFFICERS',
     hint: 'Search Burns Manor, then report to the Police Station.',
     reward: 'Cash • Relic • Safer Police Station',
+    locationId: 'burnsManor',
   },
 };
 

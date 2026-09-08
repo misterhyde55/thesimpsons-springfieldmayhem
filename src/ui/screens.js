@@ -372,7 +372,7 @@ export function populateQuestTrackerToggle(activeQuests, onOpen) {
   btn.addEventListener('click', onOpen);
 }
 
-export function showQuestTrackerModal(activeQuests, onClose) {
+export function showQuestTrackerModal(activeQuests, onClose, onShowOnMap) {
   const list = $('quest-tracker-list');
   list.innerHTML = '';
   if (!activeQuests.length) {
@@ -385,7 +385,11 @@ export function showQuestTrackerModal(activeQuests, onClose) {
       <div class="quest-tracker-title">${quest.title}</div>
       <div class="quest-tracker-hint">${quest.hint}</div>
       <div class="quest-tracker-reward">REWARD: ${quest.reward}</div>
+      ${quest.locationId ? '<button type="button" class="quest-tracker-show-map-btn">SHOW ON MAP</button>' : ''}
     `;
+    if (quest.locationId && onShowOnMap) {
+      card.querySelector('.quest-tracker-show-map-btn').addEventListener('click', () => onShowOnMap(quest.locationId));
+    }
     list.appendChild(card);
   }
   $('quest-tracker-modal').classList.remove('hidden');
@@ -393,6 +397,14 @@ export function showQuestTrackerModal(activeQuests, onClose) {
     $('quest-tracker-modal').classList.add('hidden');
     if (onClose) onClose();
   });
+}
+
+// SHOW ON MAP (game.js onQuestShowOnMap) closes the tracker itself before
+// panning/inspecting, rather than routing back through the CLOSE button's
+// own onClose callback -- that callback is for "the player dismissed this,"
+// not "we're navigating them somewhere else."
+export function hideQuestTrackerModal() {
+  $('quest-tracker-modal').classList.add('hidden');
 }
 
 export function populateBreakingNews(newsText) {
