@@ -129,6 +129,7 @@ export const ASSET_MANIFEST = {
     nuclearPlant: `${BASE}/buildings/Springfield%20Nuclear%20Power%20Plant.png`,
     springfieldCemetery: `${BASE}/buildings/Springfield_Cemetery.webp`,
     burnsManor: `${BASE}/buildings/mrburnsmansion.png`,
+    bowlarama: `${BASE}/buildings/barneysBowlarama.webp`,
   },
   // Full-scene backgrounds not tied to a specific location (menus, etc.)
   backgrounds: {
