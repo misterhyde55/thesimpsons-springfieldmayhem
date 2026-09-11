@@ -142,24 +142,43 @@ function aliveAllies(battle, self) {
   return battle.enemies.filter((e) => e.hp > 0 && e.instanceId !== self.instanceId);
 }
 
+// COMBAT OVERHAUL PART 4/5 (ACTIVE ENEMY DEFENSE): scales an already-
+// landed hit by how well the player reacted to the defense challenge
+// (battleEngine.js advanceEnemyTurn only runs one of these when
+// intent.dodgeable is set -- everything else still resolves at 1, i.e.
+// today's unchanged behavior). Matches the spec's own worked example
+// exactly: "SUCCESS: MISS! / LATE: 8 DAMAGE / FAIL: 16 DAMAGE" on a 16
+// DAMAGE intent -- perfect avoids it entirely, good halves it, anything
+// else (including no challenge at all) lands in full.
+const DEFENSE_OUTCOME_MULTIPLIER = { perfect: 0, good: 0.5, fail: 1 };
+
 // Applies an enemy's already-rolled intent against the player, returning a
 // small summary the UI can turn into damage numbers / log lines.
-export function resolveEnemyIntent(battle, enemy) {
+// `defenseOutcome` ('perfect'|'good'|'fail'|undefined) only ever applies to
+// a dodgeable attack/attackTwice intent -- see battleEngine.js
+// advanceEnemyTurn, which is the only caller that ever passes one.
+export function resolveEnemyIntent(battle, enemy, defenseOutcome) {
   const intent = enemy.intent;
   if (!intent) return { type: 'none' };
 
   if (intent.type === 'attack' || intent.type === 'attackTwice') {
+    const defenseMultiplier = intent.dodgeable && defenseOutcome ? DEFENSE_OUTCOME_MULTIPLIER[defenseOutcome] ?? 1 : 1;
     const hits = intent.type === 'attackTwice' ? 2 : 1;
     const perHit = intent.type === 'attackTwice' ? Math.round(intent.value / 2) : intent.value;
     let totalDealt = 0;
     let anyDodged = false;
     for (let i = 0; i < hits; i += 1) {
-      const outgoing = computeOutgoingDamage(enemy, perHit);
+      const outgoing = Math.round(computeOutgoingDamage(enemy, perHit) * defenseMultiplier);
       const { dealt, dodged } = applyIncomingDamage(battle.player, outgoing);
       totalDealt += dealt;
       anyDodged = anyDodged || dodged;
     }
-    return { type: intent.type, dealt: totalDealt, dodged: anyDodged };
+    return {
+      type: intent.type,
+      dealt: totalDealt,
+      dodged: anyDodged || defenseOutcome === 'perfect',
+      defenseOutcome: intent.dodgeable ? defenseOutcome : undefined,
+    };
   }
   if (intent.type === 'defend') {
     addStatus(enemy, STATUS.ARMOR, intent.value);

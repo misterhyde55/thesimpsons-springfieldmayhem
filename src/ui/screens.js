@@ -1112,6 +1112,105 @@ export function hideChoiceModal() {
   $('choice-modal').classList.add('hidden');
 }
 
+// COMBAT OVERHAUL -- Defense Challenge: a short (~1.3s) reaction prompt for
+// a dodgeable enemy attack (data/enemies.js intent.dodgeable, e.g. Zombie
+// Wiggum's Charging Tackle). A marker sweeps once across a track holding a
+// PERFECT zone nested inside a wider GOOD zone; reacting (click/tap/Space)
+// while the marker is inside scores that outcome, outside (or no reaction
+// before the sweep ends) scores FAIL. Built as its own full-screen overlay
+// appended to <body> -- it needs a live rAF loop and must sit above the
+// battle screen without ever being touched by renderBattle's re-renders.
+const DEFENSE_PROMPT_DURATION_MS = 1300;
+const DEFENSE_PROMPT_GOOD = [52, 88];
+const DEFENSE_PROMPT_PERFECT = [64, 76];
+
+let defensePromptRafId = null;
+
+function removeDefensePromptOverlay() {
+  if (defensePromptRafId !== null) cancelAnimationFrame(defensePromptRafId);
+  defensePromptRafId = null;
+  $('defense-prompt-overlay')?.remove();
+}
+
+export function showDefensePrompt(enemy, intent, onResolved) {
+  removeDefensePromptOverlay();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'defense-prompt-overlay';
+  overlay.className = 'defense-prompt-overlay';
+  overlay.innerHTML = `
+    <div class="defense-prompt-box">
+      <div class="defense-prompt-enemy">${enemy ? String(enemy.name).toUpperCase() : 'ENEMY'}</div>
+      <div class="defense-prompt-intent">${intent?.label ? String(intent.label).toUpperCase() : 'INCOMING ATTACK'}${intent?.value ? ` — ${intent.value} DMG` : ''}</div>
+      <div class="defense-prompt-instruction">TAP, CLICK, OR PRESS SPACE TO DODGE!</div>
+      <div class="defense-prompt-track">
+        <div class="defense-prompt-zone-good" style="left:${DEFENSE_PROMPT_GOOD[0]}%; width:${DEFENSE_PROMPT_GOOD[1] - DEFENSE_PROMPT_GOOD[0]}%;"></div>
+        <div class="defense-prompt-zone-perfect" style="left:${DEFENSE_PROMPT_PERFECT[0]}%; width:${DEFENSE_PROMPT_PERFECT[1] - DEFENSE_PROMPT_PERFECT[0]}%;"></div>
+        <div class="defense-prompt-marker"></div>
+      </div>
+      <div class="defense-prompt-result"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const marker = overlay.querySelector('.defense-prompt-marker');
+  const resultEl = overlay.querySelector('.defense-prompt-result');
+  const startTime = performance.now();
+  let resolved = false;
+
+  function outcomeForPct(pct) {
+    if (pct >= DEFENSE_PROMPT_PERFECT[0] && pct <= DEFENSE_PROMPT_PERFECT[1]) return 'perfect';
+    if (pct >= DEFENSE_PROMPT_GOOD[0] && pct <= DEFENSE_PROMPT_GOOD[1]) return 'good';
+    return 'fail';
+  }
+
+  function currentPct() {
+    return Math.min(100, ((performance.now() - startTime) / DEFENSE_PROMPT_DURATION_MS) * 100);
+  }
+
+  function finish(outcome) {
+    if (resolved) return;
+    resolved = true;
+    if (defensePromptRafId !== null) cancelAnimationFrame(defensePromptRafId);
+    defensePromptRafId = null;
+    overlay.removeEventListener('pointerdown', onReact);
+    window.removeEventListener('keydown', onKey);
+    const label = outcome === 'perfect' ? 'PERFECT DODGE!' : outcome === 'good' ? 'PARTIAL DODGE!' : 'HIT!';
+    resultEl.textContent = label;
+    resultEl.className = `defense-prompt-result defense-prompt-result-${outcome} defense-prompt-result-show`;
+    overlay.classList.add('defense-prompt-resolved');
+    setTimeout(() => {
+      removeDefensePromptOverlay();
+      onResolved(outcome);
+    }, 550);
+  }
+
+  function onReact() {
+    if (resolved) return;
+    finish(outcomeForPct(currentPct()));
+  }
+  function onKey(e) {
+    if (e.code === 'Space' || e.key === ' ') {
+      e.preventDefault();
+      onReact();
+    }
+  }
+
+  overlay.addEventListener('pointerdown', onReact);
+  window.addEventListener('keydown', onKey);
+
+  function tick() {
+    const pct = currentPct();
+    marker.style.left = `${pct}%`;
+    if (pct >= 100) {
+      finish('fail');
+      return;
+    }
+    defensePromptRafId = requestAnimationFrame(tick);
+  }
+  defensePromptRafId = requestAnimationFrame(tick);
+}
+
 // Swaps the still-open choice modal to a brief structured result view
 // (a short line of prose + bullet effects, e.g. "ROD & TODD RESCUED /
 // HOMER -12 HP") instead of hiding it immediately -- lets the player see
