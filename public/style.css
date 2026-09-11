@@ -1286,6 +1286,65 @@ body:not(.header-hidden) .location-interior-screen {
 .end-turn-btn:hover { background: #ffe14d; }
 .end-turn-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b89b0f; }
 
+/* ---- COMBAT OVERHAUL: D'OH! Meter + Move ---- */
+.doh-meter {
+  position: relative;
+  width: 120px;
+  height: 14px;
+  border-radius: 7px;
+  background: #14141a;
+  border: 2px solid #444;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.doh-meter-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #ff9d4d, #f6d217);
+  transition: width 0.35s ease;
+}
+.doh-meter-fill.doh-meter-ready { animation: dohMeterPulse 0.7s ease-in-out infinite; }
+@keyframes dohMeterPulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.5); } }
+.doh-meter-label {
+  position: relative;
+  z-index: 1;
+  display: block;
+  text-align: center;
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 14px;
+  color: #fff8ea;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.5px;
+}
+.doh-move-btn {
+  flex: 0 0 auto;
+  background: #555;
+  color: #999;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 900;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  cursor: not-allowed;
+  box-shadow: 0 4px 0 #333;
+}
+.doh-move-btn.doh-move-ready {
+  background: linear-gradient(135deg, #ff9d4d, #f6d217);
+  color: #1b1b1f;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b8650f;
+  animation: dohMovePulse 0.9s ease-in-out infinite;
+}
+.doh-move-btn.doh-move-ready:hover { filter: brightness(1.1); }
+.doh-move-btn.doh-move-ready:active { transform: translateY(3px); box-shadow: 0 1px 0 #b8650f; }
+@keyframes dohMovePulse {
+  0%, 100% { box-shadow: 0 4px 0 #b8650f, 0 0 0 rgba(246, 210, 23, 0); }
+  50% { box-shadow: 0 4px 0 #b8650f, 0 0 14px rgba(246, 210, 23, 0.8); }
+}
+
 /* ---- Damage feedback: fast (< 1s), readable, stylized -- no emoji ---- */
 .floating-number {
   position: absolute;

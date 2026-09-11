@@ -715,6 +715,7 @@ export function populateBattle(battle, runState, handlers) {
     if (card && !card.disabled) handlers.onAbilityClick(card.dataset.abilityId);
   };
   renderHandCards(battle, runState);
+  freshButton('btn-doh-move').addEventListener('click', () => handlers.onDohMoveClick());
   freshButton('btn-battle-end-turn').addEventListener('click', () => handlers.onEndTurn());
   freshButton('btn-battle-draw-pile').addEventListener('click', () => handlers.onInspectPile('draw'));
   freshButton('btn-battle-discard-pile').addEventListener('click', () => handlers.onInspectPile('discard'));
@@ -782,6 +783,18 @@ export function renderBattle(battle, runState) {
   $('battle-mayhem-readout').textContent = `MAYHEM: ${runState.mayhem}%`;
   applyMayhemVisuals(runState.mayhem);
   updateHeaderRunInfo(runState);
+
+  // COMBAT OVERHAUL: D'OH! Meter -- fills from PERFECT Attack/Defense
+  // Challenge outcomes and interrupts (game.js addDohMeter); ready lights
+  // up both the meter fill and the move button once it's full.
+  const dohPct = Math.max(0, Math.min(100, (battle.dohMeter / battle.dohMeterMax) * 100));
+  const dohReady = battle.dohMeter >= battle.dohMeterMax;
+  $('battle-doh-meter-fill').style.width = `${dohPct}%`;
+  $('battle-doh-meter-fill').classList.toggle('doh-meter-ready', dohReady);
+  $('battle-doh-meter-label').textContent = dohReady ? "D'OH! READY!" : `D'OH! ${Math.round(dohPct)}%`;
+  const dohBtn = $('btn-doh-move');
+  dohBtn.classList.toggle('doh-move-ready', dohReady && !battle.outcome);
+  dohBtn.disabled = !dohReady || !!battle.outcome;
 
   for (const enemy of battle.enemies) {
     const slot = document.querySelector(`.enemy-slot[data-enemy-id="${enemy.instanceId}"]`);
