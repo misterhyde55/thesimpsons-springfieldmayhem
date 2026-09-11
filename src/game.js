@@ -50,6 +50,7 @@ import {
   useConsumableInBattle,
   beginEnemyTurn,
   advanceEnemyTurn,
+  useDohMove,
   canPlayAbility,
   getAliveEnemies,
   getPlayableAbilities,
@@ -1180,6 +1181,7 @@ export class Game {
       onConsumableClick: (itemId) => this.onConsumableClick(itemId),
       onEndTurn: () => this.endTurn(),
       onInspectPile: (which) => this.onInspectPile(which),
+      onDohMoveClick: () => this.onDohMoveClick(),
     });
 
     // A location battlefield event is active for this fight (REDESIGN
@@ -1277,8 +1279,41 @@ export class Game {
     screens.showAttackTimingPrompt(ability, (outcome) => {
       const pct = { perfect: 0.25, good: 0, bad: -0.3 }[outcome] ?? 0;
       this.battle.flags.nextAttackBonusPct = pct;
+      if (outcome === 'perfect') this.addDohMeter(34);
       onDone();
     });
+  }
+
+  // COMBAT OVERHAUL -- D'OH! Meter: fills from PERFECT Attack/Defense
+  // Challenge outcomes (34 each -- three PERFECTs fill it) and interrupts
+  // (a bigger 50, since landing one is already hard); useDohMove spends
+  // the full meter on "WHY YOU LITTLE!" (systems/battleEngine.js).
+  addDohMeter(amount) {
+    if (!this.battle || this.battle.outcome) return;
+    const wasReady = this.battle.dohMeter >= this.battle.dohMeterMax;
+    this.battle.dohMeter = Math.min(this.battle.dohMeterMax, this.battle.dohMeter + amount);
+    screens.renderBattle(this.battle, this.runState);
+    if (!wasReady && this.battle.dohMeter >= this.battle.dohMeterMax) {
+      screens.showRewardToasts("D'OH! METER FULL -- WHY YOU LITTLE! IS READY!");
+    }
+  }
+
+  onDohMoveClick() {
+    if (!this.battle || this.battle.outcome) return;
+    const result = useDohMove(this.battle, this.runState);
+    if (!result.ok) return;
+    playMenuSelect();
+    screens.showBanner('WHY YOU LITTLE!!', 2000);
+    screens.playCombatantAnimation(null, 'lunge');
+    setTimeout(() => {
+      this.animateAbilityEvents(result.events);
+      screens.shakeBattleStage();
+      screens.appendBattleLog("You unleash WHY YOU LITTLE! on everyone!");
+      screens.renderBattle(this.battle, this.runState);
+      syncRunStateFromBattle(this.runState, this.battle);
+      saveActiveRun(this.runState);
+      this.afterPlayerAction();
+    }, 260);
   }
 
   executeAbilityPlay(abilityId, targetInstanceId) {
@@ -1572,6 +1607,7 @@ export class Game {
   showDefensePrompt(enemyId, intent, onResolved) {
     const enemy = this.battle.enemies.find((e) => e.instanceId === enemyId);
     screens.showDefensePrompt(enemy, intent, (outcome) => {
+      if (outcome === 'perfect') this.addDohMeter(34);
       onResolved(outcome);
     });
   }
@@ -1692,6 +1728,7 @@ export class Game {
           screens.playCombatantAnimation(action.enemyId, 'break');
           screens.showRewardToasts('PERFECT INTERRUPT!');
           screens.appendBattleLog(`${name}'s Prayer is INTERRUPTED! Perfect Interrupt!`);
+          this.addDohMeter(50);
         } else if (r.value > 0) {
           screens.showFloatingNumber(action.enemyId, `+${r.value}`, 'heal');
           screens.playCombatantAnimation(action.enemyId, 'heal');

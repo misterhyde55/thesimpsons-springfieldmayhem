@@ -378,6 +378,13 @@
       <div id="battle-location-name" class="battle-location-name">Springfield</div>
       <div class="battle-topbar-right">
         <div id="battle-horror-rule" class="battle-horror-rule hidden"></div>
+        <!-- COMBAT OVERHAUL: D'OH! Meter -- fills from PERFECT Attack/
+             Defense Challenge outcomes and interrupts (game.js addDohMeter);
+             the button below lights up once it's full. -->
+        <div id="battle-doh-meter" class="doh-meter" title="D'OH! Meter">
+          <div id="battle-doh-meter-fill" class="doh-meter-fill"></div>
+          <span id="battle-doh-meter-label" class="doh-meter-label">D'OH! 0%</span>
+        </div>
         <div id="battle-mayhem-readout" class="mayhem-readout">MAYHEM: 0%</div>
       </div>
     </div>
@@ -429,6 +436,10 @@
         <button id="btn-battle-discard-pile" type="button" class="pile-badge" title="Discard pile -- click to inspect">DISCARD<span id="battle-discard-count">0</span></button>
       </div>
       <div id="battle-abilities" class="battle-abilities"></div>
+      <!-- COMBAT OVERHAUL: D'OH! Move -- "WHY YOU LITTLE!", the first of
+           the spec's big Simpsons super moves. Disabled/greyed out until
+           the D'OH Meter is full; free (no Energy cost), consumes the meter. -->
+      <button id="btn-doh-move" type="button" class="doh-move-btn" disabled>D'OH!<br />WHY YOU LITTLE!</button>
       <button id="btn-battle-end-turn" class="end-turn-btn">End<br />Turn</button>
     </div>
   </section>

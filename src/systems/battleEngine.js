@@ -219,6 +219,11 @@ export function createBattle(runState, enemyTemplates, locationId, isBoss, envir
     drawPile: shuffledArray(runState.abilityDeck),
     hand: [],
     discardPile: [],
+    // COMBAT OVERHAUL: D'OH! Meter -- fills from PERFECT Attack/Defense
+    // Challenge outcomes and interrupts (game.js addDohMeter); useDohMove
+    // below spends it on a free "WHY YOU LITTLE!" burst once full.
+    dohMeter: 0,
+    dohMeterMax: 100,
   };
   drawCards(battle, HAND_SIZE);
   for (const enemy of battle.enemies) {
@@ -282,7 +287,7 @@ export function canPlayAbility(battle, runState, abilityId) {
 // hook (data/relics.js bowlingLeagueChamp) what's actually dealing this
 // damage -- {kind:'ability', archetype} or {kind:'environment'} -- so an
 // archetype-specific bonus doesn't need its own bespoke plumbing.
-function buildBattleApi(battle, runState, targetEnemy, events, effectSource = null) {
+export function buildBattleApi(battle, runState, targetEnemy, events, effectSource = null) {
   function resolveWho(who) {
     if (who === 'self') return battle.player;
     if (who === 'target') return targetEnemy;
@@ -464,6 +469,23 @@ export function playEnvironmentAction(battle, runState, actionId, targetInstance
   }
   battle.log.push({ turn: battle.turnNumber, actor: 'environment', actionId, events });
 
+  return { ok: true, events };
+}
+
+// COMBAT OVERHAUL: D'OH! Move -- "WHY YOU LITTLE!", the first of the
+// spec's big Simpsons super moves. Free (no Energy, doesn't end the
+// turn), costs the whole D'OH Meter (game.js addDohMeter fills it from
+// PERFECT Attack/Defense Challenge outcomes and interrupts). Hits every
+// alive enemy at once so it needs no targeting step of its own.
+const DOH_MOVE_DAMAGE = 25;
+
+export function useDohMove(battle, runState) {
+  if (battle.outcome || battle.dohMeter < battle.dohMeterMax) return { ok: false };
+  battle.dohMeter = 0;
+  const events = [];
+  const api = buildBattleApi(battle, runState, null, events, { kind: 'dohMove' });
+  api.damageAll(DOH_MOVE_DAMAGE);
+  battle.log.push({ turn: battle.turnNumber, actor: 'dohMove', actionId: 'whyYouLittle', events });
   return { ok: true, events };
 }
 
