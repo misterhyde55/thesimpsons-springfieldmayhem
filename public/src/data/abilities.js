@@ -53,6 +53,12 @@ export const ABILITIES = {
     archetype: 'universal',
     target: 'enemy',
     description: 'Deal 12 damage.',
+    // COMBAT OVERHAUL retrofit target (spec's melee timing-meter example):
+    // game.js's resolveAbilityPlay pauses on this and shows a BAD/GOOD/
+    // PERFECT/GOOD/BAD timing prompt before the card resolves -- the
+    // outcome sets battle.flags.nextAttackBonusPct, which api.damage()
+    // already applies below, so this effect() itself needs no changes.
+    attackChallenge: 'melee',
     effect(api) {
       api.damage(12);
     },

@@ -1254,11 +1254,31 @@ export class Game {
     playMenuSelect();
     const ability = ABILITIES[abilityId];
     const isSignature = ability.rarity === RARITY.RARE || ability.rarity === RARITY.EPIC;
+    const proceed = () => this.maybeRunAttackChallenge(ability, () => this.executeAbilityPlay(abilityId, targetInstanceId));
     if (isSignature) {
-      screens.showLargeCardPreview(ability, () => this.executeAbilityPlay(abilityId, targetInstanceId));
+      screens.showLargeCardPreview(ability, proceed);
       return;
     }
-    this.executeAbilityPlay(abilityId, targetInstanceId);
+    proceed();
+  }
+
+  // COMBAT OVERHAUL -- Attack Challenge: a melee-tagged ability (data/
+  // abilities.js ability.attackChallenge, currently just Haymaker) pauses
+  // for a short BAD/GOOD/PERFECT/GOOD/BAD timing-meter reaction before it
+  // resolves. PERFECT = +25% damage, GOOD = no change, BAD = -30% --
+  // reuses the existing battle.flags.nextAttackBonusPct funnel
+  // buildBattleApi's damage()/damageAll() already apply (systems/
+  // battleEngine.js), so the ability's own effect() needs no changes.
+  maybeRunAttackChallenge(ability, onDone) {
+    if (ability.attackChallenge !== 'melee' || !this.battle) {
+      onDone();
+      return;
+    }
+    screens.showAttackTimingPrompt(ability, (outcome) => {
+      const pct = { perfect: 0.25, good: 0, bad: -0.3 }[outcome] ?? 0;
+      this.battle.flags.nextAttackBonusPct = pct;
+      onDone();
+    });
   }
 
   executeAbilityPlay(abilityId, targetInstanceId) {
