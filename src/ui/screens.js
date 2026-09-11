@@ -1211,6 +1211,102 @@ export function showDefensePrompt(enemy, intent, onResolved) {
   defensePromptRafId = requestAnimationFrame(tick);
 }
 
+// COMBAT OVERHAUL -- Attack Challenge: the offense counterpart to
+// showDefensePrompt above, for a melee ability (data/abilities.js
+// ability.attackChallenge). Same one-pass marker-sweep mechanic, but a
+// symmetric BAD/GOOD/PERFECT/GOOD/BAD zone layout (matching the spec's own
+// melee timing-meter description) instead of three -- react too early or
+// too late and it's BAD, react close to center and it's PERFECT.
+const ATTACK_PROMPT_DURATION_MS = 1100;
+const ATTACK_PROMPT_GOOD = [22, 78];
+const ATTACK_PROMPT_PERFECT = [42, 58];
+
+let attackPromptRafId = null;
+
+function removeAttackPromptOverlay() {
+  if (attackPromptRafId !== null) cancelAnimationFrame(attackPromptRafId);
+  attackPromptRafId = null;
+  $('attack-prompt-overlay')?.remove();
+}
+
+export function showAttackTimingPrompt(ability, onResolved) {
+  removeAttackPromptOverlay();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'attack-prompt-overlay';
+  overlay.className = 'defense-prompt-overlay attack-prompt-overlay';
+  overlay.innerHTML = `
+    <div class="defense-prompt-box attack-prompt-box">
+      <div class="defense-prompt-enemy">${ability?.name ? String(ability.name).toUpperCase() : 'ATTACK'}</div>
+      <div class="defense-prompt-instruction">TAP, CLICK, OR PRESS SPACE ON THE SWEET SPOT!</div>
+      <div class="defense-prompt-track">
+        <div class="defense-prompt-zone-good" style="left:${ATTACK_PROMPT_GOOD[0]}%; width:${ATTACK_PROMPT_GOOD[1] - ATTACK_PROMPT_GOOD[0]}%;"></div>
+        <div class="defense-prompt-zone-perfect" style="left:${ATTACK_PROMPT_PERFECT[0]}%; width:${ATTACK_PROMPT_PERFECT[1] - ATTACK_PROMPT_PERFECT[0]}%;"></div>
+        <div class="defense-prompt-marker"></div>
+      </div>
+      <div class="defense-prompt-result"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const marker = overlay.querySelector('.defense-prompt-marker');
+  const resultEl = overlay.querySelector('.defense-prompt-result');
+  const startTime = performance.now();
+  let resolved = false;
+
+  function outcomeForPct(pct) {
+    if (pct >= ATTACK_PROMPT_PERFECT[0] && pct <= ATTACK_PROMPT_PERFECT[1]) return 'perfect';
+    if (pct >= ATTACK_PROMPT_GOOD[0] && pct <= ATTACK_PROMPT_GOOD[1]) return 'good';
+    return 'bad';
+  }
+
+  function currentPct() {
+    return Math.min(100, ((performance.now() - startTime) / ATTACK_PROMPT_DURATION_MS) * 100);
+  }
+
+  function finish(outcome) {
+    if (resolved) return;
+    resolved = true;
+    if (attackPromptRafId !== null) cancelAnimationFrame(attackPromptRafId);
+    attackPromptRafId = null;
+    overlay.removeEventListener('pointerdown', onReact);
+    window.removeEventListener('keydown', onKey);
+    const label = outcome === 'perfect' ? 'PERFECT!' : outcome === 'good' ? 'GOOD HIT!' : 'BAD SWING!';
+    resultEl.textContent = label;
+    resultEl.className = `defense-prompt-result defense-prompt-result-${outcome === 'bad' ? 'fail' : outcome} defense-prompt-result-show`;
+    overlay.classList.add('defense-prompt-resolved');
+    setTimeout(() => {
+      removeAttackPromptOverlay();
+      onResolved(outcome);
+    }, 450);
+  }
+
+  function onReact() {
+    if (resolved) return;
+    finish(outcomeForPct(currentPct()));
+  }
+  function onKey(e) {
+    if (e.code === 'Space' || e.key === ' ') {
+      e.preventDefault();
+      onReact();
+    }
+  }
+
+  overlay.addEventListener('pointerdown', onReact);
+  window.addEventListener('keydown', onKey);
+
+  function tick() {
+    const pct = currentPct();
+    marker.style.left = `${pct}%`;
+    if (pct >= 100) {
+      finish('bad');
+      return;
+    }
+    attackPromptRafId = requestAnimationFrame(tick);
+  }
+  attackPromptRafId = requestAnimationFrame(tick);
+}
+
 // Swaps the still-open choice modal to a brief structured result view
 // (a short line of prose + bullet effects, e.g. "ROD & TODD RESCUED /
 // HOMER -12 HP") instead of hiding it immediately -- lets the player see

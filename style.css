@@ -2472,3 +2472,9 @@ body:not(.header-hidden) .location-interior-screen {
   from { transform: scale(0.6); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+/* Attack Challenge reuses the Defense Challenge's overlay/track styling --
+   gold border instead of red to read as "your move" rather than incoming
+   danger. */
+.attack-prompt-box { border-color: #f6d217; }
+.attack-prompt-box .defense-prompt-enemy { color: #f6d217; }
