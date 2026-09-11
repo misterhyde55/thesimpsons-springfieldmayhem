@@ -206,7 +206,12 @@ export const ENEMIES = {
     hp: 26,
     tags: ['zombie'],
     intents: [
-      { type: 'attack', value: 7, weight: 45, label: 'Attack', icon: '🩸' },
+      // COMBAT OVERHAUL retrofit target (spec's own worked example): a
+      // proper telegraphed, dodgeable attack instead of a flat "Attack" --
+      // battleEngine.js's advanceEnemyTurn pauses on this one and shows
+      // the Defense Challenge prompt; PERFECT dodges it entirely, GOOD
+      // halves it, FAIL (or no reaction) lands the full 16.
+      { type: 'attack', value: 16, weight: 45, label: 'Charging Tackle', icon: '🩸', dodgeable: true },
       { type: 'friendlyFire', value: 9, weight: 35, label: 'Discharges Weapon Badly', icon: '💥' },
       { type: 'defend', value: 5, weight: 20, label: 'Defend', icon: '🛡️' },
     ],

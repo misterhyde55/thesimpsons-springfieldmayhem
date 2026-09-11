@@ -467,114 +467,113 @@ export function playEnvironmentAction(battle, runState, actionId, targetInstance
   return { ok: true, events };
 }
 
-// Resolves every enemy's already-rolled intent, ticks end-of-turn statuses,
-// rolls each enemy's next intent, and refills the player's energy for the
-// next turn. Called once the player ends their turn (or has no playable
-// abilities left). Returns a per-enemy action log for the UI to animate.
-export function endPlayerTurn(battle, runState) {
-  if (battle.outcome) return { enemyActions: [] };
-
+// COMBAT OVERHAUL PART 4 (ACTIVE ENEMY DEFENSE): the enemy-turn resolver
+// used to be one synchronous function that resolved every enemy's already-
+// rolled intent in a single pass -- fine when nothing ever needed player
+// input mid-resolution, but a real defense challenge (a dodge prompt) has
+// to actually PAUSE before a dodgeable hit lands, wait for the player's
+// reaction, and then resume with the REST of the enemies still to go. That
+// needs the enemy-turn to become resumable rather than atomic, so it's now
+// split into three pieces:
+//   beginEnemyTurn   -- the once-per-turn setup (poison tick, snapshot the
+//                        alive-enemies queue). Call once, when the player
+//                        ends their turn.
+//   advanceEnemyTurn -- resolves ONE enemy (or, if resuming a defense
+//                        challenge, finishes resolving the one that
+//                        paused), then returns immediately. Call this
+//                        again for status 'continue'; on 'needsDefense',
+//                        game.js shows the challenge and calls this again
+//                        with the outcome for the SAME enemy (battle.
+//                        pendingDefenseEnemyId tracks which one); 'done'
+//                        means the whole enemy turn has resolved and the
+//                        tail logic (roll next intents, draw a fresh hand,
+//                        etc. -- everything the old function's second half
+//                        did) has already run.
+// Everything BELOW is byte-for-byte the same resolution logic the old
+// single function had -- only the control flow changed, not the rules.
+export function beginEnemyTurn(battle, runState) {
+  if (battle.outcome) return { enemyActions: [], defeated: false };
   const poisonDamage = tickTurnEnd(battle.player);
   if (poisonDamage > 0) notePlayerDamage(battle, runState, poisonDamage);
   if (battle.player.hp <= 0) {
     battle.outcome = 'defeat';
-    return { enemyActions: [], playerPoisonTick: poisonDamage };
+    return { enemyActions: [], playerPoisonTick: poisonDamage, defeated: true };
   }
+  battle.pendingEnemyQueue = getAliveEnemies(battle).map((e) => e.instanceId);
+  battle.pendingEnemyActions = [];
+  battle.pendingDefenseEnemyId = null;
+  return { enemyActions: [], playerPoisonTick: poisonDamage, defeated: false };
+}
 
-  const enemyActions = [];
-  // getAliveEnemies is a snapshot taken once, before this loop runs -- an
-  // earlier enemy's own turn (friendlyFire, a location event's reaction)
-  // can kill a LATER enemy in this same snapshot before its turn comes up.
-  // Without this guard that dead enemy still took its turn (DEBUG ALL
-  // ENEMY AI: "enemy dies but remains in turn queue").
-  for (const enemy of getAliveEnemies(battle)) {
-    if (enemy.hp <= 0) continue;
-    const { stunned } = tickTurnStart(enemy);
-    if (stunned) {
-      enemyActions.push({ enemyId: enemy.instanceId, stunned: true, intent: enemy.intent });
-    } else {
-      const result = resolveEnemyIntent(battle, enemy);
-      if (result.dealt) notePlayerDamage(battle, runState, result.dealt);
-      if (result.type === 'infect') {
-        runState.infection = Math.min(INFECTION_MAX, (runState.infection || 0) + (result.value || 0));
-      }
-      if (result.type === 'steal') {
-        const stolen = Math.min(runState.donutsCurrency, result.value || 0);
-        runState.donutsCurrency -= stolen;
-        enemy.stolenTotal = (enemy.stolenTotal || 0) + stolen;
-        result.stolenAmount = stolen;
-      }
-      if (result.type === 'summon' && !battle.flags[`summoned_${enemy.instanceId}`]) {
-        battle.flags[`summoned_${enemy.instanceId}`] = true;
-        const summonTemplate = ENEMIES[result.summonId];
-        if (summonTemplate) {
-          const summoned = instantiateEnemy(summonTemplate);
-          fireHooks(runState, 'onEnemySpawn', summoned);
-          if (summoned.template.onBattleStart) summoned.template.onBattleStart(battle, runState, summoned);
-          rollIntent(summoned);
-          battle.enemies.push(summoned);
-          result.summonedInstanceId = summoned.instanceId;
-          result.summonedName = summoned.name;
-        }
-      }
-      // Needs runState.abilityDeck (Zombie Ned's Ski Nightmare) -- same
-      // reason steal/summon are resolved here rather than in enemyAI.js.
-      if (result.type === 'distract') {
-        const candidates = runState.abilityDeck.filter((id) => id !== battle.distractedAbilityId);
-        if (candidates.length) {
-          const pick = candidates[Math.floor(Math.random() * candidates.length)];
-          battle.distractedAbilityId = pick;
-          result.distractedAbilityId = pick;
-        }
-      }
-      // Some of the reactive hooks above (heal/friendlyFire/buffAlly targets,
-      // or a friendly-fire kill) can resolve/kill an ally mid-intent -- run
-      // the same defeat check the player's own damage goes through.
-      if (result.targetId) {
-        const targetEnemy = battle.enemies.find((e) => e.instanceId === result.targetId);
-        if (targetEnemy) resolveDefeatOrResurrect(battle, runState, targetEnemy);
-      }
-      checkVictory(battle);
-      enemyActions.push({ enemyId: enemy.instanceId, stunned: false, intent: enemy.intent, result });
-    }
-    tickTurnEnd(enemy);
-    if (battle.player.hp <= 0) {
-      battle.outcome = 'defeat';
-      break;
+function resolveOneEnemy(battle, runState, enemy, defenseOutcome) {
+  const result = resolveEnemyIntent(battle, enemy, defenseOutcome);
+  if (result.dealt) notePlayerDamage(battle, runState, result.dealt);
+  if (result.type === 'infect') {
+    runState.infection = Math.min(INFECTION_MAX, (runState.infection || 0) + (result.value || 0));
+  }
+  if (result.type === 'steal') {
+    const stolen = Math.min(runState.donutsCurrency, result.value || 0);
+    runState.donutsCurrency -= stolen;
+    enemy.stolenTotal = (enemy.stolenTotal || 0) + stolen;
+    result.stolenAmount = stolen;
+  }
+  if (result.type === 'summon' && !battle.flags[`summoned_${enemy.instanceId}`]) {
+    battle.flags[`summoned_${enemy.instanceId}`] = true;
+    const summonTemplate = ENEMIES[result.summonId];
+    if (summonTemplate) {
+      const summoned = instantiateEnemy(summonTemplate);
+      fireHooks(runState, 'onEnemySpawn', summoned);
+      if (summoned.template.onBattleStart) summoned.template.onBattleStart(battle, runState, summoned);
+      rollIntent(summoned);
+      battle.enemies.push(summoned);
+      result.summonedInstanceId = summoned.instanceId;
+      result.summonedName = summoned.name;
     }
   }
-
-  if (battle.outcome) return { enemyActions };
-
-  for (const enemy of getAliveEnemies(battle)) {
-    rollIntent(enemy);
-    // Per-round trackers reset for the player's upcoming turn: how much
-    // damage lands on this enemy this turn (interrupt checks) and whether
-    // it's eligible to Break again (applyBreakDamage above).
-    enemy.damageTakenThisTurn = 0;
-    enemy.brokenThisCycle = false;
+  if (result.type === 'distract') {
+    const candidates = runState.abilityDeck.filter((id) => id !== battle.distractedAbilityId);
+    if (candidates.length) {
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      battle.distractedAbilityId = pick;
+      result.distractedAbilityId = pick;
+    }
   }
-  // Ski Nightmare only locks one card for the turn it's cast -- cleared the
-  // instant a fresh player turn begins, whether or not it was ever hit.
+  if (result.targetId) {
+    const targetEnemy = battle.enemies.find((e) => e.instanceId === result.targetId);
+    if (targetEnemy) resolveDefeatOrResurrect(battle, runState, targetEnemy);
+  }
+  checkVictory(battle);
+  battle.pendingEnemyActions.push({ enemyId: enemy.instanceId, stunned: false, intent: enemy.intent, result });
+  tickTurnEnd(enemy);
+  if (battle.player.hp <= 0) battle.outcome = 'defeat';
+}
+
+// The once-per-turn tail (rolling next intents, refilling energy, drawing a
+// fresh hand, firing onPlayerTurnStart, the location event's periodic
+// tick) -- unchanged from the old function's second half, just renamed
+// since it now only runs once the resumable loop's queue is empty.
+function finishEnemyTurn(battle, runState) {
+  if (!battle.outcome) {
+    for (const enemy of getAliveEnemies(battle)) {
+      rollIntent(enemy);
+      enemy.damageTakenThisTurn = 0;
+      enemy.brokenThisCycle = false;
+    }
+  }
   battle.distractedAbilityId = null;
-  // hotDogPunch's "healed this turn" check (see api.healedThisTurn above)
-  // only ever means THIS turn -- clear it for the fresh one about to start.
   battle.flags.healedThisTurn = false;
+
+  const enemyActions = battle.pendingEnemyActions;
+  if (battle.outcome) return { status: 'done', enemyActions };
 
   battle.turnNumber += 1;
   const { stunned } = tickTurnStart(battle.player);
   battle.player.energy = effectiveMaxEnergy(battle.player, battle.player.maxEnergy);
-  // New player turn: discard whatever's left in hand and draw a fresh one.
   battle.discardPile.push(...battle.hand);
   battle.hand = [];
   drawCards(battle, HAND_SIZE);
   fireHooks(runState, 'onPlayerTurnStart', battle);
 
-  // A location battlefield event's periodic tick (Nuclear Plant's radiation
-  // leak, Kwik-E-Mart's Squishee malfunction -- see
-  // data/locationBattleEvents.js). Most locations define no onTurnStart at
-  // all, and most turns even those two are a no-op (they gate on
-  // turnNumber), so this returns null far more often than not.
   let locationEvent = null;
   const locEvent = getLocationBattleEvent(battle.locationId);
   if (locEvent && locEvent.onTurnStart && !battle.outcome) {
@@ -585,7 +584,56 @@ export function endPlayerTurn(battle, runState) {
     if (battle.player.hp <= 0) battle.outcome = 'defeat';
   }
 
-  return { enemyActions, playerStunned: stunned, locationEvent };
+  return { status: 'done', enemyActions, playerStunned: stunned, locationEvent };
+}
+
+// Called once per step by game.js's enemy-turn loop. `defenseOutcome`
+// ('perfect'|'good'|'fail') should be passed ONLY when resuming after a
+// defense challenge for battle.pendingDefenseEnemyId -- omit it otherwise.
+// Returns one of:
+//   {status:'needsDefense', enemyId, intent}  -- game.js must show the
+//     challenge, then call this again with the outcome for the SAME enemy.
+//   {status:'continue', enemyActions}         -- one enemy resolved
+//     (or was stunned); call again for the next one.
+//   {status:'done', enemyActions, ...}        -- the whole enemy turn (and
+//     its once-per-turn tail) has finished; same shape the old single
+//     function used to return.
+export function advanceEnemyTurn(battle, runState, defenseOutcome) {
+  if (battle.outcome) return { status: 'done', enemyActions: battle.pendingEnemyActions || [] };
+
+  let enemy;
+  if (battle.pendingDefenseEnemyId) {
+    // Resuming: this enemy's intent already paused once (see the
+    // 'needsDefense' branch below) and is NOT re-fetched from the queue.
+    enemy = battle.enemies.find((e) => e.instanceId === battle.pendingDefenseEnemyId);
+    battle.pendingDefenseEnemyId = null;
+  } else {
+    const enemyId = battle.pendingEnemyQueue.shift();
+    if (!enemyId) return finishEnemyTurn(battle, runState);
+    enemy = battle.enemies.find((e) => e.instanceId === enemyId);
+    // getAliveEnemies snapshotted the queue in beginEnemyTurn -- an earlier
+    // enemy's own turn (friendlyFire, a location event's reaction) can
+    // still kill a LATER enemy already in that snapshot (DEBUG ALL ENEMY
+    // AI: "enemy dies but remains in turn queue").
+    if (!enemy || enemy.hp <= 0) return advanceEnemyTurn(battle, runState);
+
+    const { stunned } = tickTurnStart(enemy);
+    if (stunned) {
+      battle.pendingEnemyActions.push({ enemyId: enemy.instanceId, stunned: true, intent: enemy.intent });
+      tickTurnEnd(enemy);
+      return { status: 'continue', enemyActions: battle.pendingEnemyActions };
+    }
+
+    const intent = enemy.intent;
+    if (intent?.dodgeable && (intent.type === 'attack' || intent.type === 'attackTwice')) {
+      battle.pendingDefenseEnemyId = enemy.instanceId;
+      return { status: 'needsDefense', enemyId: enemy.instanceId, intent };
+    }
+  }
+
+  resolveOneEnemy(battle, runState, enemy, defenseOutcome);
+  if (battle.outcome) return { status: 'done', enemyActions: battle.pendingEnemyActions };
+  return { status: 'continue', enemyActions: battle.pendingEnemyActions };
 }
 
 export function syncRunStateFromBattle(runState, battle) {

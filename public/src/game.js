@@ -48,7 +48,8 @@ import {
   playAbility,
   playEnvironmentAction,
   useConsumableInBattle,
-  endPlayerTurn,
+  beginEnemyTurn,
+  advanceEnemyTurn,
   canPlayAbility,
   getAliveEnemies,
   getPlayableAbilities,
@@ -1475,12 +1476,36 @@ export class Game {
   }
 
   // ---------- BATTLE: ENEMY TURN ----------
+  // COMBAT OVERHAUL: a dodgeable enemy attack (data/enemies.js
+  // intent.dodgeable) now PAUSES the enemy turn mid-resolution instead of
+  // resolving instantly -- systems/battleEngine.js's endPlayerTurn was
+  // split into a resumable step machine (beginEnemyTurn/advanceEnemyTurn)
+  // for exactly this. endTurn() just kicks the loop off; runEnemyTurnStep
+  // drives it forward one enemy at a time, pausing on 'needsDefense' to
+  // show the dodge prompt and resuming with the player's outcome.
   endTurn() {
     if (!this.battle || this.battle.outcome) return;
     screens.setBattleTargetingAbility(null);
     this.pendingAbilityId = null;
 
-    const result = endPlayerTurn(this.battle, this.runState);
+    beginEnemyTurn(this.battle, this.runState);
+    this.runEnemyTurnStep();
+  }
+
+  runEnemyTurnStep(defenseOutcome) {
+    const step = advanceEnemyTurn(this.battle, this.runState, defenseOutcome);
+    if (step.status === 'needsDefense') {
+      this.showDefensePrompt(step.enemyId, step.intent, (outcome) => this.runEnemyTurnStep(outcome));
+      return;
+    }
+    if (step.status === 'continue') {
+      this.runEnemyTurnStep();
+      return;
+    }
+    this.finishEnemyTurn(step);
+  }
+
+  finishEnemyTurn(result) {
     this.animateEnemyActions(result.enemyActions);
     // A location battlefield event's periodic tick landed this turn (Nuclear
     // Plant radiation, Kwik-E-Mart Squishee malfunction -- see
@@ -1517,6 +1542,18 @@ export class Game {
       screens.renderBattle(this.battle, this.runState);
       screens.showBanner(`${callback.title} ${callback.text}`, 2600);
     }
+  }
+
+  // COMBAT OVERHAUL -- Defense Challenge: pauses the enemy turn on a
+  // dodgeable attack (see data/enemies.js Zombie Wiggum's Charging Tackle)
+  // and asks the player to react. PERFECT = MISS entirely, GOOD = half
+  // damage, FAIL (or no input in time) = full damage -- matches the spec's
+  // own worked example exactly (systems/enemyAI.js DEFENSE_OUTCOME_MULTIPLIER).
+  showDefensePrompt(enemyId, intent, onResolved) {
+    const enemy = this.battle.enemies.find((e) => e.instanceId === enemyId);
+    screens.showDefensePrompt(enemy, intent, (outcome) => {
+      onResolved(outcome);
+    });
   }
 
   // ---------- DEVIL NED DEALS (data/devilDeals.js) ----------
